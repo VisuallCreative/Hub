@@ -1170,6 +1170,7 @@ ${textToAnalyze}
 
 // Creator Progress Analyzer - YouTube channel data endpoint
 app.get("/api/youtube/channel", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   const query = (req.query.query as string || "").trim();
   if (!query) {
     res.status(400).json({ error: "O parâmetro query (handle, ID ou URL do canal) é obrigatório." });

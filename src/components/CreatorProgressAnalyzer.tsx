@@ -8,7 +8,6 @@ import {
   TrendingUp,
   ArrowLeft,
   ShieldCheck,
-  Settings2,
   Layers,
   Info,
   Check,
@@ -46,15 +45,13 @@ import {
   AnalysisSummary
 } from '../types/creator';
 import {
-  getStoredRequirements,
-  saveStoredRequirements,
+  ALL_CREATOR_REQUIREMENTS,
   PKXD_CREATOR_TIERS
 } from '../data/creatorRequirements';
 import {
   evaluateRequirements,
   getChannelTierProgressions
 } from '../utils/creatorAnalyzer';
-import CreatorRequirementsConfigModal from './CreatorRequirementsConfigModal';
 
 interface CreatorProgressAnalyzerProps {
   onBackToHub: () => void;
@@ -211,11 +208,10 @@ async function resolveChannelFallback(query: string): Promise<ChannelMetrics | n
 
 export default function CreatorProgressAnalyzer({
   onBackToHub,
-  soundEnabled = true,
   triggerAudio,
   onAddXP
 }: CreatorProgressAnalyzerProps) {
-  const [requirements, setRequirements] = useState<CreatorRequirement[]>(getStoredRequirements);
+  const requirements: CreatorRequirement[] = ALL_CREATOR_REQUIREMENTS;
   const [queryInput, setQueryInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -241,7 +237,6 @@ export default function CreatorProgressAnalyzer({
 
   const [creatorFormat, setCreatorFormat] = useState<CreatorFormat>('long_video');
   const [selectedTier, setSelectedTier] = useState<ProgramTier>('stardust');
-  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
 
@@ -672,10 +667,70 @@ export default function CreatorProgressAnalyzer({
     await startAnalyzingFlow(entry.channel, userAccessToken || undefined, entry.rawItem?.contentDetails?.relatedPlaylists?.uploads);
   };
 
+  const normalizeClientYouTubeQuery = async (raw: string): Promise<{ query: string; handle?: string; channelId?: string }> => {
+    const trimmed = raw.trim();
+    const hasYoutubeDomain = /^(?:https?:\/\/)?(?:www\.|m\.|music\.|studio\.)?(?:youtube\.com|youtu\.be)\//i.test(trimmed);
+
+    if (hasYoutubeDomain) {
+      try {
+        const fullUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+        const url = new URL(fullUrl);
+        const host = url.hostname.toLowerCase();
+        const pathname = url.pathname.replace(/\/+$/, '');
+
+        if (pathname.includes('/@')) {
+          const handle = `@${decodeURIComponent(pathname.split('/@')[1].split('/')[0]).replace(/^@/, '')}`;
+          return { query: handle, handle };
+        }
+        if (pathname.includes('/channel/')) {
+          const channelId = pathname.split('/channel/')[1].split('/')[0];
+          return { query: channelId, channelId };
+        }
+        if (pathname.includes('/c/') || pathname.includes('/user/')) {
+          const handle = `@${decodeURIComponent(pathname.split(/\/c\/|\/user\//)[1].split('/')[0]).replace(/^@/, '')}`;
+          return { query: handle, handle };
+        }
+
+        // Video or Short URL -> resolve owning channel via noembed
+        const isVideoLink =
+          host === 'youtu.be' ||
+          host.endsWith('.youtu.be') ||
+          (pathname === '/watch' && Boolean(url.searchParams.get('v'))) ||
+          /^\/(?:shorts|live|embed)\//i.test(pathname);
+
+        if (isVideoLink) {
+          try {
+            const noembedRes = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(fullUrl)}`);
+            if (noembedRes.ok) {
+              const data = await noembedRes.json();
+              if (data?.author_url) {
+                return normalizeClientYouTubeQuery(data.author_url);
+              }
+            }
+          } catch {}
+          return { query: fullUrl };
+        }
+
+        const firstSegment = pathname.replace(/^\//, '').split('/')[0];
+        if (firstSegment) {
+          const handle = `@${decodeURIComponent(firstSegment).replace(/^@/, '')}`;
+          return { query: handle, handle };
+        }
+      } catch {}
+    }
+
+    const token = trimmed.split(/[?#]/)[0].split('/')[0].trim();
+    if (token.startsWith('UC') && token.length >= 20) {
+      return { query: token, channelId: token };
+    }
+    const handle = token.startsWith('@') ? token : `@${token}`;
+    return { query: handle, handle };
+  };
+
   const handleSearchChannel = async (queryToSearch?: string) => {
-    const targetQuery = (queryToSearch || queryInput).trim();
-    if (!targetQuery) {
-      setErrorMessage('Por favor, informe o @handle, link ou ID do canal no YouTube.');
+    const rawQuery = (queryToSearch || queryInput).trim();
+    if (!rawQuery) {
+      setErrorMessage('Por favor, informe o @handle, link do canal/vídeo ou ID do canal no YouTube.');
       return;
     }
 
@@ -683,11 +738,18 @@ export default function CreatorProgressAnalyzer({
     setErrorMessage(null);
     if (triggerAudio) triggerAudio('tap');
 
+    const normalized = await normalizeClientYouTubeQuery(rawQuery);
+    const targetQuery = normalized.query;
+
     let json: any = null;
     let fetchSucceeded = false;
+    let backendUnavailable = false;
+
+    const apiBase = ((import.meta as any).env?.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+    const apiEndpoint = `${apiBase}/api/youtube/channel?query=${encodeURIComponent(targetQuery)}`;
 
     try {
-      const res = await fetch(`/api/youtube/channel?query=${encodeURIComponent(targetQuery)}`);
+      const res = await fetch(apiEndpoint);
       const contentType = res.headers.get('content-type') || '';
 
       if (contentType.includes('application/json')) {
@@ -699,9 +761,41 @@ export default function CreatorProgressAnalyzer({
         } catch (jsonErr) {
           console.warn('Falha no parse JSON da API:', jsonErr);
         }
+      } else {
+        // Static hosting (e.g., GitHub Pages) returns 404 HTML for /api/*
+        backendUnavailable = true;
       }
     } catch (networkErr) {
       console.warn('Erro de rede ao consultar /api/youtube/channel:', networkErr);
+      backendUnavailable = true;
+    }
+
+    // If backend API is unavailable (static hosting), try direct YouTube Data API v3 when user already connected Google in this session
+    if (!fetchSucceeded && userAccessToken && (normalized.handle || normalized.channelId)) {
+      try {
+        const param = normalized.channelId
+          ? `id=${encodeURIComponent(normalized.channelId)}`
+          : `forHandle=${encodeURIComponent((normalized.handle || '').replace(/^@/, ''))}`;
+        const ytRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails,statistics&${param}`,
+          { headers: { Authorization: `Bearer ${userAccessToken}` } }
+        );
+        if (ytRes.ok) {
+          const ytData = await ytRes.json();
+          if (ytData.items && ytData.items.length > 0) {
+            setIsLoading(false);
+            const formatted = formatRawYouTubeChannel(ytData.items[0]);
+            await startAnalyzingFlow(
+              formatted,
+              userAccessToken,
+              ytData.items[0].contentDetails?.relatedPlaylists?.uploads
+            );
+            return;
+          }
+        }
+      } catch (oauthLookupErr) {
+        console.warn('Consulta direta via OAuth falhou:', oauthLookupErr);
+      }
     }
 
     if (!fetchSucceeded) {
@@ -714,7 +808,15 @@ export default function CreatorProgressAnalyzer({
 
     if (!fetchSucceeded || !json || !json.data) {
       setIsLoading(false);
-      setErrorMessage(json?.error || `Não foi possível encontrar o canal "${targetQuery}". Verifique o @handle ou conecte seu canal oficial.`);
+      if (backendUnavailable) {
+        setErrorMessage(
+          `A busca direta por @handle/link precisa do servidor ativo. Clique no botão "Conectar com Google" acima para carregar "${targetQuery}" em tempo real com 100% de precisão!`
+        );
+      } else {
+        setErrorMessage(
+          json?.error || `Não foi possível encontrar o canal "${targetQuery}". Verifique o @handle ou link do YouTube, ou use o botão "Conectar com Google".`
+        );
+      }
       return;
     }
 
@@ -813,15 +915,6 @@ export default function CreatorProgressAnalyzer({
             className="pkxd-pop-btn flex items-center gap-2 text-xs font-bold px-4 py-2 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" /> Voltar ao Hub
-          </button>
-
-          <button
-            id="open-config-btn"
-            onClick={() => setIsConfigModalOpen(true)}
-            className="pkxd-btn-gold flex items-center gap-1.5 text-xs font-extrabold px-4 py-2 cursor-pointer"
-          >
-            <Settings2 className="w-4 h-4" />
-            <span>Configurar Requisitos</span>
           </button>
         </div>
       </div>
@@ -1094,7 +1187,7 @@ export default function CreatorProgressAnalyzer({
                   onClick={() => setShowManualSearch(!showManualSearch)}
                   className="text-xs font-bold text-slate-600 hover:text-violet-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>{showManualSearch ? 'Ocultar busca por @handle' : 'Ou consultar canal por @handle público'}</span>
+                  <span>{showManualSearch ? 'Ocultar busca por @handle ou link' : 'Ou consultar canal por @handle ou link do YouTube'}</span>
                   <ChevronRight className={`w-4 h-4 transition-transform ${showManualSearch ? 'rotate-90' : ''}`} />
                 </button>
 
@@ -1115,7 +1208,7 @@ export default function CreatorProgressAnalyzer({
                           value={queryInput}
                           onChange={(e) => setQueryInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSearchChannel()}
-                          placeholder="Digite o @handle (ex: @EuKooshh, @meucanal)..."
+                          placeholder="Cole o @handle ou link (ex: @EuKooshh, youtube.com/@EuKooshh, link de Short)..."
                           className="w-full bg-white border-2 border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500"
                         />
                       </div>
@@ -2041,17 +2134,6 @@ export default function CreatorProgressAnalyzer({
           </div>
         )}
       </div>
-
-      <CreatorRequirementsConfigModal
-        isOpen={isConfigModalOpen}
-        onClose={() => setIsConfigModalOpen(false)}
-        requirements={requirements}
-        onSaveRequirements={(newReqs) => {
-          setRequirements(newReqs);
-          saveStoredRequirements(newReqs);
-        }}
-        soundEnabled={soundEnabled}
-      />
     </div>
   );
 }

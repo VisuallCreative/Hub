@@ -144,40 +144,92 @@ export function parseRelativeAgeToDays(text: string): number | undefined {
   return undefined;
 }
 
-export function cleanChannelQuery(query: string): { handle?: string; channelId?: string; originalQuery: string } {
+export function cleanChannelQuery(query: string): {
+  handle?: string;
+  channelId?: string;
+  videoUrl?: string;
+  originalQuery: string;
+} {
   const trimmed = query.trim();
+  const normalizedUrlCandidate =
+    /^(?:https?:\/\/)?(?:www\.|m\.|music\.|studio\.)?(?:youtube\.com|youtu\.be)\//i.test(trimmed)
+      ? trimmed.startsWith('http://') || trimmed.startsWith('https://')
+        ? trimmed
+        : `https://${trimmed}`
+      : null;
 
-  try {
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      const url = new URL(trimmed);
-      const pathname = url.pathname;
+  if (normalizedUrlCandidate) {
+    try {
+      const url = new URL(normalizedUrlCandidate);
+      const host = url.hostname.toLowerCase();
+      const pathname = url.pathname.replace(/\/+$/, '');
 
+      // Short share link: https://youtu.be/<videoId>
+      if (host === 'youtu.be' || host.endsWith('.youtu.be')) {
+        const videoId = pathname.replace(/^\//, '').split('/')[0];
+        if (videoId) {
+          return { videoUrl: `https://www.youtube.com/watch?v=${videoId}`, originalQuery: trimmed };
+        }
+      }
+
+      // Handle URL: /@handle, /@handle/videos, /@handle/shorts, /@handle?si=...
       if (pathname.includes('/@')) {
-        const handle = pathname.split('/@')[1].split('/')[0];
-        return { handle: `@${handle}`, originalQuery: trimmed };
+        const rawHandle = decodeURIComponent(pathname.split('/@')[1].split('/')[0]).trim();
+        if (rawHandle) {
+          return { handle: `@${rawHandle.replace(/^@/, '')}`, originalQuery: trimmed };
+        }
       }
 
+      // Channel ID URL: /channel/UC...
       if (pathname.includes('/channel/')) {
-        const channelId = pathname.split('/channel/')[1].split('/')[0];
-        return { channelId, originalQuery: trimmed };
+        const channelId = pathname.split('/channel/')[1].split('/')[0].trim();
+        if (channelId) {
+          return { channelId, originalQuery: trimmed };
+        }
       }
 
+      // Legacy custom / user URL: /c/Name or /user/Name
       if (pathname.includes('/c/') || pathname.includes('/user/')) {
-        const name = pathname.split(/\/c\/|\/user\//)[1].split('/')[0];
-        return { handle: `@${name}`, originalQuery: trimmed };
+        const name = decodeURIComponent(pathname.split(/\/c\/|\/user\//)[1].split('/')[0]).trim();
+        if (name) {
+          return { handle: `@${name.replace(/^@/, '')}`, originalQuery: trimmed };
+        }
       }
-    }
-  } catch {}
 
-  if (trimmed.startsWith('@')) {
-    return { handle: trimmed, originalQuery: trimmed };
+      // Video or Short URL: /watch?v=... or /shorts/<id> or /live/<id>
+      if (pathname === '/watch' && url.searchParams.get('v')) {
+        return {
+          videoUrl: `https://www.youtube.com/watch?v=${url.searchParams.get('v')}`,
+          originalQuery: trimmed
+        };
+      }
+      if (/^\/(?:shorts|live|embed)\/([^/]+)/i.test(pathname)) {
+        const m = pathname.match(/^\/(?:shorts|live|embed)\/([^/]+)/i);
+        if (m?.[1]) {
+          return { videoUrl: `https://www.youtube.com/watch?v=${m[1]}`, originalQuery: trimmed };
+        }
+      }
+
+      // Bare vanity URL: https://youtube.com/EuKooshh
+      const firstSegment = pathname.replace(/^\//, '').split('/')[0].trim();
+      if (firstSegment && !['feed', 'results', 'playlist', 'gaming', 'premium'].includes(firstSegment.toLowerCase())) {
+        return { handle: `@${decodeURIComponent(firstSegment).replace(/^@/, '')}`, originalQuery: trimmed };
+      }
+    } catch {}
   }
 
-  if (trimmed.startsWith('UC') && trimmed.length >= 20) {
-    return { channelId: trimmed, originalQuery: trimmed };
+  // Strip accidental trailing paths/query params on handles like "@EuKooshh/shorts" or "@EuKooshh?si=..."
+  const cleanToken = trimmed.split(/[?#]/)[0].split('/')[0].trim();
+
+  if (cleanToken.startsWith('@')) {
+    return { handle: cleanToken, originalQuery: trimmed };
   }
 
-  return { handle: `@${trimmed.replace(/^@/, '')}`, originalQuery: trimmed };
+  if (cleanToken.startsWith('UC') && cleanToken.length >= 20) {
+    return { channelId: cleanToken, originalQuery: trimmed };
+  }
+
+  return { handle: `@${cleanToken.replace(/^@/, '')}`, originalQuery: trimmed };
 }
 
 function extractYtInitialData(html: string): any | null {
@@ -607,8 +659,41 @@ function summarizeMetrics(params: {
 }
 
 export async function fetchYouTubeChannelData(query: string): Promise<YouTubeChannelData> {
-  const parsed = cleanChannelQuery(query);
+  let parsed = cleanChannelQuery(query);
   const apiKey = process.env.YOUTUBE_API_KEY;
+
+  // 0. If the user pasted a video or Short URL, resolve its owning channel first
+  if (parsed.videoUrl && !parsed.handle && !parsed.channelId) {
+    try {
+      const oembedRes = await fetch(
+        `https://noembed.com/embed?url=${encodeURIComponent(parsed.videoUrl)}`
+      );
+      if (oembedRes.ok) {
+        const oembed = await oembedRes.json();
+        if (oembed?.author_url) {
+          parsed = cleanChannelQuery(oembed.author_url);
+        }
+      }
+    } catch {}
+
+    // Fallback: extract channelId directly from the video watch HTML
+    if (!parsed.handle && !parsed.channelId && parsed.videoUrl) {
+      try {
+        const vidRes = await fetch(parsed.videoUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Cookie': 'CONSENT=YES+cb; SOCS=CAI'
+          }
+        });
+        if (vidRes.ok) {
+          const vidHtml = await vidRes.text();
+          const cid = vidHtml.match(/"channelId":"(UC[a-zA-Z0-9_-]{20,24})"/)?.[1];
+          if (cid) parsed = { channelId: cid, originalQuery: query };
+        }
+      } catch {}
+    }
+  }
 
   // 1. Try YouTube Data API v3 if API key is provided
   if (apiKey) {
