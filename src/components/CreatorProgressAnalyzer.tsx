@@ -167,40 +167,218 @@ function ChannelAvatar({ url, title, sizeClass = 'w-14 h-14' }: { url?: string; 
 }
 
 async function resolveChannelFallback(query: string): Promise<ChannelMetrics | null> {
-  const clean = query.trim().toLowerCase().replace(/\s+/g, '');
-  for (const [k, v] of Object.entries(SAMPLE_METRICS)) {
-    if (k.toLowerCase() === clean || k.toLowerCase().replace('@', '') === clean.replace('@', '')) {
-      return v;
-    }
-  }
+  const pkxdRegex = /pk\s*xd|pkxd|afterverse|admin\s*pk|nimda|pet\s*pod/i;
+  const trimmed = query.trim().replace(/^@\s+/, '@');
+  const cleanSearch = trimmed
+    .replace(/^https?:\/\/(?:www\.|m\.)?youtube\.com\//i, '')
+    .replace(/^@/, '')
+    .split(/[?#]/)[0]
+    .split('/')[0]
+    .trim();
 
+  if (!cleanSearch) return null;
+
+  // 1. Live browser-side YouTube lookup (works even on static hosting like GitHub Pages!)
   try {
-    const handleStr = query.startsWith('@') ? query : `@${query.replace(/https?:\/\/(www\.)?youtube\.com\//, '').replace('/', '')}`;
-    const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(`https://www.youtube.com/${handleStr}`)}`;
-    const oembedRes = await fetch(oembedUrl);
-    if (oembedRes.ok) {
-      const oembedData = await oembedRes.json();
-      if (oembedData && oembedData.title) {
-        return {
-          channelId: `UC_${encodeURIComponent(handleStr)}`,
-          title: oembedData.title || handleStr,
-          handle: handleStr,
-          avatarUrl: oembedData.thumbnail_url || '',
-          subscriberCount: 5200,
-          videoCount: 35,
-          totalViews: 180000,
-          views3MonthsEstimated: 45000,
-          recentVideos: [],
-          estimatedMonthlyGrowth: 250,
-          averageRecentViews: 7000,
-          pkxdVideosDetected: 1,
-          isPublicDataAvailable: true,
-          lastCheckedAt: new Date().toISOString()
-        };
+    let channelId = cleanSearch.startsWith('UC') && cleanSearch.length >= 20 ? cleanSearch : '';
+    let title = '';
+    let handle = trimmed.startsWith('@') ? trimmed.replace(/\s+/g, '') : `@${cleanSearch.replace(/\s+/g, '')}`;
+    let avatarUrl = '';
+
+    const searchRes = await fetch(
+      `https://api.socialcounts.org/youtube-live-subscriber-count/search/${encodeURIComponent(cleanSearch)}`
+    );
+    if (searchRes.ok) {
+      const searchJson = await searchRes.json();
+      const items: any[] = Array.isArray(searchJson?.items) ? searchJson.items : [];
+      if (items.length > 0) {
+        const targetNorm = cleanSearch.toLowerCase().replace(/^@/, '').replace(/\s+/g, '');
+        const exactMatch =
+          items.find((it) => (it?.id || '').toLowerCase() === targetNorm) ||
+          items.find((it) => (it?.handle || '').toLowerCase().replace(/^@/, '') === targetNorm) ||
+          items.find((it) => (it?.title || '').toLowerCase().replace(/\s+/g, '') === targetNorm) ||
+          items[0];
+
+        if (exactMatch?.id) {
+          channelId = exactMatch.id;
+          title = exactMatch.title || title;
+          handle = exactMatch.handle
+            ? (exactMatch.handle.startsWith('@') ? exactMatch.handle : `@${exactMatch.handle}`)
+            : handle;
+          avatarUrl = exactMatch.pfp || exactMatch.avatar || '';
+        }
       }
     }
+
+    if (channelId) {
+      let subscriberCount = 0;
+      let totalViews = 0;
+      let videoCount = 0;
+
+      // Live subscriber, total view, and total video counters
+      try {
+        const statsRes = await fetch(
+          `https://api.socialcounts.org/youtube-live-subscriber-count/${encodeURIComponent(channelId)}`
+        );
+        if (statsRes.ok) {
+          const statsJson = await statsRes.json();
+          const apiCounters = statsJson?.counters?.api || statsJson?.counters?.estimation || {};
+          subscriberCount = Number(apiCounters.subscriberCount || 0);
+          totalViews = Number(apiCounters.viewCount || 0);
+          videoCount = Number(apiCounters.videoCount || 0);
+        }
+      } catch (statsErr) {
+        console.warn('Erro ao buscar contadores ao vivo:', statsErr);
+      }
+
+      // Recent videos & Shorts via public YouTube RSS feed (CORS-enabled JSON bridge)
+      let recentVideos: any[] = [];
+      try {
+        const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
+        const rssRes = await fetch(
+          `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`
+        );
+        if (rssRes.ok) {
+          const rssJson = await rssRes.json();
+          if (rssJson?.feed?.title && !title) {
+            title = rssJson.feed.title;
+          }
+          const rssItems: any[] = Array.isArray(rssJson?.items) ? rssJson.items : [];
+
+          const baseVideos = rssItems
+            .map((item) => {
+              const link = String(item?.link || '');
+              const guid = String(item?.guid || '');
+              const idMatch =
+                guid.match(/yt:video:([a-zA-Z0-9_-]{11})/) ||
+                link.match(/(?:v=|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+              const id = idMatch?.[1] || '';
+              if (!id) return null;
+
+              const vidTitle = String(item?.title || '');
+              const pubStr = String(item?.pubDate || '');
+              const pubTs = pubStr ? new Date(pubStr.replace(' ', 'T') + 'Z').getTime() : NaN;
+              const publishedAt = !Number.isNaN(pubTs) ? new Date(pubTs).toISOString() : '';
+              const publishedDaysAgo = !Number.isNaN(pubTs)
+                ? Math.max(0, Math.floor((Date.now() - pubTs) / 86400000))
+                : undefined;
+              const isShort = link.includes('/shorts/') || /#shorts|\bshorts\b/i.test(vidTitle);
+
+              return {
+                id,
+                title: vidTitle,
+                publishedAt,
+                publishedDaysAgo,
+                durationText: isShort ? 'Short' : undefined,
+                isShort,
+                isLong5Min: false,
+                isPkxdContent: pkxdRegex.test(`${vidTitle} ${item?.description || ''}`),
+                views: 0,
+                thumbnailUrl: item?.thumbnail || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+              };
+            })
+            .filter(Boolean) as any[];
+
+          // Enrich real per-video view counts in parallel (with short timeout)
+          await Promise.all(
+            baseVideos.slice(0, 15).map(async (vid) => {
+              try {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 3500);
+                const vRes = await fetch(
+                  `https://returnyoutubedislikeapi.com/votes?videoId=${encodeURIComponent(vid.id)}`,
+                  { signal: ctrl.signal }
+                );
+                clearTimeout(timer);
+                if (vRes.ok) {
+                  const vJson = await vRes.json();
+                  if (typeof vJson?.viewCount === 'number' && vJson.viewCount >= 0) {
+                    vid.views = vJson.viewCount;
+                  }
+                }
+              } catch {}
+            })
+          );
+
+          recentVideos = baseVideos;
+        }
+      } catch (rssErr) {
+        console.warn('Aviso ao carregar vídeos recentes via RSS:', rssErr);
+      }
+
+      const explicitPkxdMatches = recentVideos.filter((v) => v.isPkxdContent).length;
+      const isPkxdChannel =
+        pkxdRegex.test(`${title} ${handle}`) ||
+        (recentVideos.length > 0 && explicitPkxdMatches / recentVideos.length >= 0.25);
+
+      const finalized = recentVideos.map((v) => ({
+        ...v,
+        isPkxdContent: v.isPkxdContent || isPkxdChannel
+      }));
+
+      const longVids = finalized.filter((v) => !v.isShort);
+      const shortVids = finalized.filter((v) => v.isShort);
+      const last16Shorts = shortVids.slice(0, 16);
+      const viewsLast16Shorts = last16Shorts.reduce((acc, v) => acc + (v.views || 0), 0);
+
+      const longWithViews = longVids.filter((v) => v.views > 0);
+      const shortWithViews = shortVids.filter((v) => v.views > 0);
+      const allWithViews = finalized.filter((v) => v.views > 0);
+
+      const sumLongViews = longWithViews.reduce((acc, v) => acc + v.views, 0);
+      const sumShortViews = shortWithViews.reduce((acc, v) => acc + v.views, 0);
+      const sumAllViews = allWithViews.reduce((acc, v) => acc + v.views, 0);
+
+      const effectiveVideoCount = Math.max(videoCount, finalized.length);
+      const fallbackAvg = effectiveVideoCount > 0 && totalViews > 0 ? Math.round(totalViews / effectiveVideoCount) : 0;
+
+      const videosLast30Days = finalized.filter((v) => v.publishedDaysAgo !== undefined && v.publishedDaysAgo <= 31).length;
+      const longVideosLast30Days = longVids.filter((v) => v.publishedDaysAgo !== undefined && v.publishedDaysAgo <= 31).length;
+      const shortsLast30Days = shortVids.filter((v) => v.publishedDaysAgo !== undefined && v.publishedDaysAgo <= 31).length;
+      const viewsLast90Days = finalized
+        .filter((v) => v.publishedDaysAgo !== undefined && v.publishedDaysAgo <= 92)
+        .reduce((acc, v) => acc + (v.views || 0), 0);
+
+      return {
+        channelId,
+        title: title || handle,
+        handle,
+        avatarUrl,
+        subscriberCount,
+        videoCount: effectiveVideoCount,
+        totalViews: Math.max(totalViews, sumAllViews),
+        views3MonthsEstimated: viewsLast16Shorts,
+        viewsLast90Days: viewsLast90Days || sumAllViews,
+        viewsLast16Shorts,
+        last16ShortsCount: last16Shorts.length,
+        longVideosCount: longVids.length,
+        longVideos5MinCount: longVids.length,
+        shortsCount: shortVids.length,
+        pkxdVideosDetected: finalized.filter((v) => v.isPkxdContent).length,
+        pkxdLongVideosDetected: longVids.filter((v) => v.isPkxdContent).length,
+        pkxdShortsDetected: shortVids.filter((v) => v.isPkxdContent).length,
+        videosLast30Days,
+        longVideosLast30Days,
+        shortsLast30Days,
+        recentVideos: finalized,
+        estimatedMonthlyGrowth: Math.max(50, Math.round(subscriberCount * 0.04)),
+        averageRecentViews: allWithViews.length > 0 ? Math.round(sumAllViews / allWithViews.length) : fallbackAvg,
+        averageLongViews: longWithViews.length > 0 ? Math.round(sumLongViews / longWithViews.length) : fallbackAvg,
+        averageShortViews: shortWithViews.length > 0 ? Math.round(sumShortViews / shortWithViews.length) : fallbackAvg,
+        isPkxdChannel,
+        dataSource: 'youtube_public_scrape',
+        isPublicDataAvailable: true,
+        lastCheckedAt: new Date().toISOString()
+      };
+    }
   } catch (e) {
-    console.warn('oEmbed fallback attempt:', e);
+    console.warn('Browser-side YouTube fallback failed:', e);
+  }
+
+  // Only use demo fixture for the fictional "@PKXD_Creator" sample button
+  const demoKey = trimmed.toLowerCase().replace(/\s+/g, '');
+  if (demoKey === '@pkxd_creator' || demoKey === 'pkxd_creator') {
+    return SAMPLE_METRICS['@pkxd_creator'];
   }
 
   return null;
@@ -719,12 +897,18 @@ export default function CreatorProgressAnalyzer({
       } catch {}
     }
 
-    const token = trimmed.split(/[?#]/)[0].split('/')[0].trim();
-    if (token.startsWith('UC') && token.length >= 20) {
+    const collapsedAt = trimmed.replace(/^@\s+/, '@');
+    const token = collapsedAt.split(/[?#]/)[0].split('/')[0].trim();
+    if (token.startsWith('UC') && token.length >= 20 && !/\s/.test(token)) {
       return { query: token, channelId: token };
     }
-    const handle = token.startsWith('@') ? token : `@${token}`;
-    return { query: handle, handle };
+    if (token.startsWith('@')) {
+      const handle = token.replace(/\s+/g, '');
+      return { query: handle, handle };
+    }
+    // Preserve spaces if user typed a channel name (e.g. "PK XD"), strip spaces only for handle candidates
+    const handle = `@${token.replace(/\s+/g, '')}`;
+    return { query: token.includes(' ') ? token : handle, handle };
   };
 
   const handleSearchChannel = async (queryToSearch?: string) => {
