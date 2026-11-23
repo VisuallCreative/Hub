@@ -40,7 +40,7 @@ var firebase_applet_config_default = {
   projectId: "pkxd-e817c",
   appId: "1:932539609984:web:74c5cc5650c7807e6c4765",
   apiKey: "AIzaSyBFIEDUk1UMeiNU_yv0VscVUwVyFuSffi0",
-  authDomain: "pkxd-e817c.firebaseapp.com",
+  authDomain: "auth.pkxdcentral.site",
   storageBucket: "pkxd-e817c.firebasestorage.app",
   messagingSenderId: "932539609984",
   measurementId: "G-FSFT099FH4"
