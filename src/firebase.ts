@@ -3,21 +3,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-const CUSTOM_AUTH_HOSTS = new Set(['pkxdcentral.site', 'www.pkxdcentral.site']);
-
-const resolvedAuthDomain = (() => {
-  const envDomain = (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN?.trim();
-  if (envDomain) return envDomain;
-  if (typeof window !== 'undefined' && CUSTOM_AUTH_HOSTS.has(window.location.hostname.toLowerCase())) {
-    return 'pkxdcentral.site';
-  }
-  return firebaseConfig.authDomain;
-})();
-
-const app = initializeApp({
-  ...firebaseConfig,
-  authDomain: resolvedAuthDomain,
-});
+const app = initializeApp(firebaseConfig);
 
 // CRITICAL: The app will break without referencing firestoreDatabaseId if specified
 export const db = (firebaseConfig as any).firestoreDatabaseId

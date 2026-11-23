@@ -1263,13 +1263,9 @@ app.get("/__/firebase/init.json", async (req, res) => {
   try {
     const raw = fs.readFileSync(path.join(process.cwd(), "firebase-applet-config.json"), "utf-8");
     const cfg = JSON.parse(raw);
-    const reqHost = (req.headers["x-forwarded-host"] || req.headers.host || "").toString().split(":")[0].toLowerCase();
-    const authDomain = reqHost === "pkxdcentral.site" || reqHost === "www.pkxdcentral.site"
-      ? "pkxdcentral.site"
-      : cfg.authDomain;
     res.json({
       apiKey: cfg.apiKey,
-      authDomain,
+      authDomain: cfg.authDomain,
       projectId: cfg.projectId,
       storageBucket: cfg.storageBucket,
       messagingSenderId: cfg.messagingSenderId,

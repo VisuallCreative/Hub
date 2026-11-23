@@ -67,7 +67,7 @@ interface CreatorProgressAnalyzerProps {
 
 const SAMPLE_CHANNELS = [
   { name: 'PK XD Universe', query: '@PKXDUniverse' },
-  { name: 'ILovePizza XD', query: '@ILovePizzaaXD' },
+  { name: 'EuKooshh', query: '@EuKooshh' },
   { name: 'Exemplo em Crescimento', query: '@PKXD_Creator' },
 ];
 
@@ -1115,7 +1115,7 @@ export default function CreatorProgressAnalyzer({
                           value={queryInput}
                           onChange={(e) => setQueryInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSearchChannel()}
-                          placeholder="Digite o @handle (ex: @ILovePizzaaXD, @meucanal)..."
+                          placeholder="Digite o @handle (ex: @EuKooshh, @meucanal)..."
                           className="w-full bg-white border-2 border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500"
                         />
                       </div>
