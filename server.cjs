@@ -123,32 +123,63 @@ function parseRelativeAgeToDays(text) {
 }
 function cleanChannelQuery(query) {
   const trimmed = query.trim();
-  try {
-    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-      const url = new URL(trimmed);
-      const pathname = url.pathname;
+  const normalizedUrlCandidate = /^(?:https?:\/\/)?(?:www\.|m\.|music\.|studio\.)?(?:youtube\.com|youtu\.be)\//i.test(trimmed) ? trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}` : null;
+  if (normalizedUrlCandidate) {
+    try {
+      const url = new URL(normalizedUrlCandidate);
+      const host = url.hostname.toLowerCase();
+      const pathname = url.pathname.replace(/\/+$/, "");
+      if (host === "youtu.be" || host.endsWith(".youtu.be")) {
+        const videoId = pathname.replace(/^\//, "").split("/")[0];
+        if (videoId) {
+          return { videoUrl: `https://www.youtube.com/watch?v=${videoId}`, originalQuery: trimmed };
+        }
+      }
       if (pathname.includes("/@")) {
-        const handle = pathname.split("/@")[1].split("/")[0];
-        return { handle: `@${handle}`, originalQuery: trimmed };
+        const rawHandle = decodeURIComponent(pathname.split("/@")[1].split("/")[0]).trim();
+        if (rawHandle) {
+          return { handle: `@${rawHandle.replace(/^@/, "")}`, originalQuery: trimmed };
+        }
       }
       if (pathname.includes("/channel/")) {
-        const channelId = pathname.split("/channel/")[1].split("/")[0];
-        return { channelId, originalQuery: trimmed };
+        const channelId = pathname.split("/channel/")[1].split("/")[0].trim();
+        if (channelId) {
+          return { channelId, originalQuery: trimmed };
+        }
       }
       if (pathname.includes("/c/") || pathname.includes("/user/")) {
-        const name = pathname.split(/\/c\/|\/user\//)[1].split("/")[0];
-        return { handle: `@${name}`, originalQuery: trimmed };
+        const name = decodeURIComponent(pathname.split(/\/c\/|\/user\//)[1].split("/")[0]).trim();
+        if (name) {
+          return { handle: `@${name.replace(/^@/, "")}`, originalQuery: trimmed };
+        }
       }
+      if (pathname === "/watch" && url.searchParams.get("v")) {
+        return {
+          videoUrl: `https://www.youtube.com/watch?v=${url.searchParams.get("v")}`,
+          originalQuery: trimmed
+        };
+      }
+      if (/^\/(?:shorts|live|embed)\/([^/]+)/i.test(pathname)) {
+        const m = pathname.match(/^\/(?:shorts|live|embed)\/([^/]+)/i);
+        if (m?.[1]) {
+          return { videoUrl: `https://www.youtube.com/watch?v=${m[1]}`, originalQuery: trimmed };
+        }
+      }
+      const firstSegment = pathname.replace(/^\//, "").split("/")[0].trim();
+      if (firstSegment && !["feed", "results", "playlist", "gaming", "premium"].includes(firstSegment.toLowerCase())) {
+        return { handle: `@${decodeURIComponent(firstSegment).replace(/^@/, "")}`, originalQuery: trimmed };
+      }
+    } catch {
     }
-  } catch {
   }
-  if (trimmed.startsWith("@")) {
-    return { handle: trimmed, originalQuery: trimmed };
+  const cleanToken = trimmed.split(/[?#]/)[0].split("/")[0].trim();
+  if (cleanToken.startsWith("@")) {
+    return { handle: cleanToken, originalQuery: trimmed };
   }
-  if (trimmed.startsWith("UC") && trimmed.length >= 20) {
-    return { channelId: trimmed, originalQuery: trimmed };
+  if (cleanToken.startsWith("UC") && cleanToken.length >= 20) {
+    return { channelId: cleanToken, originalQuery: trimmed };
   }
-  return { handle: `@${trimmed.replace(/^@/, "")}`, originalQuery: trimmed };
+  return { handle: `@${cleanToken.replace(/^@/, "")}`, originalQuery: trimmed };
 }
 function extractYtInitialData(html) {
   const patterns = [
@@ -472,8 +503,38 @@ function summarizeMetrics(params) {
   };
 }
 async function fetchYouTubeChannelData(query) {
-  const parsed = cleanChannelQuery(query);
+  let parsed = cleanChannelQuery(query);
   const apiKey = process.env.YOUTUBE_API_KEY;
+  if (parsed.videoUrl && !parsed.handle && !parsed.channelId) {
+    try {
+      const oembedRes = await fetch(
+        `https://noembed.com/embed?url=${encodeURIComponent(parsed.videoUrl)}`
+      );
+      if (oembedRes.ok) {
+        const oembed = await oembedRes.json();
+        if (oembed?.author_url) {
+          parsed = cleanChannelQuery(oembed.author_url);
+        }
+      }
+    } catch {
+    }
+    if (!parsed.handle && !parsed.channelId && parsed.videoUrl) {
+      try {
+        const vidRes = await fetch(parsed.videoUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Cookie": "CONSENT=YES+cb; SOCS=CAI"
+          }
+        });
+        if (vidRes.ok) {
+          const vidHtml = await vidRes.text();
+          const cid = vidHtml.match(/"channelId":"(UC[a-zA-Z0-9_-]{20,24})"/)?.[1];
+          if (cid) parsed = { channelId: cid, originalQuery: query };
+        }
+      } catch {
+      }
+    }
+  }
   if (apiKey) {
     try {
       let apiUrl = "";
@@ -1728,6 +1789,7 @@ ${textToAnalyze}
   }
 });
 app.get("/api/youtube/channel", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   const query = (req.query.query || "").trim();
   if (!query) {
     res.status(400).json({ error: "O par\xE2metro query (handle, ID ou URL do canal) \xE9 obrigat\xF3rio." });
