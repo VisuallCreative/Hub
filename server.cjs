@@ -172,14 +172,15 @@ function cleanChannelQuery(query) {
     } catch {
     }
   }
-  const cleanToken = trimmed.split(/[?#]/)[0].split("/")[0].trim();
+  const collapsedAt = trimmed.replace(/^@\s+/, "@");
+  const cleanToken = collapsedAt.split(/[?#]/)[0].split("/")[0].trim();
   if (cleanToken.startsWith("@")) {
-    return { handle: cleanToken, originalQuery: trimmed };
+    return { handle: cleanToken.replace(/\s+/g, ""), originalQuery: trimmed };
   }
-  if (cleanToken.startsWith("UC") && cleanToken.length >= 20) {
+  if (cleanToken.startsWith("UC") && cleanToken.length >= 20 && !/\s/.test(cleanToken)) {
     return { channelId: cleanToken, originalQuery: trimmed };
   }
-  return { handle: `@${cleanToken.replace(/^@/, "")}`, originalQuery: trimmed };
+  return { handle: `@${cleanToken.replace(/^@/, "").replace(/\s+/g, "")}`, originalQuery: trimmed };
 }
 function extractYtInitialData(html) {
   const patterns = [
@@ -653,11 +654,55 @@ async function fetchYouTubeChannelData(query) {
     "Cache-Control": "no-cache"
   };
   console.log(`[YouTube Scraper] Coletando dados p\xFAblicos: ${baseUrl}`);
-  const [aboutRes, videosRes, shortsRes] = await Promise.all([
+  let [aboutRes, videosRes, shortsRes] = await Promise.all([
     fetch(`${baseUrl}/about`, { headers }).catch(() => null),
     fetch(`${baseUrl}/videos`, { headers }).catch(() => null),
     fetch(`${baseUrl}/shorts`, { headers }).catch(() => null)
   ]);
+  if ((!aboutRes || !aboutRes.ok) && (!videosRes || !videosRes.ok)) {
+    const searchTerm = parsed.originalQuery.replace(/^@\s*/, "").trim();
+    if (searchTerm) {
+      try {
+        console.log(`[YouTube Scraper] Tentando busca de canais no YouTube para: "${searchTerm}"`);
+        const searchRes = await fetch(
+          `https://www.youtube.com/results?search_query=${encodeURIComponent(searchTerm)}&sp=EgIQAg%3D%3D`,
+          { headers }
+        );
+        if (searchRes.ok) {
+          const searchHtml = await searchRes.text();
+          const searchData = extractYtInitialData(searchHtml);
+          const renderers = searchData ? findAllByKey(searchData, "channelRenderer", 10) : [];
+          const normalizedTarget = searchTerm.toLowerCase().replace(/\s+/g, "");
+          let matchedId = null;
+          for (const cr of renderers) {
+            const cid = cr?.channelId;
+            if (!cid) continue;
+            const handleTxt = (extractText(cr?.subscriberCountText) || "").toLowerCase().replace(/^@/, "");
+            const canonicalUrl = (cr?.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || "").toLowerCase().replace(/^\/@?/, "");
+            const titleTxt = extractText(cr?.title).toLowerCase().replace(/\s+/g, "");
+            if (canonicalUrl === normalizedTarget || handleTxt === normalizedTarget || titleTxt === normalizedTarget) {
+              matchedId = cid;
+              break;
+            }
+          }
+          if (!matchedId && renderers[0]?.channelId) {
+            matchedId = renderers[0].channelId;
+          }
+          if (matchedId) {
+            baseUrl = `https://www.youtube.com/channel/${matchedId}`;
+            parsed = { ...parsed, channelId: matchedId };
+            [aboutRes, videosRes, shortsRes] = await Promise.all([
+              fetch(`${baseUrl}/about`, { headers }).catch(() => null),
+              fetch(`${baseUrl}/videos`, { headers }).catch(() => null),
+              fetch(`${baseUrl}/shorts`, { headers }).catch(() => null)
+            ]);
+          }
+        }
+      } catch (searchErr) {
+        console.warn("[YouTube Scraper] Falha na busca de canal fallback:", searchErr);
+      }
+    }
+  }
   if ((!aboutRes || !aboutRes.ok) && (!videosRes || !videosRes.ok)) {
     throw new Error(
       `N\xE3o foi poss\xEDvel carregar o canal "${query}". Verifique se o @handle, link ou ID est\xE1 correto e p\xFAblico.`
