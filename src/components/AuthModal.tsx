@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Lock, Mail, User, Sparkles, ArrowLeft, KeyRound, 
+import { motion } from 'motion/react';
+import {
+  Lock, Mail, User, ArrowLeft, KeyRound,
   CheckCircle2, AlertCircle, X, Shield, Eye, EyeOff,
-  UserPlus, LogIn, RefreshCw, Send, Check
+  UserPlus, LogIn, RefreshCw, Send, Check, Zap
 } from 'lucide-react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   updateProfile,
   signInWithPopup
@@ -37,23 +37,19 @@ export default function AuthModal({
   onAddXP
 }: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  
-  // Login form state
+
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  
-  // Register form state
+
   const [registerNickname, setRegisterNickname] = useState('');
   const [registerTagNumber, setRegisterTagNumber] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
-  
-  // Reset password form state
+
   const [resetEmail, setResetEmail] = useState('');
   const [resetSentSuccess, setResetSentSuccess] = useState(false);
-  
-  // Verification code step for register (optional extra security verification)
+
   const [pendingVerification, setPendingVerification] = useState<{
     email: string;
     pass: string;
@@ -61,14 +57,12 @@ export default function AuthModal({
     code: string;
   } | null>(null);
   const [codeInputValue, setCodeInputValue] = useState('');
-  
-  // UI states
+
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Sync mode with initialMode prop when modal opens
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
@@ -89,7 +83,6 @@ export default function AuthModal({
     setResetSentSuccess(false);
     setPendingVerification(null);
 
-    // Update URL path without losing state
     if (newMode === 'login') {
       onNavigate('/login');
     } else if (newMode === 'register') {
@@ -102,26 +95,23 @@ export default function AuthModal({
   const handleClose = () => {
     triggerAudio('tap');
     onClose();
-    // Return to main route
     onNavigate('/');
   };
 
-  // Google Login / Register
   const handleGoogleAuth = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
       const result = await signInWithPopup(auth, googleProvider);
       triggerAudio('success');
-      setSuccessMessage(`Conectado como ${result.user.displayName || result.user.email}! 🎉`);
-      
-      // Auto save basic profile if needed
+      setSuccessMessage(`Conectado como ${result.user.displayName || result.user.email}!`);
+
       if (result.user) {
-        const fullTag = result.user.displayName || `Fã_${result.user.uid.slice(0, 4)}#000`;
+        const fullTag = result.user.displayName || `Fa_${result.user.uid.slice(0, 4)}#000`;
         try {
           localStorage.setItem('pkxd_player_tag', fullTag);
           localStorage.setItem('pkxd_username_nickname', fullTag);
-        } catch (e) {}
+        } catch {}
       }
 
       if (onAddXP) {
@@ -134,15 +124,15 @@ export default function AuthModal({
 
       setTimeout(() => {
         handleClose();
-      }, 1200);
+      }, 1100);
     } catch (error: any) {
-      console.error("Google Auth failed:", error);
+      console.error('Google Auth failed:', error);
       const code = error?.code || '';
       let msg = error?.message || 'Falha ao conectar com o Google.';
       if (code === 'auth/popup-closed-by-user') {
         msg = 'O login foi cancelado antes de ser concluído.';
       } else if (code === 'auth/unauthorized-domain') {
-        msg = `Domínio não autorizado no Firebase. Adicione ${window.location.hostname} aos Domínios Autorizados no Firebase Console.`;
+        msg = `Domínio não autorizado no Firebase. Adicione ${window.location.hostname} aos Domínios Autorizados.`;
       }
       setErrorMessage(msg);
     } finally {
@@ -150,7 +140,6 @@ export default function AuthModal({
     }
   };
 
-  // Handle Login submission
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim() || !loginPassword) {
@@ -163,7 +152,7 @@ export default function AuthModal({
     try {
       const result = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
       triggerAudio('success');
-      setSuccessMessage(`Bem-vindo(a) de volta! 🚀`);
+      setSuccessMessage('Bem-vindo(a) de volta ao PKXD Central!');
 
       if (onAddXP) {
         onAddXP(20, 'Login diário');
@@ -177,11 +166,11 @@ export default function AuthModal({
         handleClose();
       }, 1000);
     } catch (error: any) {
-      console.error("Email Login error:", error);
+      console.error('Email Login error:', error);
       const code = error?.code || '';
       let msg = 'Erro ao fazer login. Verifique seus dados.';
       if (code === 'auth/wrong-password' || code === 'auth/invalid-login-credentials' || code === 'auth/invalid-credential') {
-        msg = 'Senha incorreta ou e-mail inválido!';
+        msg = 'Senha incorreta ou e-mail inválido.';
       } else if (code === 'auth/user-not-found') {
         msg = 'Nenhuma conta encontrada com este e-mail. Crie sua conta grátis!';
       } else if (code === 'auth/invalid-email') {
@@ -195,18 +184,17 @@ export default function AuthModal({
     }
   };
 
-  // Handle Register step 1 (Initiate)
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanNick = registerNickname.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
     const cleanNum = registerTagNumber.trim().replace(/[^0-9]/g, '');
-    
+
     if (!cleanNick || cleanNick.length < 2) {
       setErrorMessage('O Nome no PK XD deve ter pelo menos 2 caracteres.');
       return;
     }
     if (!cleanNum || cleanNum.length < 1) {
-      setErrorMessage('Informe a # numérico do seu PK XD (ex: 245 ou 000).');
+      setErrorMessage('Informe a # numérica do seu PK XD (ex: 245 ou 000).');
       return;
     }
     if (!registerEmail.trim()) {
@@ -233,16 +221,15 @@ export default function AuthModal({
     });
     setCodeInputValue('');
     triggerAudio('tap');
-    setSuccessMessage(`📩 Enviamos um código de 6 dígitos para confirmação! (Código de teste rápido: ${genCode})`);
+    setSuccessMessage(`Código de confirmação de 6 dígitos gerado: ${genCode}`);
   };
 
-  // Handle Register step 2 (Confirm code & create account)
   const handleConfirmRegisterCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pendingVerification) return;
 
     if (codeInputValue.trim() !== pendingVerification.code) {
-      setErrorMessage('❌ Código de confirmação incorreto! Digite o código de 6 dígitos.');
+      setErrorMessage('Código de confirmação incorreto. Digite o código de 6 dígitos exibido acima.');
       triggerAudio('tap');
       return;
     }
@@ -251,8 +238,8 @@ export default function AuthModal({
     setErrorMessage(null);
     try {
       const result = await createUserWithEmailAndPassword(
-        auth, 
-        pendingVerification.email, 
+        auth,
+        pendingVerification.email,
         pendingVerification.pass
       );
 
@@ -261,23 +248,19 @@ export default function AuthModal({
       const nickOnly = parts[0] || 'Explorador';
       const numberOnly = parts[1] || '000';
 
-      // Update local storage
       try {
         localStorage.setItem('pkxd_player_tag', fullTag);
         localStorage.setItem('pkxd_nickname', nickOnly);
         localStorage.setItem('pkxd_player_number', numberOnly);
         localStorage.setItem('pkxd_username_nickname', fullTag);
-      } catch (e) {}
+      } catch {}
 
-      // Update Firebase Auth profile displayName
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
           displayName: fullTag
         });
 
-        // Store public info in Firestore
         try {
-          const cleanKey = encodeURIComponent(fullTag.trim().toLowerCase().replace(/[.#$/[\]]/g, '_'));
           await setDoc(doc(db, 'leaderboard', auth.currentUser.uid), {
             name: fullTag,
             level: 1,
@@ -286,12 +269,12 @@ export default function AuthModal({
             email: pendingVerification.email,
             createdAt: Date.now()
           }, { merge: true });
-        } catch (err) {}
+        } catch {}
       }
 
       triggerAudio('levelUp');
-      setSuccessMessage(`🎉 Conta criada com sucesso com sua Tag ${fullTag}! Bem-vindo ao PKXD Central!`);
-      
+      setSuccessMessage(`Conta criada com sua Tag ${fullTag}! Bem-vindo(a) ao PKXD Central!`);
+
       if (onAddXP) {
         onAddXP(50, 'Criou conta no PKXD Central');
       }
@@ -302,9 +285,9 @@ export default function AuthModal({
 
       setTimeout(() => {
         handleClose();
-      }, 1500);
+      }, 1300);
     } catch (error: any) {
-      console.error("Create User error:", error);
+      console.error('Create User error:', error);
       const code = error?.code || '';
       let msg = 'Não foi possível criar a conta.';
       if (code === 'auth/email-already-in-use') {
@@ -320,7 +303,6 @@ export default function AuthModal({
     }
   };
 
-  // Handle Reset Password submission
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetEmail.trim()) {
@@ -334,9 +316,9 @@ export default function AuthModal({
       await sendPasswordResetEmail(auth, resetEmail.trim());
       triggerAudio('success');
       setResetSentSuccess(true);
-      setSuccessMessage(`📧 Link de redefinição enviado com sucesso para ${resetEmail.trim()}! Verifique sua caixa de entrada e a pasta de spam.`);
+      setSuccessMessage(`Link de redefinição enviado para ${resetEmail.trim()}. Verifique sua caixa de entrada e spam.`);
     } catch (error: any) {
-      console.error("Reset Password error:", error);
+      console.error('Reset Password error:', error);
       const code = error?.code || '';
       let msg = 'Erro ao enviar e-mail de recuperação.';
       if (code === 'auth/user-not-found') {
@@ -351,59 +333,60 @@ export default function AuthModal({
   };
 
   return (
-    <div 
+    <div
       id="pkxd-auth-modal-overlay"
-      className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in text-left"
+      className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-slate-900/55 backdrop-blur-sm animate-fade-in text-left"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleClose();
         }
       }}
     >
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="w-full max-w-lg bg-zinc-900 border-2 border-purple-500/50 rounded-3xl shadow-[0_0_50px_rgba(147,51,234,0.3)] overflow-hidden relative"
+        exit={{ opacity: 0, scale: 0.96, y: 10 }}
+        className="w-full max-w-lg bg-white border-2 border-slate-200 rounded-3xl shadow-2xl overflow-hidden relative text-slate-900"
       >
-        {/* Top Gradient Ribbon */}
-        <div className="h-2 bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-400" />
+        {/* Top Vibrant Ribbon */}
+        <div className="h-2.5 bg-gradient-to-r from-violet-600 via-pink-500 to-sky-500" />
 
         {/* Close Button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 active:scale-95 text-gray-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/10"
+          className="absolute top-5 right-4 p-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 hover:text-slate-900 rounded-full transition-colors cursor-pointer"
           title="Fechar"
+          aria-label="Fechar modal"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-white/10">
-          <div className="flex items-center gap-2.5 mb-2">
-            <div className="w-10 h-10 rounded-2xl bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-yellow-300 font-black text-xl shadow-inner">
-              ⚡
+        <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-11 h-11 rounded-2xl bg-violet-600 text-amber-300 flex items-center justify-center shadow-sm shrink-0">
+              <Zap className="w-6 h-6 fill-current" />
             </div>
             <div>
-              <h2 className="font-sans font-black text-xl sm:text-2xl text-white uppercase tracking-tight">
-                PKXD <span className="text-yellow-300">Central</span>
+              <h2 className="font-display font-bold text-xl sm:text-2xl text-slate-900 tracking-tight">
+                PKXD <span className="text-violet-700">Central</span>
               </h2>
-              <p className="text-[11px] font-mono text-purple-300 uppercase tracking-widest">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {mode === 'login' && 'Entrar na sua Conta'}
-                {mode === 'register' && 'Criar Nova Conta Oficial'}
+                {mode === 'register' && 'Criar Nova Conta'}
                 {mode === 'resetpassword' && 'Recuperar Senha'}
               </p>
             </div>
           </div>
 
           {/* Tab Switcher */}
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/50 rounded-2xl border border-white/10 mt-4">
+          <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-slate-100 rounded-2xl border border-slate-200 mt-4">
             <button
               onClick={() => handleSwitchMode('login')}
-              className={`py-2 px-1 text-center font-sans font-black text-[11px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
+              className={`py-2 px-1 text-center font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 mode === 'login'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
             >
               <LogIn className="w-3.5 h-3.5" />
@@ -412,10 +395,10 @@ export default function AuthModal({
 
             <button
               onClick={() => handleSwitchMode('register')}
-              className={`py-2 px-1 text-center font-sans font-black text-[11px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
+              className={`py-2 px-1 text-center font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 mode === 'register'
-                  ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-pink-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
             >
               <UserPlus className="w-3.5 h-3.5" />
@@ -424,10 +407,10 @@ export default function AuthModal({
 
             <button
               onClick={() => handleSwitchMode('resetpassword')}
-              className={`py-2 px-1 text-center font-sans font-black text-[11px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
+              className={`py-2 px-1 text-center font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 mode === 'resetpassword'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
             >
               <KeyRound className="w-3.5 h-3.5" />
@@ -438,19 +421,16 @@ export default function AuthModal({
 
         {/* Modal Body */}
         <div className="p-6 space-y-4">
-          
-          {/* Error Message Alert */}
           {errorMessage && (
-            <div className="p-3.5 bg-red-500/20 border border-red-500/40 rounded-2xl flex items-start gap-2.5 text-xs text-red-200 animate-fade-in">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-rose-50 border-2 border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 animate-fade-in font-medium">
+              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
               <span className="leading-relaxed">{errorMessage}</span>
             </div>
           )}
 
-          {/* Success Message Alert */}
           {successMessage && (
-            <div className="p-3.5 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-200 animate-fade-in">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-800 animate-fade-in font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
               <span className="leading-relaxed">{successMessage}</span>
             </div>
           )}
@@ -458,51 +438,50 @@ export default function AuthModal({
           {/* 1. LOGIN VIEW */}
           {mode === 'login' && (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
-              
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-black uppercase tracking-wider text-purple-300">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Seu E-mail *
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   <input
                     type="email"
                     required
                     placeholder="exemplo@gmail.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full bg-black/60 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-purple-300">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                     Sua Senha *
                   </label>
                   <button
                     type="button"
                     onClick={() => handleSwitchMode('resetpassword')}
-                    className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer transition-colors"
+                    className="text-xs text-sky-700 hover:text-sky-900 font-bold cursor-pointer"
                   >
                     Esqueceu a senha?
                   </button>
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     placeholder="••••••••"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full bg-black/60 border border-white/15 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-3 text-gray-400 hover:text-white"
+                    className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-700 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -512,7 +491,7 @@ export default function AuthModal({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="pkxd-btn-primary w-full py-3.5 font-display font-bold text-sm uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isLoading ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -526,9 +505,9 @@ export default function AuthModal({
 
               <div className="relative my-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/10" />
+                  <div className="w-full border-t border-slate-200" />
                 </div>
-                <span className="relative px-3 bg-zinc-900 text-[10px] uppercase tracking-widest text-gray-400">
+                <span className="relative px-3 bg-white text-[11px] font-bold uppercase tracking-widest text-slate-400">
                   ou continue com
                 </span>
               </div>
@@ -537,7 +516,7 @@ export default function AuthModal({
                 type="button"
                 disabled={isLoading}
                 onClick={handleGoogleAuth}
-                className="w-full py-3 bg-white/10 hover:bg-white/15 border border-white/20 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+                className="pkxd-btn-outline w-full py-3 font-display font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -548,12 +527,12 @@ export default function AuthModal({
                 <span>Conectar com Google</span>
               </button>
 
-              <p className="text-center text-xs text-gray-400 pt-2">
+              <p className="text-center text-xs text-slate-600 pt-2">
                 Ainda não tem conta?{' '}
                 <button
                   type="button"
                   onClick={() => handleSwitchMode('register')}
-                  className="text-pink-400 hover:text-pink-300 font-bold underline cursor-pointer"
+                  className="text-pink-600 hover:text-pink-800 font-bold underline cursor-pointer"
                 >
                   Criar conta grátis
                 </button>
@@ -566,15 +545,13 @@ export default function AuthModal({
             <>
               {!pendingVerification ? (
                 <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-                  
-                  {/* PK XD Nick & Tag Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-black uppercase tracking-wider text-pink-400">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-pink-700">
                         Nome no PK XD *
                       </label>
                       <div className="relative">
-                        <User className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-3" />
+                        <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                         <input
                           type="text"
                           required
@@ -582,17 +559,17 @@ export default function AuthModal({
                           placeholder="Ex: LUNA ou GABRIEL"
                           value={registerNickname}
                           onChange={(e) => setRegisterNickname(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-                          className="w-full bg-black/60 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all font-mono font-bold"
+                          className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:bg-white transition-all font-mono font-bold"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-black uppercase tracking-wider text-pink-400">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-pink-700">
                         Número / Tag # *
                       </label>
                       <div className="relative flex items-center">
-                        <span className="absolute left-3 font-mono font-black text-xs text-pink-400">#</span>
+                        <span className="absolute left-3 font-mono font-bold text-xs text-pink-600">#</span>
                         <input
                           type="text"
                           required
@@ -600,44 +577,44 @@ export default function AuthModal({
                           placeholder="245 ou 000"
                           value={registerTagNumber}
                           onChange={(e) => setRegisterTagNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                          className="w-full bg-black/60 border border-white/15 rounded-xl pl-7 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all font-mono font-bold"
+                          className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-7 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:bg-white transition-all font-mono font-bold"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Tag preview box */}
-                  <div className="p-2.5 bg-purple-950/40 border border-purple-500/30 rounded-xl flex items-center justify-between text-xs">
-                    <span className="text-zinc-400 font-medium text-[11px]">Sua Tag PK XD:</span>
-                    <span className="font-mono font-black text-yellow-300 bg-black/60 px-2 py-0.5 rounded-lg border border-yellow-400/30 text-xs">
+                  {/* Tag preview */}
+                  <div className="p-2.5 bg-violet-50 border border-violet-200 rounded-xl flex items-center justify-between text-xs">
+                    <span className="text-slate-600 font-semibold text-xs">Sua Tag PK XD:</span>
+                    <span className="font-mono font-bold text-violet-900 bg-white px-2.5 py-0.5 rounded-lg border border-violet-200 text-xs">
                       {registerNickname.trim() || 'SEUNICK'}#{registerTagNumber.trim() || '000'}
                     </span>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-black uppercase tracking-wider text-purple-300">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
                       Seu E-mail *
                     </label>
                     <div className="relative">
-                      <Mail className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-3" />
+                      <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                       <input
                         type="email"
                         required
                         placeholder="exemplo@gmail.com"
                         value={registerEmail}
                         onChange={(e) => setRegisterEmail(e.target.value)}
-                        className="w-full bg-black/60 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
+                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all font-mono"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-black uppercase tracking-wider text-purple-300">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
                         Senha (mín. 6 dígitos) *
                       </label>
                       <div className="relative">
-                        <Lock className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-3" />
+                        <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
@@ -645,17 +622,17 @@ export default function AuthModal({
                           placeholder="••••••"
                           value={registerPassword}
                           onChange={(e) => setRegisterPassword(e.target.value)}
-                          className="w-full bg-black/60 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                          className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-black uppercase tracking-wider text-purple-300">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
                         Confirmar Senha *
                       </label>
                       <div className="relative">
-                        <Lock className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-3" />
+                        <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
@@ -663,7 +640,7 @@ export default function AuthModal({
                           placeholder="••••••"
                           value={registerConfirmPassword}
                           onChange={(e) => setRegisterConfirmPassword(e.target.value)}
-                          className="w-full bg-black/60 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                          className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all"
                         />
                       </div>
                     </div>
@@ -672,17 +649,17 @@ export default function AuthModal({
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full py-3.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-pink-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="pkxd-btn-primary w-full py-3.5 font-display font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     <UserPlus className="w-4 h-4" />
-                    <span>Avançar e Criar Conta (+50 XP) 🚀</span>
+                    <span>Avançar e Criar Conta (+50 XP)</span>
                   </button>
 
                   <div className="relative my-3 flex items-center justify-center">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-white/10" />
+                      <div className="w-full border-t border-slate-200" />
                     </div>
-                    <span className="relative px-3 bg-zinc-900 text-[10px] uppercase tracking-widest text-gray-400">
+                    <span className="relative px-3 bg-white text-[10px] font-bold uppercase tracking-widest text-slate-400">
                       ou
                     </span>
                   </div>
@@ -691,7 +668,7 @@ export default function AuthModal({
                     type="button"
                     disabled={isLoading}
                     onClick={handleGoogleAuth}
-                    className="w-full py-2.5 bg-white/10 hover:bg-white/15 border border-white/20 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+                    className="pkxd-btn-outline w-full py-2.5 font-display font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24">
                       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -702,48 +679,48 @@ export default function AuthModal({
                     <span>Cadastrar com Google</span>
                   </button>
 
-                  <p className="text-center text-xs text-gray-400 pt-1">
+                  <p className="text-center text-xs text-slate-600 pt-1">
                     Já possui uma conta?{' '}
                     <button
                       type="button"
                       onClick={() => handleSwitchMode('login')}
-                      className="text-cyan-400 hover:text-cyan-300 font-bold underline cursor-pointer"
+                      className="text-sky-700 hover:text-sky-900 font-bold underline cursor-pointer"
                     >
                       Fazer Login
                     </button>
                   </p>
                 </form>
               ) : (
-                /* Step 2: Code confirmation */
                 <form onSubmit={handleConfirmRegisterCode} className="space-y-4">
                   <div className="text-center space-y-2">
-                    <div className="w-12 h-12 rounded-full bg-pink-500/20 border border-pink-500/40 text-pink-300 flex items-center justify-center mx-auto">
+                    <div className="w-12 h-12 rounded-2xl bg-pink-50 border-2 border-pink-200 text-pink-600 flex items-center justify-center mx-auto">
                       <Mail className="w-6 h-6" />
                     </div>
-                    <h3 className="font-sans font-black text-base text-white uppercase">
+                    <h3 className="font-display font-bold text-base text-slate-900 uppercase">
                       Confirmar E-mail
                     </h3>
-                    <p className="text-xs text-gray-300 max-w-sm mx-auto">
-                      Digite o código de 6 dígitos enviado para <strong className="text-yellow-300 font-mono">{pendingVerification.email}</strong>
+                    <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                      Digite o código de 6 dígitos para{' '}
+                      <strong className="text-violet-700 font-mono">{pendingVerification.email}</strong>
                     </p>
                   </div>
 
-                  <div className="space-y-1">
+                  <div>
                     <input
                       type="text"
                       required
                       maxLength={6}
-                      placeholder="Ex: 123456"
+                      placeholder="123456"
                       value={codeInputValue}
                       onChange={(e) => setCodeInputValue(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-full bg-black/70 border-2 border-pink-500/60 rounded-2xl py-3.5 text-center text-xl tracking-[0.5em] font-mono font-black text-yellow-300 focus:outline-none focus:border-pink-400 transition-all"
+                      className="w-full bg-slate-50 border-2 border-pink-300 rounded-2xl py-3.5 text-center text-xl tracking-[0.5em] font-mono font-bold text-slate-900 focus:outline-none focus:border-pink-500 focus:bg-white transition-all"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isLoading || codeInputValue.length < 6}
-                    className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="pkxd-btn-primary w-full py-3.5 font-display font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isLoading ? (
                       <RefreshCw className="w-4 h-4 animate-spin" />
@@ -759,7 +736,7 @@ export default function AuthModal({
                     <button
                       type="button"
                       onClick={() => setPendingVerification(null)}
-                      className="text-gray-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                      className="text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
                       <span>Voltar</span>
@@ -770,9 +747,9 @@ export default function AuthModal({
                       onClick={() => {
                         const newCode = Math.floor(100000 + Math.random() * 900000).toString();
                         setPendingVerification(prev => prev ? { ...prev, code: newCode } : null);
-                        setSuccessMessage(`🔄 Novo código gerado: ${newCode}`);
+                        setSuccessMessage(`Novo código gerado: ${newCode}`);
                       }}
-                      className="text-pink-400 hover:text-pink-300 font-bold cursor-pointer"
+                      className="text-pink-600 hover:text-pink-800 font-bold cursor-pointer"
                     >
                       Reenviar Código
                     </button>
@@ -786,45 +763,45 @@ export default function AuthModal({
           {mode === 'resetpassword' && (
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
               <div className="text-center space-y-1.5 pb-2">
-                <div className="w-12 h-12 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center mx-auto mb-2">
+                <div className="w-12 h-12 rounded-2xl bg-sky-50 border-2 border-sky-200 text-sky-600 flex items-center justify-center mx-auto mb-2">
                   <KeyRound className="w-6 h-6" />
                 </div>
-                <h3 className="font-sans font-black text-base text-white uppercase">
+                <h3 className="font-display font-bold text-base text-slate-900 uppercase">
                   Redefinir sua Senha
                 </h3>
-                <p className="text-xs text-gray-300 max-w-sm mx-auto leading-relaxed">
+                <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
                   Digite seu e-mail cadastrado abaixo para receber um link seguro e criar uma nova senha.
                 </p>
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-black uppercase tracking-wider text-cyan-300">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   E-mail da sua Conta *
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-3.5" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   <input
                     type="email"
                     required
                     placeholder="seuemail@gmail.com"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    className="w-full bg-black/60 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white transition-all font-mono"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-teal-500 to-blue-600 hover:brightness-110 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                disabled={isLoading || resetSentSuccess}
+                className="pkxd-btn-cyan w-full py-3.5 font-display font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isLoading ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>Enviar Link de Recuperação</span>
+                    <span>{resetSentSuccess ? 'E-mail Enviado' : 'Enviar Link de Recuperação'}</span>
                   </>
                 )}
               </button>
@@ -833,7 +810,7 @@ export default function AuthModal({
                 <button
                   type="button"
                   onClick={() => handleSwitchMode('login')}
-                  className="text-xs text-purple-300 hover:text-white font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  className="text-xs text-violet-700 hover:text-violet-900 font-bold inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Voltar para Fazer Login</span>
@@ -841,16 +818,15 @@ export default function AuthModal({
               </div>
             </form>
           )}
-
         </div>
 
         {/* Footer info */}
-        <div className="px-6 py-3 bg-black/60 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-500 font-mono">
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-mono">
           <div className="flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-purple-400" />
+            <Shield className="w-3.5 h-3.5 text-violet-600" />
             <span>Autenticação Segura Firebase</span>
           </div>
-          <span>PKXD Central • 2026</span>
+          <span>PKXD Central 2.0</span>
         </div>
       </motion.div>
     </div>

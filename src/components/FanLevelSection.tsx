@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Flame, Star, Sparkles, CheckCircle2, User, Edit2, Check, Award, Instagram, Lock, Mail } from 'lucide-react';
-import { playTapSound, playSuccessSound, playLevelUpSound } from '../utils/audio';
+import { Trophy, Flame, Sparkles, CheckCircle2, User, Edit2, Check, Award, Instagram, Lock, Mail } from 'lucide-react';
+import { playTapSound, playSuccessSound } from '../utils/audio';
 import { collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, limit, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 
@@ -61,12 +61,11 @@ interface RankedPlayer {
   email?: string;
 }
 
-export default function FanLevelSection({ 
-  level, 
+export default function FanLevelSection({
+  level,
   xp,
   onAddXP,
-  onLevelUp, 
-  soundEnabled, 
+  soundEnabled,
   user,
   onLogin,
   onLoginRedirect,
@@ -86,20 +85,16 @@ export default function FanLevelSection({
   onResendCode,
   isAuthenticating
 }: FanLevelSectionProps) {
-
-  // Daily claim state
   const [hasClaimedDaily, setHasClaimedDaily] = useState(() => {
     try {
       const lastClaim = localStorage.getItem('pkxd_last_claim_date');
       if (!lastClaim) return false;
-      const today = new Date().toDateString();
-      return lastClaim === today;
-    } catch (e) {
+      return lastClaim === new Date().toDateString();
+    } catch {
       return false;
     }
   });
 
-  // Flame / Fire streak counter ("foguinho")
   const [fireStreak, setFireStreak] = useState(() => {
     try {
       const saved = localStorage.getItem('pkxd_fire_streak');
@@ -110,22 +105,19 @@ export default function FanLevelSection({
     } catch (e) {
       console.warn(e);
     }
-    return 1; // Start with 1 on first use
+    return 1;
   });
 
-  // User's custom nickname
   const [nickname, setNickname] = useState(() => {
     try {
-      const saved = localStorage.getItem('pkxd_username_nickname');
-      return saved || 'Jogador_Convidado';
-    } catch (e) {
+      return localStorage.getItem('pkxd_username_nickname') || 'Jogador_Convidado';
+    } catch {
       return 'Jogador_Convidado';
     }
   });
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [nickInput, setNickInput] = useState(nickname);
 
-  // Instagram profile local & form states as requested
   const [instagram, setInstagram] = useState(() => {
     try {
       return localStorage.getItem('pkxd_user_instagram') || '';
@@ -135,8 +127,7 @@ export default function FanLevelSection({
   });
   const [instagramPublic, setInstagramPublic] = useState(() => {
     try {
-      const saved = localStorage.getItem('pkxd_user_instagram_public');
-      return saved === 'false' ? false : true;
+      return localStorage.getItem('pkxd_user_instagram_public') === 'false' ? false : true;
     } catch {
       return true;
     }
@@ -144,21 +135,17 @@ export default function FanLevelSection({
 
   const [instagramForm, setInstagramForm] = useState('');
   const [instagramPublicForm, setInstagramPublicForm] = useState(true);
-
   const [instaInput, setInstaInput] = useState('');
   const [instaPublicInput, setInstaPublicInput] = useState(true);
-
   const [notif, setNotif] = useState<string | null>(null);
-  
-  // Email and Password Login / Registration states
+  const [confirmDeletePlayerId, setConfirmDeletePlayerId] = useState<string | null>(null);
+
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [emailForm, setEmailForm] = useState('');
   const [passwordForm, setPasswordForm] = useState('');
   const [nicknameForm, setNicknameForm] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
-  const [isFormSubmitting, setIsFormSubmitting] = useState(false);
 
-  // Generate or load a unique browser/device client ID
   const [clientId] = useState(() => {
     try {
       let saved = localStorage.getItem('pkxd_user_clientId');
@@ -167,14 +154,12 @@ export default function FanLevelSection({
         localStorage.setItem('pkxd_user_clientId', saved);
       }
       return saved;
-    } catch (e) {
+    } catch {
       return 'u_fallback_' + Math.random().toString(36).substring(2, 5);
     }
   });
 
   const activePlayerId = user?.uid || clientId;
-
-  // Real database players
   const [dbPlayers, setDbPlayers] = useState<RankedPlayer[]>([]);
   const [leaderboard, setLeaderboard] = useState<RankedPlayer[]>([]);
   const [localPhotoUrl, setLocalPhotoUrl] = useState(() => localStorage.getItem('pkxd_custom_profile_image') || '');
@@ -187,7 +172,6 @@ export default function FanLevelSection({
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Monthly Winner State
   interface MonthlyWinner {
     winnerName: string;
     winnerLevel: number;
@@ -199,12 +183,9 @@ export default function FanLevelSection({
   }
   const [monthlyWinner, setMonthlyWinner] = useState<MonthlyWinner | null>(null);
 
-  // ==========================================
-  // NEW INTERACTIVE XP GAINING METHODS STATES
-  // ==========================================
   const [activeXpTab, setActiveXpTab] = useState<'daily' | 'wheel' | 'chest'>('daily');
 
-  // A. Lucky Wheel States
+  // A. Lucky Wheel
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelResult, setWheelResult] = useState<{ amount: number; message: string } | null>(null);
   const [wheelCooldown, setWheelCooldown] = useState<number>(() => {
@@ -221,15 +202,13 @@ export default function FanLevelSection({
     if (wheelCooldown <= 0) return;
     const updateTimer = () => {
       const now = Date.now();
-      const difference = Math.max(0, Math.ceil((wheelCooldown - now) / 1000));
-      setWheelTimeLeft(difference);
+      setWheelTimeLeft(Math.max(0, Math.ceil((wheelCooldown - now) / 1000)));
     };
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [wheelCooldown]);
 
-  // Spin Lucky Wheel algorithm
   const handleSpinWheel = () => {
     if (isSpinning || wheelTimeLeft > 0) return;
     setIsSpinning(true);
@@ -238,21 +217,19 @@ export default function FanLevelSection({
 
     setTimeout(() => {
       const rewards = [
-        { amount: 150, text: "⭐ Super Sorte" },
-        { amount: 250, text: "🔥 Brilho de Fogo" },
-        { amount: 100, text: "⚡ Gíria Cósmica" },
-        { amount: 300, text: "👑 Baú Lendário!" },
-        { amount: 150, text: "🔮 Orbe Divino" },
-        { amount: 200, text: "🛸 Nave do Admin" }
+        { amount: 150, text: '⭐ Super Sorte' },
+        { amount: 250, text: '🔥 Brilho de Fogo' },
+        { amount: 100, text: '⚡ Gíria Cósmica' },
+        { amount: 300, text: '👑 Baú Lendário!' },
+        { amount: 150, text: '🔮 Orbe Divino' },
+        { amount: 200, text: '🛸 Nave do Admin' }
       ];
       const selected = rewards[Math.floor(Math.random() * rewards.length)];
       setWheelResult({ amount: selected.amount, message: selected.text });
       setIsSpinning(false);
 
-      // Award XP
       addXP(selected.amount, `${selected.text} da Roleta! 🎡`);
 
-      // Set 3-hour cooldown
       const nextSpinTime = Date.now() + 3 * 60 * 60 * 1000;
       setWheelCooldown(nextSpinTime);
       try {
@@ -261,7 +238,7 @@ export default function FanLevelSection({
     }, 2400);
   };
 
-  // B. PK XD Secret Mystery Chest States
+  // B. Secret Mystery Chest
   const [chestTaps, setChestTaps] = useState(0);
   const [chestMaxTaps] = useState(8);
   const [isChestBroken, setIsChestBroken] = useState(false);
@@ -280,8 +257,7 @@ export default function FanLevelSection({
     if (chestCooldown <= 0) return;
     const updateTimer = () => {
       const now = Date.now();
-      const difference = Math.max(0, Math.ceil((chestCooldown - now) / 1000));
-      setChestTimeLeft(difference);
+      setChestTimeLeft(Math.max(0, Math.ceil((chestCooldown - now) / 1000)));
     };
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
@@ -290,7 +266,7 @@ export default function FanLevelSection({
 
   const handleTapChest = () => {
     if (isChestBroken || chestTimeLeft > 0) return;
-    
+
     const nextTaps = chestTaps + 1;
     setChestTaps(nextTaps);
     if (soundEnabled) playTapSound();
@@ -300,20 +276,18 @@ export default function FanLevelSection({
       if (soundEnabled) playSuccessSound();
 
       const standardLoot = [
-        { amount: 150, name: "⚡ Super Gema Verde", rarity: "Raro" },
-        { amount: 200, name: "🛸 Turbina de Gravidade Zero", rarity: "Épico" },
-        { amount: 250, name: "🕶️ Óculos Retro-Tech do Admin", rarity: "Lendário" },
-        { amount: 150, name: "🎒 Mochila Foguete de Neon", rarity: "Raro" },
-        { amount: 300, name: "⭐ Armadura Suprema PK XD", rarity: "Lendário" },
-        { amount: 200, name: "🐲 Drone Companheiro Fantasma", rarity: "Épico" }
+        { amount: 150, name: '⚡ Super Gema Verde', rarity: 'Raro' },
+        { amount: 200, name: '🛸 Turbina de Gravidade Zero', rarity: 'Épico' },
+        { amount: 250, name: '🕶️ Óculos Retro-Tech do Admin', rarity: 'Lendário' },
+        { amount: 150, name: '🎒 Mochila Foguete', rarity: 'Raro' },
+        { amount: 300, name: '⭐ Armadura Suprema PK XD', rarity: 'Lendário' },
+        { amount: 200, name: '🐲 Drone Companheiro', rarity: 'Épico' }
       ];
       const selected = standardLoot[Math.floor(Math.random() * standardLoot.length)];
       setChestReward(selected);
 
-      // Award XP
       addXP(selected.amount, `Abriu Baú Secreto: encontrou ${selected.name}! 🎁`);
 
-      // Set 10-minute cooldown
       const nextChestTime = Date.now() + 10 * 60 * 1000;
       setChestCooldown(nextChestTime);
       try {
@@ -329,13 +303,11 @@ export default function FanLevelSection({
     if (soundEnabled) playTapSound();
   };
 
-  // Load returning player profile from Firestore on login to avoid losing level resets
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
       if (!user?.uid) {
-        // If not authenticated, we reset state to empty / guest defaults
         setNickname('Jogador_Convidado');
         setNickInput('Jogador_Convidado');
         setFireStreak(1);
@@ -347,7 +319,7 @@ export default function FanLevelSection({
       setIsLoadingProfile(true);
       const cleanedId = user.uid.trim();
       const userDocRef = doc(db, 'leaderboard', cleanedId);
-      
+
       try {
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
@@ -359,14 +331,12 @@ export default function FanLevelSection({
           const dbInsta = data.instagram || '';
           const dbInstaPublic = data.instagramPublic !== false;
 
-          // Sync into states
           setNickname(dbName);
           setNickInput(dbName);
           setFireStreak(dbFlames);
           setInstagram(dbInsta);
           setInstagramPublic(dbInstaPublic);
 
-          // Sync into localStorage
           localStorage.setItem('pkxd_username_nickname', dbName);
           localStorage.setItem('pkxd_fire_streak', String(dbFlames));
           localStorage.setItem('pkxd_user_instagram', dbInsta);
@@ -374,11 +344,9 @@ export default function FanLevelSection({
           localStorage.setItem('pkxd_fan_level', String(dbLevel));
           localStorage.setItem('pkxd_fan_xp', String(dbXp));
 
-          // Notify App.tsx of the correct level & xp
           setFanLevel?.(dbLevel);
           setFanXP?.(dbXp);
         } else {
-          // If completely new registered user, sync guest state so they don't lose progress on signup!
           const payload: any = {
             id: cleanedId,
             email: user.email || '',
@@ -393,7 +361,7 @@ export default function FanLevelSection({
           };
 
           if (user.uid === 'admin_fallback') {
-            payload.admin_secret = "pkxd2026_super_secret_admin_key";
+            payload.admin_secret = 'pkxd2026_super_secret_admin_key';
           }
 
           await setDoc(userDocRef, payload);
@@ -404,7 +372,7 @@ export default function FanLevelSection({
           localStorage.setItem('pkxd_username_nickname', finalName);
         }
       } catch (err) {
-        console.warn("Could not retrieve/set cloud user file:", err);
+        console.warn('Could not retrieve/set cloud user file:', err);
       } finally {
         setIsLoadingProfile(false);
       }
@@ -423,11 +391,9 @@ export default function FanLevelSection({
     localStorage.setItem('pkxd_username_nickname', nickname);
   }, [nickname, isLoadingProfile]);
 
-  // Sync current player stats to database
   useEffect(() => {
     const syncToDB = async () => {
-      if (isLoadingProfile) return; // Wait until retrieve finishes
-      // ONLY sync real authenticated profiles to direct database to prevent duplicates/spoofing
+      if (isLoadingProfile) return;
       if (!user?.uid) return;
 
       const cleanedId = user.uid.trim();
@@ -449,12 +415,12 @@ export default function FanLevelSection({
         };
 
         if (user.uid === 'admin_fallback') {
-          payload.admin_secret = "pkxd2026_super_secret_admin_key";
+          payload.admin_secret = 'pkxd2026_super_secret_admin_key';
         }
 
         await setDoc(userDoc, payload);
       } catch (err) {
-        console.warn("Could not sync leaderboard stats:", err);
+        console.warn('Could not sync leaderboard stats:', err);
       }
     };
 
@@ -465,15 +431,12 @@ export default function FanLevelSection({
     return () => clearTimeout(timer);
   }, [user, nickname, level, xp, fireStreak, instagram, instagramPublic, localPhotoUrl, isLoadingProfile]);
 
-  // Listen to top players from Firestore collection
   useEffect(() => {
-    // Top users query
     const q = query(collection(db, 'leaderboard'), limit(40));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const players: RankedPlayer[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        // Fully exclude any legacy local/guest ID files (prefix u_) to guarantee real, true leaderboard listing
         if (data && data.id && !data.id.startsWith('u_')) {
           players.push({
             id: data.id,
@@ -496,7 +459,6 @@ export default function FanLevelSection({
     return () => unsubscribe();
   }, []);
 
-  // Real-time listener for monthly winner and auto-rollover
   useEffect(() => {
     const winnerRef = doc(db, 'settings', 'monthly_winner');
     const unsubscribe = onSnapshot(winnerRef, async (snapshot) => {
@@ -508,7 +470,6 @@ export default function FanLevelSection({
         const data = snapshot.data() as MonthlyWinner;
         setMonthlyWinner(data);
 
-        // Check if month has changed/rolled over compared to the last recorded winner
         if (data.lastCheckedMonth !== currentMonth || data.lastCheckedYear !== currentYear) {
           try {
             const q = query(collection(db, 'leaderboard'));
@@ -522,9 +483,8 @@ export default function FanLevelSection({
             });
 
             if (players.length > 0) {
-              const computeScore = (p: any) => {
-                return (Number(p.level || 1) * 10000) + (Number(p.flames || 0) * 100) + Number(p.xp || 0);
-              };
+              const computeScore = (p: any) =>
+                (Number(p.level || 1) * 10000) + (Number(p.flames || 0) * 100) + Number(p.xp || 0);
               players.sort((a, b) => computeScore(b) - computeScore(a));
               const topPlayer = players[0];
 
@@ -542,7 +502,7 @@ export default function FanLevelSection({
               setMonthlyWinner(newWinner);
             }
           } catch (err) {
-            console.error("Erro ao registrar vencedor mensal:", err);
+            console.error('Erro ao registrar vencedor mensal:', err);
           }
         }
       } else {
@@ -563,9 +523,8 @@ export default function FanLevelSection({
           let winnerXp = 0;
 
           if (players.length > 0) {
-            const computeScore = (p: any) => {
-              return (Number(p.level || 1) * 10000) + (Number(p.flames || 0) * 100) + Number(p.xp || 0);
-            };
+            const computeScore = (p: any) =>
+              (Number(p.level || 1) * 10000) + (Number(p.flames || 0) * 100) + Number(p.xp || 0);
             players.sort((a, b) => computeScore(b) - computeScore(a));
             const topPlayer = players[0];
             winnerName = topPlayer.name || 'Fã Secreto';
@@ -587,7 +546,7 @@ export default function FanLevelSection({
           await setDoc(winnerRef, initWinner);
           setMonthlyWinner(initWinner);
         } catch (err) {
-          console.error("Erro ao inicializar vencedor mensal:", err);
+          console.error('Erro ao inicializar vencedor mensal:', err);
         }
       }
     });
@@ -595,26 +554,22 @@ export default function FanLevelSection({
     return () => unsubscribe();
   }, []);
 
-  // Merge database players with user's latest stats - Only show authenticated users on Leaderboard to prevent guest duplicates
   useEffect(() => {
     let combined = [...dbPlayers];
 
-    // ONLY append/display personal rank slot if logged in to avoid guest duplicates
     if (!user?.uid) {
-      const computeScore = (p: RankedPlayer) => {
-        return (p.level * 10000) + (p.flames * 100) + p.xp;
-      };
+      const computeScore = (p: RankedPlayer) => (p.level * 10000) + (p.flames * 100) + p.xp;
       combined.sort((a, b) => computeScore(b) - computeScore(a));
       setLeaderboard(combined);
       return;
     }
 
-    const activePlayerId = user.uid;
-    const hasMe = combined.some(p => p.id === activePlayerId);
-    
+    const activeId = user.uid;
+    const hasMe = combined.some(p => p.id === activeId);
+
     if (!hasMe) {
       combined.push({
-        id: activePlayerId,
+        id: activeId,
         name: nickname,
         level: level,
         xp: xp,
@@ -624,35 +579,30 @@ export default function FanLevelSection({
         instagramPublic: instagramPublic
       });
     } else {
-      combined = combined.map(p => {
-        if (p.id === activePlayerId) {
-          return {
-            ...p,
-            name: nickname,
-            level: level,
-            xp: xp,
-            flames: fireStreak,
-            isCurrentUser: true,
-            instagram: instagram,
-            instagramPublic: instagramPublic
-          };
-        }
-        return p;
-      });
+      combined = combined.map(p =>
+        p.id === activeId
+          ? {
+              ...p,
+              name: nickname,
+              level: level,
+              xp: xp,
+              flames: fireStreak,
+              isCurrentUser: true,
+              instagram: instagram,
+              instagramPublic: instagramPublic
+            }
+          : p
+      );
     }
 
-    // Sort scoring algorithm: level has highest weight, then flames, then xp progress
-    const computeScore = (p: RankedPlayer) => {
-      return (p.level * 10000) + (p.flames * 100) + p.xp;
-    };
-
+    const computeScore = (p: RankedPlayer) => (p.level * 10000) + (p.flames * 100) + p.xp;
     combined.sort((a, b) => computeScore(b) - computeScore(a));
     setLeaderboard(combined);
   }, [dbPlayers, user, clientId, nickname, level, xp, fireStreak, instagram, instagramPublic]);
 
   const addXP = (amount: number, reason: string) => {
     if (soundEnabled) playSuccessSound();
-    setNotif(`+${amount} XP: ${reason}! ⚡`);
+    setNotif(`+${amount} XP: ${reason}`);
     setTimeout(() => setNotif(null), 3000);
     onAddXP(amount, reason);
   };
@@ -664,123 +614,97 @@ export default function FanLevelSection({
     const today = new Date().toDateString();
     localStorage.setItem('pkxd_last_claim_date', today);
     setHasClaimedDaily(true);
-    
-    // Increment fire streak ("foguinho") when claimed!
+
     const newStreak = fireStreak + 1;
     setFireStreak(newStreak);
 
-    addXP(500, "Coleta Diária 🔥 +1 FOGUINHO!");
+    addXP(500, 'Coleta Diária 🔥 +1 Foguinho!');
   };
 
   const handleDeletePlayer = async (playerId: string, playerName: string) => {
-    if (!window.confirm(`Tem certeza que deseja excluir o fã "${playerName}" do ranking?`)) {
-      return;
-    }
     try {
       await deleteDoc(doc(db, 'leaderboard', playerId));
-      setNotif(`Fã ${playerName} excluído do ranking! 🗑️`);
+      setConfirmDeletePlayerId(null);
+      setNotif(`Fã ${playerName} removido do ranking.`);
       if (soundEnabled) playTapSound();
       setTimeout(() => setNotif(null), 3000);
     } catch (err) {
-      console.error("Erro ao excluir fã:", err);
-      setNotif(`❌ Erro ao excluir fã.`);
+      console.error('Erro ao excluir fã:', err);
+      setNotif('Erro ao excluir fã do ranking.');
       setTimeout(() => setNotif(null), 3000);
-    }
-  };
-
-  const saveNickname = () => {
-    playTapSound();
-    const clean = nickInput.trim().replace(/\s+/g, '_');
-    if (clean.length > 0) {
-      const isDuplicate = dbPlayers.some(
-        p => p.id !== activePlayerId && p.name.trim().toLowerCase() === clean.trim().toLowerCase()
-      );
-      if (isDuplicate) {
-        setNotif(`❌ Apelido "${clean}" já está em uso! Escolha outro.`);
-        setTimeout(() => setNotif(null), 3500);
-        return;
-      }
-
-      setNickname(clean);
-      setIsEditingNickname(false);
-      setNotif(`Apelido alterado para ${clean}! 👤`);
-      setTimeout(() => setNotif(null), 2500);
     }
   };
 
   return (
-    <section id="fan-level-dashboard" className="bg-zinc-900 border border-white/5 rounded-3xl p-6 sm:p-8 space-y-8 text-left relative overflow-hidden transform-gpu">
-
-      {/* Dynamic Gaining Alert Alert */}
+    <section
+      id="fan-level-dashboard"
+      className="pkxd-glass rounded-3xl p-6 sm:p-8 space-y-6 text-left"
+    >
+      {/* Floating XP Notification */}
       {notif && (
-        <div className="fixed top-20 right-6 z-50 bg-gradient-to-r from-orange-500 to-yellow-400 text-black font-black px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 border-2 border-white animate-bounce text-xs sm:text-sm">
-          <Flame className="w-5 h-5 text-indigo-950 animate-pulse fill-red-650" />
+        <div className="fixed top-20 right-6 z-50 bg-[#FACC15] text-slate-900 font-extrabold px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 border-2 border-slate-900 text-xs sm:text-sm">
+          <Flame className="w-5 h-5 text-orange-600 fill-orange-500" />
           <span>{notif}</span>
         </div>
       )}
 
-      {/* Main Header Row */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-b border-white/5 pb-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-orange-400 font-extrabold text-xs uppercase tracking-wider">
-            <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
+      {/* Header Row */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-b-2 border-slate-100 pb-6">
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-orange-700 font-extrabold text-xs uppercase tracking-wider">
+            <Flame className="w-3.5 h-3.5 fill-orange-500 text-orange-500" />
             <span>PKXD Central • Sequência de Fogos</span>
           </div>
-          <h3 className="font-sans font-black text-2xl tracking-tight text-white uppercase">
-            🔥 Central do Foguinho & XP Diário
+          <h3 className="font-display font-bold text-2xl sm:text-3xl tracking-tight text-slate-900">
+            Central do Foguinho & Ranking
           </h3>
-          <p className="font-sans text-xs text-gray-400">
-            Resgate sua energia diária para acumular fogos, subir de nível e liderar o ranking oficial dos maiores fãs!
+          <p className="font-sans text-xs sm:text-sm text-slate-600 max-w-xl">
+            Resgate sua energia diária, gire a roleta, acumule fogos seguidos e suba no ranking oficial da comunidade.
           </p>
         </div>
 
-        {/* Current User Quick Stats Widget */}
-        <div className="bg-zinc-950 p-4 rounded-2xl border border-white/5 w-full lg:w-96 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {/* Round status badge */}
-            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-orange-500 to-yellow-400 p-0.5 flex items-center justify-center relative">
-              <div className="w-full h-full bg-zinc-950 rounded-full flex flex-col items-center justify-center">
-                <span className="text-[12px] font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 leading-none">Lv {level}</span>
+        {/* User Quick Stats Card */}
+        <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 w-full lg:w-[400px] flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-orange-500 to-[#FACC15] p-0.5 flex items-center justify-center shrink-0">
+              <div className="w-full h-full bg-white rounded-[14px] flex flex-col items-center justify-center">
+                <span className="text-xs font-mono font-extrabold text-orange-600 leading-none">Lv {level}</span>
               </div>
             </div>
-            
-            {/* Nickname / Edit component */}
-            <div className="space-y-0.5">
+
+            <div className="space-y-1 min-w-0">
               {isEditingNickname ? (
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={nickInput}
-                      onChange={(e) => setNickInput(e.target.value)}
-                      className="bg-zinc-800 text-white text-xs px-2 py-1 rounded border border-white/20 w-32 focus:outline-none focus:border-orange-500 font-sans"
-                      maxLength={15}
-                      placeholder="Apelido..."
-                    />
-                  </div>
-                  
-                  {/* Let them edit Instagram handle */}
+                  <input
+                    type="text"
+                    value={nickInput}
+                    onChange={(e) => setNickInput(e.target.value)}
+                    className="bg-white text-slate-900 text-xs px-2.5 py-1.5 rounded-lg border-2 border-slate-200 w-40 focus:outline-none focus:border-orange-500 font-sans font-bold"
+                    maxLength={15}
+                    placeholder="Apelido..."
+                  />
+
                   <div className="space-y-1">
                     <input
                       type="text"
                       value={instaInput}
                       onChange={(e) => setInstaInput(e.target.value)}
-                      className="bg-zinc-850 text-white text-[10px] px-2 py-1.5 rounded border border-white/10 w-full focus:outline-none focus:border-orange-500 font-mono"
+                      className="bg-white text-slate-900 text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 w-full focus:outline-none focus:border-orange-500 font-mono"
                       placeholder="Instagram (Link ou @user)"
                     />
-                    <label className="flex items-center gap-1.5 text-[9px] text-gray-400 select-none cursor-pointer">
+                    <label className="flex items-center gap-1.5 text-[11px] text-slate-600 select-none cursor-pointer font-semibold">
                       <input
                         type="checkbox"
                         checked={instaPublicInput}
                         onChange={(e) => setInstaPublicInput(e.target.checked)}
-                        className="rounded border-white/10 bg-zinc-950 text-orange-500 focus:ring-0 cursor-pointer"
+                        className="rounded border-slate-300 text-orange-600 cursor-pointer"
                       />
-                      <span>Instagram Público no Ranking</span>
+                      <span>Instagram público no ranking</span>
                     </label>
                   </div>
 
                   <div className="flex gap-1.5 pt-1">
-                    <button 
+                    <button
                       onClick={() => {
                         playTapSound();
                         const clean = nickInput.trim().replace(/\s+/g, '_');
@@ -789,95 +713,100 @@ export default function FanLevelSection({
                             p => p.id !== activePlayerId && p.name.trim().toLowerCase() === clean.trim().toLowerCase()
                           );
                           if (isDuplicate) {
-                            setNotif(`❌ Apelido "${clean}" já está em uso! Escolha outro.`);
+                            setNotif(`Apelido "${clean}" já está em uso! Escolha outro.`);
                             setTimeout(() => setNotif(null), 3500);
                             return;
                           }
                           setNickname(clean);
                         }
-                        
+
                         const cleanInsta = instaInput.trim();
                         localStorage.setItem('pkxd_user_instagram', cleanInsta);
                         localStorage.setItem('pkxd_user_instagram_public', String(instaPublicInput));
                         setInstagram(cleanInsta);
                         setInstagramPublic(instaPublicInput);
-                        
+
                         setIsEditingNickname(false);
-                        setNotif(`Perfil atualizado com sucesso! 👤`);
+                        setNotif('Perfil atualizado com sucesso!');
                         setTimeout(() => setNotif(null), 2500);
-                      }} 
-                      className="px-2.5 py-1.5 bg-emerald-500 text-black text-[10px] font-black uppercase rounded hover:bg-emerald-400 cursor-pointer flex items-center gap-1"
+                      }}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-lg cursor-pointer flex items-center gap-1"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>Salvar</span>
                     </button>
-                    <button 
-                      onClick={() => setIsEditingNickname(false)} 
-                      className="px-2.5 py-1.5 bg-zinc-700 text-white text-[10px] font-black uppercase rounded hover:bg-zinc-650 cursor-pointer"
+                    <button
+                      onClick={() => setIsEditingNickname(false)}
+                      className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer"
                     >
-                      <span>Voltar</span>
+                      Voltar
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black text-white truncate max-w-[120px] font-mono">{nickname}</span>
-                  <button 
-                    onClick={() => { 
-                      playTapSound(); 
-                      setIsEditingNickname(true); 
+                  <span className="text-sm font-display font-bold text-slate-900 truncate max-w-[140px]">
+                    {nickname}
+                  </span>
+                  <button
+                    onClick={() => {
+                      playTapSound();
+                      setIsEditingNickname(true);
                       setNickInput(nickname);
                       setInstaInput(instagram);
                       setInstaPublicInput(instagramPublic);
                     }}
-                    className="p-1 text-gray-400 hover:text-white transition-all cursor-pointer"
+                    className="p-1 text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
                     title="Mudar Apelido"
                   >
-                    <Edit2 className="w-2.5 h-2.5" />
+                    <Edit2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
-              <div className="flex items-center gap-1.5 text-[10px] text-orange-400 font-black">
-                <Flame className="w-3.5 h-3.5 fill-orange-500 text-orange-600 animate-pulse" />
-                <span>{fireStreak} Fogos Conquistados</span>
+              <div className="flex items-center gap-1 text-xs text-orange-600 font-extrabold">
+                <Flame className="w-3.5 h-3.5 fill-orange-500" />
+                <span className="tabular-nums">{fireStreak} Fogos Conquistados</span>
               </div>
             </div>
           </div>
 
-          <div className="text-right space-y-1">
-            <div className="text-[11px] font-bold text-gray-400 font-mono">XP: <span className="text-yellow-300">{xp}/100</span></div>
-            {/* Tiny progress bar */}
-            <div className="w-24 h-1.5 bg-zinc-850 rounded-full overflow-hidden p-0.5 border border-white/5">
-              <div className="h-full bg-gradient-to-r from-orange-500 to-yellow-400 rounded-full" style={{ width: `${xp}%` }} />
+          <div className="text-right space-y-1.5 shrink-0">
+            <div className="text-xs font-bold text-slate-500 font-mono tabular-nums">
+              XP: <span className="text-[#6D28D9] font-extrabold">{xp}/100</span>
+            </div>
+            <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-orange-500 to-[#FACC15] rounded-full transition-all"
+                style={{ width: `${Math.min(100, Math.max(0, xp))}%` }}
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Connection/Login Banner for Fans */}
+      {/* Connection / Auth Banner */}
       {!user || user.uid === 'admin_fallback' ? (
-        <div className="bg-gradient-to-b from-indigo-950/40 via-zinc-900/40 to-transparent border-2 border-indigo-500/30 rounded-3xl p-6 space-y-6 shadow-2xl text-left font-sans">
+        <div className="bg-[#F3F0FF] border-2 border-purple-200 rounded-3xl p-5 sm:p-6 space-y-5 text-left font-sans">
           <div className="space-y-1">
-            <h4 className="text-base sm:text-lg font-sans font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Award className="w-5.5 h-5.5 text-yellow-300 animate-pulse fill-yellow-500/20" />
-              <span>Conecte sua Conta para entrar no Ranking Real! 🏆</span>
+            <h4 className="font-display text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Award className="w-5 h-5 text-[#6D28D9]" />
+              <span>Conecte sua Conta para aparecer no Ranking Real</span>
             </h4>
-            <p className="text-xs text-gray-300 leading-normal max-w-3xl">
-              Seu perfil atual é temporário como <strong className="text-orange-400 font-mono font-black">{nickname}</strong>. Faça login rápido ou crie uma conta usando seu e-mail e senha abaixo para salvar seu fã-level, streak de fogo diário, e aparecer para todo mundo!
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-3xl">
+              Seu perfil atual é temporário como <strong className="text-[#6D28D9] font-mono">{nickname}</strong>. Faça login ou cadastre-se abaixo para salvar seu nível e sequência de fogos na nuvem.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch pt-2">
-            
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
             {/* Left Column: Google Sign-in */}
-            <div className="bg-zinc-950/60 p-5 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4">
-              <div className="space-y-2">
-                <h5 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+            <div className="bg-white p-5 rounded-2xl border-2 border-purple-100 flex flex-col justify-between space-y-4">
+              <div className="space-y-1.5">
+                <h5 className="text-xs font-extrabold text-[#6D28D9] uppercase tracking-wider flex items-center gap-1.5">
                   <User className="w-4 h-4" />
-                  <span>Opção 1: CONEXÃO COM GOOGLE</span>
+                  <span>Opção 1: Acesso Rápido com Google</span>
                 </h5>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
-                  Conecte estantaneamente com sua conta Google existente se os popups estiverem ativos no seu navegador.
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Entre instantaneamente usando sua conta Google conectada ao navegador.
                 </p>
               </div>
 
@@ -887,45 +816,47 @@ export default function FanLevelSection({
                     if (soundEnabled) playSuccessSound();
                     if (onLogin) onLogin();
                   }}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-550 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md transition-all flex items-center justify-center gap-1.5"
+                  className="pkxd-btn-primary w-full py-3 px-4 text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4 text-yellow-200 animate-spin" />
-                  <span>Entrar com Google (Popup)</span>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Entrar com Google</span>
                 </button>
                 <button
                   onClick={() => {
                     if (soundEnabled) playTapSound();
                     if (onLoginRedirect) onLoginRedirect();
                   }}
-                  className="w-full py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] text-gray-300 font-sans font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer border border-zinc-750 transition-all flex items-center justify-center gap-1"
-                  title="Use se o Popup do Google estiver bloqueado no celular"
+                  className="pkxd-btn-outline w-full py-2.5 px-4 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Use se o popup do Google estiver bloqueado no celular"
                 >
-                  <span>Redirecionar Celular 📱</span>
+                  <span>Alternativa para Celular</span>
                 </button>
               </div>
             </div>
 
-            {/* Right Column: Email / Password login or Verification Code */}
+            {/* Right Column: Email / Password or Verification */}
             {pendingEmailVerification ? (
-              <div className="bg-zinc-950/80 p-5 rounded-2xl border border-emerald-500/30 flex flex-col justify-between space-y-4">
+              <div className="bg-white p-5 rounded-2xl border-2 border-emerald-300 flex flex-col justify-between space-y-4">
                 <div className="space-y-3 text-left">
-                  <div className="bg-emerald-500/15 border border-emerald-500/30 p-3 rounded-xl space-y-1.5 text-xs text-emerald-200">
-                    <div className="font-bold uppercase tracking-wider text-[10px] text-emerald-400 flex items-center gap-1.5">
-                      <Mail className="w-4 h-4 text-emerald-400 animate-bounce" />
-                      <span>E-MAIL DE CONFIRMAÇÃO ENVIADO!</span>
+                  <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-1.5 text-xs text-emerald-900">
+                    <div className="font-extrabold uppercase tracking-wider text-[11px] text-emerald-700 flex items-center gap-1.5">
+                      <Mail className="w-4 h-4" />
+                      <span>Código de Confirmação Gerado</span>
                     </div>
-                    <p className="text-[11px] leading-relaxed text-zinc-300 font-sans">
-                      Enviamos um código de verificação de 6 dígitos para o seu e-mail: <strong className="text-yellow-300 font-mono">{pendingEmailVerification.email}</strong>.
+                    <p className="text-xs leading-relaxed text-emerald-900 font-sans">
+                      Código para <strong className="font-mono">{pendingEmailVerification.email}</strong>:
                     </p>
-                    <div className="p-2 bg-black/40 rounded-xl border border-emerald-500/30 flex items-center justify-between text-[11px]">
-                      <span className="text-zinc-400 text-[10px] uppercase font-bold">Seu Código:</span>
-                      <span className="text-yellow-300 font-mono font-black text-sm tracking-widest">{pendingEmailVerification.code}</span>
+                    <div className="p-2.5 bg-white rounded-xl border border-emerald-200 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 text-[11px] uppercase font-bold">Seu Código:</span>
+                      <span className="text-emerald-700 font-mono font-extrabold text-sm tracking-widest">
+                        {pendingEmailVerification.code}
+                      </span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-black text-pink-400 uppercase tracking-widest mb-1.5 ml-0.5">
-                      Digite o Código de 6 dígitos:
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                      Digite o código de 6 dígitos:
                     </label>
                     <input
                       type="text"
@@ -934,13 +865,13 @@ export default function FanLevelSection({
                       placeholder="000000"
                       value={verificationCodeInput || ''}
                       onChange={(e) => setVerificationCodeInput && setVerificationCodeInput(e.target.value.replace(/\D/g, ''))}
-                      className="w-full text-center bg-zinc-950 border-2 border-pink-500/50 rounded-2xl py-3 text-2xl font-mono font-black tracking-[0.4em] text-yellow-300 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-500/50 transition-all"
+                      className="w-full text-center bg-slate-50 border-2 border-slate-200 rounded-2xl py-2.5 text-2xl font-mono font-extrabold tracking-[0.35em] text-[#6D28D9] focus:outline-none focus:border-[#6D28D9]"
                     />
                   </div>
 
                   {(authError || outerAuthError) && (
-                    <p className="text-[11px] text-red-400 bg-red-950/20 border border-red-500/10 p-2.5 rounded-xl whitespace-pre-line leading-relaxed font-sans">
-                      ⚠️ {authError || outerAuthError}
+                    <p className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl whitespace-pre-line leading-relaxed">
+                      {authError || outerAuthError}
                     </p>
                   )}
                 </div>
@@ -953,12 +884,12 @@ export default function FanLevelSection({
                       if (onConfirmEmailCode) onConfirmEmailCode();
                     }}
                     disabled={isAuthenticating || (verificationCodeInput || '').length !== 6}
-                    className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 hover:from-emerald-600 hover:to-cyan-700 disabled:opacity-50 text-white rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer shadow-lg"
+                    className="pkxd-btn-cyan w-full py-3 disabled:opacity-50 text-xs cursor-pointer"
                   >
-                    {isAuthenticating ? 'Verificando Código... 🚀' : 'Confirmar Código e Ativar Conta! ⚡'}
+                    {isAuthenticating ? 'Verificando código...' : 'Confirmar Código e Ativar Conta'}
                   </button>
 
-                  <div className="flex flex-col gap-2 pt-1 text-center border-t border-white/5">
+                  <div className="flex flex-col gap-1.5 pt-1 text-center border-t border-slate-100">
                     <button
                       type="button"
                       disabled={resendCooldown ? resendCooldown > 0 : false}
@@ -966,9 +897,9 @@ export default function FanLevelSection({
                         if (soundEnabled) playTapSound();
                         if (onResendCode) onResendCode();
                       }}
-                      className="text-xs text-pink-400 hover:text-pink-300 font-bold uppercase tracking-wider disabled:opacity-40 cursor-pointer"
+                      className="text-xs text-[#6D28D9] hover:underline font-extrabold disabled:opacity-40 cursor-pointer"
                     >
-                      {resendCooldown && resendCooldown > 0 ? `Reenviar novo código em (${resendCooldown}s)...` : '🔄 Reenviar Código por E-mail'}
+                      {resendCooldown && resendCooldown > 0 ? `Reenviar em (${resendCooldown}s)...` : 'Reenviar Código'}
                     </button>
 
                     <button
@@ -977,40 +908,35 @@ export default function FanLevelSection({
                         if (soundEnabled) playTapSound();
                         if (onCancelVerification) onCancelVerification();
                       }}
-                      className="text-[11px] text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+                      className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
                     >
-                      ✏️ Voltar e alterar e-mail ou dados
+                      Voltar e editar dados
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <form 
+              <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (soundEnabled) playTapSound();
                   if (!emailForm || !passwordForm) {
-                    setAuthError('Preencha os campos de e-mail e senha!');
+                    setAuthError('Preencha os campos de e-mail e senha.');
                     return;
                   }
                   setAuthError(null);
                   if (authTab === 'register') {
-                    // Password complexity validation
                     if (passwordForm.length < 8) {
-                      setAuthError('A senha cadastrada precisa de no mínimo 8 caracteres para ser segura!');
+                      setAuthError('A senha precisa ter no mínimo 8 caracteres.');
                       return;
                     }
-                    if (!/\d/.test(passwordForm)) {
-                      setAuthError('Sua senha é muito fácil! Ela deve conter pelo menos um número.');
-                      return;
-                    }
-                    if (!/[A-Za-z]/.test(passwordForm)) {
-                      setAuthError('Sua senha é muito fácil! Ela deve conter letras e números.');
+                    if (!/\d/.test(passwordForm) || !/[A-Za-z]/.test(passwordForm)) {
+                      setAuthError('A senha deve conter letras e números.');
                       return;
                     }
                     const simplePasswords = ['123456', '12345678', 'senha123', 'admin123', 'pkxd123', 'pkxd2026', 'password'];
                     if (simplePasswords.some(sw => passwordForm.toLowerCase().includes(sw))) {
-                      setAuthError('Esta senha é muito óbvia e vulnerável. Por favor, escolha outra combinação.');
+                      setAuthError('Escolha uma senha mais segura.');
                       return;
                     }
 
@@ -1020,11 +946,10 @@ export default function FanLevelSection({
                       p => p.id !== activePlayerId && p.name.trim().toLowerCase() === clean.trim().toLowerCase()
                     );
                     if (isDuplicate) {
-                      setAuthError(`O Apelido "${clean}" já está em uso! Escolha outro nome.`);
+                      setAuthError(`O apelido "${clean}" já está em uso. Escolha outro nome.`);
                       return;
                     }
 
-                    // Save Instagram state on register
                     const cleanInsta = instagramForm.trim();
                     localStorage.setItem('pkxd_user_instagram', cleanInsta);
                     localStorage.setItem('pkxd_user_instagram_public', String(instagramPublicForm));
@@ -1036,15 +961,14 @@ export default function FanLevelSection({
                     if (onEmailLogin) onEmailLogin(emailForm, passwordForm);
                   }
                 }}
-                className="bg-zinc-950/60 p-5 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4"
+                className="bg-white p-5 rounded-2xl border-2 border-purple-100 flex flex-col justify-between space-y-4"
               >
                 <div className="space-y-3">
-                  {/* Auth Mode Toggle */}
-                  <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                    <span className="text-xs font-black text-violet-400 uppercase tracking-widest">
-                      Opção 2: E-MAIL E SENHA (100% GARANTIDO)
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2.5 gap-2">
+                    <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                      Opção 2: E-mail e Senha
                     </span>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -1052,8 +976,8 @@ export default function FanLevelSection({
                           setAuthTab('login');
                           setAuthError(null);
                         }}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                          authTab === 'login' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-colors cursor-pointer ${
+                          authTab === 'login' ? 'bg-[#6D28D9] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
                         Entrar
@@ -1066,8 +990,8 @@ export default function FanLevelSection({
                           setAuthError(null);
                           setNicknameForm(nickname);
                         }}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                          authTab === 'register' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-colors cursor-pointer ${
+                          authTab === 'register' ? 'bg-[#6D28D9] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
                         Cadastrar
@@ -1075,104 +999,93 @@ export default function FanLevelSection({
                     </div>
                   </div>
 
-                  {/* Form fields */}
                   <div className="space-y-2.5">
-                    <div>
-                      <input
-                        type="email"
-                        required
-                        placeholder="Seu e-mail (ex: fã@email.com)"
-                        value={emailForm}
-                        onChange={(e) => setEmailForm(e.target.value)}
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-all font-mono"
-                      />
-                    </div>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Seu e-mail (ex: fa@email.com)"
+                      value={emailForm}
+                      onChange={(e) => setEmailForm(e.target.value)}
+                      className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6D28D9] font-mono"
+                    />
 
-                    <div>
-                      <input
-                        type="password"
-                        required
-                        minLength={8}
-                        placeholder="Sua senha (mínimo 8 dígitos com letras e nrs)"
-                        value={passwordForm}
-                        onChange={(e) => setPasswordForm(e.target.value)}
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-all font-mono"
-                      />
-                    </div>
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      placeholder="Sua senha (mínimo 8 caracteres com letras e números)"
+                      value={passwordForm}
+                      onChange={(e) => setPasswordForm(e.target.value)}
+                      className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6D28D9] font-mono"
+                    />
 
                     {authTab === 'register' && (
                       <div className="space-y-2.5 pt-1">
                         <div>
-                          <label className="block text-[10px] text-zinc-400 uppercase tracking-widest mb-1 pl-0.5 leading-none font-sans font-bold">
-                            Nickname Oficial no Site:
+                          <label className="block text-[11px] text-slate-600 font-extrabold uppercase mb-1">
+                            Nickname no Site:
                           </label>
                           <input
                             type="text"
                             placeholder="Nome de Fã"
                             value={nicknameForm}
                             onChange={(e) => setNicknameForm(e.target.value)}
-                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-all font-bold"
+                            className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6D28D9] font-bold"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] text-zinc-400 uppercase tracking-widest mb-1 pl-0.5 leading-none font-sans font-bold">
-                            Seu Instagram (Link ou @user):
+                          <label className="block text-[11px] text-slate-600 font-extrabold uppercase mb-1">
+                            Seu Instagram (Opcional):
                           </label>
                           <input
                             type="text"
-                            placeholder="ex: @pkxd_explorer ou link"
+                            placeholder="ex: @pkxd_explorer"
                             value={instagramForm}
                             onChange={(e) => setInstagramForm(e.target.value)}
-                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-all font-mono"
+                            className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6D28D9] font-mono"
                           />
                         </div>
 
-                        <div className="pt-1 select-none">
-                          <label className="flex items-center gap-2 text-[10px] sm:text-xs text-zinc-300 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={instagramPublicForm}
-                              onChange={(e) => setInstagramPublicForm(e.target.checked)}
-                              className="rounded border-white/15 bg-zinc-900 text-indigo-500 focus:ring-indigo-500 cursor-pointer"
-                            />
-                            <span>Mostrar meu Instagram no Ranking Público</span>
-                          </label>
-                          <p className="text-[9px] text-zinc-500 leading-normal pl-5 mt-0.5">
-                            Se desativado, seu contato ficará seguro e só aparecerá para a Administração do fã-clube.
-                          </p>
-                        </div>
+                        <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer font-semibold">
+                          <input
+                            type="checkbox"
+                            checked={instagramPublicForm}
+                            onChange={(e) => setInstagramPublicForm(e.target.checked)}
+                            className="rounded border-slate-300 text-[#6D28D9] cursor-pointer"
+                          />
+                          <span>Mostrar meu Instagram no ranking público</span>
+                        </label>
                       </div>
                     )}
                   </div>
 
                   {(authError || outerAuthError) && (
-                    <p className="text-[11px] text-red-400 bg-red-950/20 border border-red-500/10 p-2.5 rounded-xl whitespace-pre-line leading-relaxed font-sans">
-                      ⚠️ {authError || outerAuthError}
+                    <p className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl whitespace-pre-line leading-relaxed">
+                      {authError || outerAuthError}
                     </p>
                   )}
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 px-4 bg-zinc-800 hover:bg-violet-600 hover:text-white text-zinc-300 font-sans font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer border border-zinc-750 hover:border-violet-500 transition-all flex items-center justify-center gap-1.5"
+                  className="pkxd-btn-outline w-full py-2.5 px-4 text-xs font-extrabold cursor-pointer"
                 >
-                  <span>{authTab === 'register' ? 'CRIAR CONTA (ENVIAR CÓDIGO) 📩' : 'ENTRAR NA CONTA E SINCRONIZAR 🔓'}</span>
+                  {authTab === 'register' ? 'Criar Conta e Verificar' : 'Entrar e Sincronizar'}
                 </button>
               </form>
             )}
-
           </div>
         </div>
       ) : (
-        <div className="bg-gradient-to-r from-emerald-600/20 to-transparent border-2 border-emerald-500/30 rounded-3xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg font-sans">
+        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-3xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 font-sans">
           <div className="space-y-1 text-left">
-            <h4 className="text-sm sm:text-base font-sans font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 animate-pulse" />
-              <span>Sua conta de fã está ativa! ✅</span>
+            <h4 className="font-display text-base font-bold text-emerald-950 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <span>Sua conta de fã está conectada!</span>
             </h4>
-            <p className="text-xs text-gray-300 leading-normal">
-              Autenticado com sucesso como <strong className="text-emerald-300 font-mono underline">{maskEmail(user.email)}</strong>. Suas conquistas, níveis e fogo diário diário estão sincronizados em tempo real do fã-clube.
+            <p className="text-xs sm:text-sm text-emerald-900/80 leading-relaxed">
+              Autenticado como <strong className="font-mono underline">{maskEmail(user.email)}</strong>. Seus níveis e fogos diários estão sincronizados em tempo real.
             </p>
           </div>
           <button
@@ -1180,107 +1093,111 @@ export default function FanLevelSection({
               if (soundEnabled) playTapSound();
               if (onLogout) onLogout();
             }}
-            className="px-4 py-2.5 bg-zinc-800 hover:bg-red-950/40 text-gray-300 hover:text-red-200 font-sans font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer border border-zinc-700 transition-all flex items-center justify-center whitespace-nowrap"
+            className="px-4 py-2.5 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-sans font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer border-2 border-emerald-200 hover:border-rose-300 transition-colors whitespace-nowrap"
           >
             Desconectar
           </button>
         </div>
       )}
 
+      {/* Main Split Playground + Leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        
-        {/* LEFT COLUMN: The Interactive XP Playground Tabs (Spans 5 columns) */}
-        <div className="lg:col-span-5 bg-gradient-to-b from-zinc-950 to-zinc-900 border border-white/5 p-5 rounded-2xl flex flex-col justify-between space-y-4 relative overflow-hidden min-h-[460px]">
-          {/* Tabs Switcher Row */}
-          <div className="flex border-b border-white/5 pb-2.5 gap-1.5 relative z-10 select-none">
+        {/* LEFT COLUMN: XP Playground */}
+        <div className="lg:col-span-5 bg-slate-50 border-2 border-slate-200 p-5 sm:p-6 rounded-3xl flex flex-col justify-between space-y-5 min-h-[450px]">
+          {/* Switcher */}
+          <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 gap-1.5 select-none">
             <button
               type="button"
-              onClick={() => { setActiveXpTab('daily'); if(soundEnabled) playTapSound(); }}
-              className={`flex-1 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase text-center transition-all cursor-pointer ${
-                activeXpTab === 'daily' 
-                  ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20 font-black' 
-                  : 'text-zinc-400 hover:text-white bg-white/5'
+              onClick={() => {
+                setActiveXpTab('daily');
+                if (soundEnabled) playTapSound();
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-extrabold text-center transition-colors cursor-pointer ${
+                activeXpTab === 'daily'
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               🔥 Fogo
             </button>
             <button
               type="button"
-              onClick={() => { setActiveXpTab('wheel'); if(soundEnabled) playTapSound(); }}
-              className={`flex-1 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase text-center transition-all cursor-pointer ${
-                activeXpTab === 'wheel' 
-                  ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/20 font-black' 
-                  : 'text-zinc-400 hover:text-white bg-white/5'
+              onClick={() => {
+                setActiveXpTab('wheel');
+                if (soundEnabled) playTapSound();
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-extrabold text-center transition-colors cursor-pointer ${
+                activeXpTab === 'wheel'
+                  ? 'bg-pink-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               🎡 Roleta
             </button>
             <button
               type="button"
-              onClick={() => { setActiveXpTab('chest'); if(soundEnabled) playTapSound(); }}
-              className={`flex-1 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase text-center transition-all cursor-pointer ${
-                activeXpTab === 'chest' 
-                  ? 'bg-purple-650 text-white shadow-lg shadow-purple-650/20 font-black' 
-                  : 'text-zinc-400 hover:text-white bg-white/5'
+              onClick={() => {
+                setActiveXpTab('chest');
+                if (soundEnabled) playTapSound();
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-extrabold text-center transition-colors cursor-pointer ${
+                activeXpTab === 'chest'
+                  ? 'bg-[#6D28D9] text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               📦 Baú
             </button>
           </div>
 
-          {/* Tab 1: FOGO (Classic Daily Check-in) */}
+          {/* Tab 1: FOGO */}
           {activeXpTab === 'daily' && (
-            <div className="space-y-4 flex flex-col justify-between h-full relative z-10">
-              <div className="space-y-2">
-                <span className="text-[9px] font-bold bg-orange-500/10 text-orange-400 p-1 px-2.5 rounded-full uppercase tracking-wider font-mono">
-                  Fogueira Diária de Energia
+            <div className="space-y-4 flex flex-col justify-between flex-1">
+              <div className="space-y-1.5">
+                <span className="inline-block text-[11px] font-extrabold bg-orange-100 text-orange-800 px-3 py-1 rounded-full uppercase tracking-wider">
+                  Check-in Diário
                 </span>
-                <div className="space-y-1">
-                  <h4 className="font-sans font-black text-sm text-white uppercase tracking-normal">
-                    Faça o seu check-in e acenda a chama!
-                  </h4>
-                  <p className="text-[11px] text-gray-400 leading-relaxed">
-                    Cada clique diário confere ao seu perfil <strong className="text-yellow-400">+500 XP</strong> de fã level e aumenta sua sequência consecutiva de <strong className="text-orange-400">🔥 Fogos</strong>!
-                  </p>
-                </div>
+                <h4 className="font-display font-bold text-base sm:text-lg text-slate-900">
+                  Acenda sua chama diária!
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Cada check-in diário garante <strong className="text-amber-700">+500 XP</strong> e aumenta sua sequência de <strong className="text-orange-600">Fogos</strong>!
+                </p>
               </div>
 
-              {/* Interactive Flame Orb container */}
-              <div className="flex flex-col items-center justify-center p-4 bg-black/30 rounded-2xl border border-white/5 space-y-2 select-none my-1">
-                {/* The Fire Visual */}
-                <div className="relative">
-                  <div className="absolute inset-[-8px] rounded-full bg-orange-600/20 blur-xl animate-pulse" />
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center bg-gradient-to-t from-red-600 via-orange-500 to-amber-300 shadow-[0_0_20px_rgba(234,88,12,0.4)] p-0.5 transition-all duration-300 ${hasClaimedDaily ? 'grayscale-[40%] scale-95 opacity-80' : 'hover:scale-105'}`}>
-                    <div className="w-full h-full bg-zinc-950 rounded-full flex flex-col items-center justify-center text-center">
-                      <Flame className={`w-8 h-8 text-orange-400 fill-orange-500 drop-shadow-[0_2px_6px_rgba(234,88,12,0.5)] ${hasClaimedDaily ? 'animate-pulse' : 'animate-bounce'}`} />
-                    </div>
-                  </div>
+              <div className="flex flex-col items-center justify-center p-5 bg-white rounded-2xl border-2 border-slate-200 space-y-2 select-none">
+                <div
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-tr from-orange-500 to-[#FACC15] shadow-md transition-transform ${
+                    hasClaimedDaily ? 'opacity-60' : 'hover:scale-105'
+                  }`}
+                >
+                  <Flame className="w-8 h-8 text-white fill-white" />
                 </div>
 
                 <div className="text-center">
-                  <div className="text-xs font-black text-white flex items-center justify-center gap-1">
-                    <span>🔥 Sequência de Fogos:</span>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 font-mono text-xs font-black">{fireStreak} Dias</span>
+                  <div className="text-sm font-display font-bold text-slate-900 flex items-center justify-center gap-1.5">
+                    <span>Sequência de Fogos:</span>
+                    <span className="text-orange-600 font-mono tabular-nums">{fireStreak} dias</span>
                   </div>
-                  <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-0.5">
-                    {hasClaimedDaily ? "Você está brilhando no topo hoje!" : "O fogo está aguardando você hoje!"}
+                  <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                    {hasClaimedDaily ? 'Chama coletada por hoje!' : 'Sua energia diária está disponível!'}
                   </p>
                 </div>
               </div>
 
-              <div className="pt-1">
+              <div>
                 {hasClaimedDaily ? (
-                  <div className="w-full bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-center gap-2 text-emerald-400 text-[10px] font-black uppercase text-center justify-center">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Colete diário garantido! (+500 XP) 🔥</span>
+                  <div className="w-full bg-emerald-50 border-2 border-emerald-200 p-3 rounded-2xl flex items-center gap-2 text-emerald-800 text-xs font-extrabold justify-center">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Coleta diária garantida (+500 XP)!</span>
                   </div>
                 ) : (
                   <button
                     type="button"
                     onClick={handleClaimDaily}
-                    className="w-full py-3 bg-gradient-to-r from-orange-500 via-red-500 to-amber-500 hover:brightness-110 text-black font-sans font-black text-xs uppercase tracking-wider rounded-xl border-b-4 border-red-800 active:border-b-0 cursor-pointer shadow-[0_4px_15px_rgba(234,88,12,0.25)] active:translate-y-1 transition-all text-center flex items-center justify-center gap-2"
+                    className="pkxd-btn-gold w-full py-3 text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Flame className="w-3.5 h-3.5 fill-black text-black animate-pulse" />
+                    <Flame className="w-4 h-4" />
                     <span>Coletar XP Diário (+500 XP)</span>
                   </button>
                 )}
@@ -1288,61 +1205,57 @@ export default function FanLevelSection({
             </div>
           )}
 
-          {/* Tab 2: WHEEL (Lucky XP Wheel) */}
+          {/* Tab 2: WHEEL */}
           {activeXpTab === 'wheel' && (
-            <div className="space-y-4 flex flex-col justify-between h-full relative z-10">
-              <div className="space-y-2">
-                <span className="text-[9px] font-bold bg-pink-500/10 text-pink-400 p-1 px-2.5 rounded-full uppercase tracking-wider font-mono">
-                  Giro da Sorte Diário
+            <div className="space-y-4 flex flex-col justify-between flex-1">
+              <div className="space-y-1.5">
+                <span className="inline-block text-[11px] font-extrabold bg-pink-100 text-pink-800 px-3 py-1 rounded-full uppercase tracking-wider">
+                  Giro da Sorte
                 </span>
-                <div className="space-y-1">
-                  <h4 className="font-sans font-black text-sm text-white uppercase">
-                    Roleta de XP Cósmico
-                  </h4>
-                  <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
-                    Gire a roleta a cada <strong className="text-pink-400">3 horas</strong> para reivindicar de 100 a 300 XP de bônus!
-                  </p>
-                </div>
+                <h4 className="font-display font-bold text-base sm:text-lg text-slate-900">
+                  Roleta de XP da Comunidade
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Gire a roleta a cada <strong className="text-pink-600">3 horas</strong> para ganhar de 100 a 300 XP extras!
+                </p>
               </div>
 
-              {/* The Spinning Plate */}
-              <div className="flex flex-col items-center justify-center py-2 select-none">
+              <div className="flex flex-col items-center justify-center py-3 select-none">
                 <div className="relative flex flex-col items-center">
-                  {/* Arrow pin */}
-                  <div className="absolute -top-3 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[12px] border-b-pink-500 z-20 animate-pulse" />
-                  
-                  <div className="relative">
-                    <div className="absolute inset-[-6px] rounded-full bg-pink-500/15 blur-md" />
-                    <div className={`relative w-24 h-24 rounded-full border-4 border-pink-500/60 bg-gradient-to-tr from-zinc-950 via-zinc-900 to-zinc-950 flex items-center justify-center shadow-2xl transition-all duration-[2400ms] ${isSpinning ? 'animate-spin' : ''}`}>
-                      <div className="absolute inset-0 rounded-full border-r-2 border-b-2 border-yellow-400/40 pointer-events-none" />
-                      <div className="absolute inset-1.5 rounded-full border-l-2 border-t-2 border-pink-500/40 pointer-events-none" />
-                      
-                      <div className="text-center z-10 p-1">
-                        {isSpinning ? (
-                          <span className="text-xl block animate-bounce">🌀</span>
-                        ) : wheelResult ? (
-                          <div className="space-y-0.5">
-                            <span className="text-[8px] uppercase font-black tracking-widest text-pink-400 block truncate max-w-[80px]">{wheelResult.message}</span>
-                            <span className="text-[11px] font-mono font-black text-yellow-300 block">+{wheelResult.amount} XP</span>
-                          </div>
-                        ) : (
-                          <div className="space-y-0.5">
-                            <span className="text-[11px] font-black text-white uppercase block leading-none">ROLETA</span>
-                            <span className="text-[8px] font-black text-yellow-400 block leading-none">GIRAR</span>
-                          </div>
-                        )}
-                      </div>
+                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[12px] border-t-pink-600 mb-1" />
+                  <div
+                    className={`w-28 h-28 rounded-full border-4 border-pink-500 bg-white flex items-center justify-center shadow-lg transition-transform ${
+                      isSpinning ? 'animate-spin' : ''
+                    }`}
+                  >
+                    <div className="text-center p-2">
+                      {isSpinning ? (
+                        <span className="text-2xl block">🌀</span>
+                      ) : wheelResult ? (
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] uppercase font-extrabold text-pink-600 block truncate max-w-[85px]">
+                            {wheelResult.message}
+                          </span>
+                          <span className="text-xs font-mono font-extrabold text-[#6D28D9] block">
+                            +{wheelResult.amount} XP
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-display font-bold text-slate-900 block">ROLETA</span>
+                          <span className="text-[10px] font-extrabold text-pink-600 block">GIRAR</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Spin Button */}
               <div>
                 {wheelTimeLeft > 0 ? (
-                  <div className="w-full bg-black/40 border border-zinc-900 p-2.5 rounded-xl text-center">
-                    <p className="text-[9px] text-zinc-500 uppercase font-black font-mono leading-none mb-1">Próximo Giro Disponível em:</p>
-                    <span className="text-xs font-mono font-black text-pink-300">
+                  <div className="w-full bg-white border-2 border-slate-200 p-3 rounded-2xl text-center">
+                    <p className="text-[10px] text-slate-500 uppercase font-extrabold mb-1">Próximo giro disponível em:</p>
+                    <span className="text-sm font-mono tabular-nums font-extrabold text-pink-600">
                       {Math.floor(wheelTimeLeft / 3600).toString().padStart(2, '0')}:
                       {Math.floor((wheelTimeLeft % 3600) / 60).toString().padStart(2, '0')}:
                       {(wheelTimeLeft % 60).toString().padStart(2, '0')}
@@ -1353,168 +1266,156 @@ export default function FanLevelSection({
                     type="button"
                     disabled={isSpinning}
                     onClick={handleSpinWheel}
-                    className="w-full py-3 bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:brightness-110 text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl border-b-4 border-pink-800 active:border-b-0 cursor-pointer shadow-[0_4px_15px_rgba(236,72,153,0.25)] active:translate-y-1 transition-all text-center flex items-center justify-center gap-2"
+                    className="pkxd-btn-primary w-full py-3 disabled:opacity-50 text-xs sm:text-sm cursor-pointer"
                   >
-                    <span>{isSpinning ? "Girando a Sorte..." : "Girar Roleta da Sorte"}</span>
+                    {isSpinning ? 'Girando a Sorte...' : 'Girar Roleta da Sorte'}
                   </button>
                 )}
               </div>
             </div>
           )}
 
-          {/* Tab 3: CHEST (Secret Mystery Chest Clicker) */}
+          {/* Tab 3: CHEST */}
           {activeXpTab === 'chest' && (
-            <div className="space-y-4 flex flex-col justify-between h-full relative z-10">
-              <div className="space-y-1.5 flex-col flex text-left">
-                <span className="text-[9px] font-bold bg-purple-500/10 text-purple-400 p-1 px-2.5 rounded-full uppercase tracking-wider font-mono w-fit">
+            <div className="space-y-4 flex flex-col justify-between flex-1">
+              <div className="space-y-1.5">
+                <span className="inline-block text-[11px] font-extrabold bg-[#F3F0FF] text-[#6D28D9] px-3 py-1 rounded-full uppercase tracking-wider">
                   Caça ao Baú Secreto
                 </span>
-                <div className="space-y-1">
-                  <h4 className="font-sans font-black text-sm text-white uppercase">
-                    Desvende o Baú Cósmico
-                  </h4>
-                  <p className="text-[11px] text-gray-405 leading-relaxed">
-                    Clique repetidamente no baú secreto para quebrar o lacre de segurança e reivindicar um prêmio aleatório de XP de fã!
-                  </p>
-                </div>
+                <h4 className="font-display font-bold text-base sm:text-lg text-slate-900">
+                  Abra o Baú Surpresa
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Toque no baú para romper o selo e descobrir um bônus aleatório de XP!
+                </p>
               </div>
 
-              {/* Chest visual panel */}
-              <div className="p-3 bg-black/45 rounded-2xl border border-white/5 flex flex-col items-center justify-center min-h-[170px] select-none my-1">
+              <div className="p-4 bg-white rounded-2xl border-2 border-slate-200 flex flex-col items-center justify-center min-h-[175px] select-none">
                 {chestTimeLeft > 0 ? (
-                  <div className="text-center space-y-2 py-4">
-                    <span className="text-2xl block animate-pulse">🔒</span>
-                    <h5 className="font-bold text-[10px] text-purple-400 uppercase pb-0.5">Baú Trancado</h5>
-                    <p className="text-[9px] text-zinc-400 max-w-[200px] mx-auto leading-relaxed">
-                      O sistema está gerando um novo baú secreto. Volte em breve!
+                  <div className="text-center space-y-2 py-2">
+                    <span className="text-2xl block">🔒</span>
+                    <h5 className="font-bold text-xs text-slate-800 uppercase">Baú Recarregando</h5>
+                    <p className="text-xs text-slate-500 max-w-[210px] mx-auto">
+                      Um novo baú secreto estará disponível em breve!
                     </p>
-                    <div className="text-xs font-mono font-black text-purple-350 bg-purple-950/40 p-1.5 px-3 rounded-xl border border-purple-500/20 inline-block mt-1">
-                      {Math.floor(chestTimeLeft / 60).toString().padStart(2, '0')}:{(chestTimeLeft % 60).toString().padStart(2, '0')} min
+                    <div className="text-xs font-mono tabular-nums font-extrabold text-[#6D28D9] bg-[#F3F0FF] px-3 py-1.5 rounded-xl border border-purple-200 inline-block">
+                      {Math.floor(chestTimeLeft / 60).toString().padStart(2, '0')}:
+                      {(chestTimeLeft % 60).toString().padStart(2, '0')} min
                     </div>
                   </div>
                 ) : isChestBroken ? (
                   <div className="text-center space-y-2.5 py-1">
-                    <span className="text-3xl block animate-bounce">🎁</span>
+                    <span className="text-3xl block">🎁</span>
                     <div className="space-y-1">
-                      <span className="text-[9px] uppercase font-black tracking-wider bg-yellow-500/10 text-yellow-500 p-0.5 px-2 rounded-full inline-block">
+                      <span className="text-[10px] uppercase font-extrabold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full inline-block">
                         Loot {chestReward?.rarity}!
                       </span>
-                      <h5 className="font-black text-xs text-white uppercase tracking-tight leading-snug">{chestReward?.name}</h5>
-                      <span className="text-xs font-mono font-black text-yellow-400 block">+{chestReward?.amount} XP Adicionados!</span>
+                      <h5 className="font-display font-bold text-sm text-slate-900">{chestReward?.name}</h5>
+                      <span className="text-xs font-mono font-extrabold text-[#6D28D9] block">
+                        +{chestReward?.amount} XP Adicionados!
+                      </span>
                     </div>
                     <button
                       type="button"
                       onClick={handleResetChest}
-                      className="text-[9px] font-black text-white hover:underline bg-white/5 py-1 px-3 rounded-full uppercase cursor-pointer"
+                      className="text-xs font-extrabold text-[#6D28D9] hover:underline bg-[#F3F0FF] py-1.5 px-3 rounded-full cursor-pointer"
                     >
-                      Achar Outro Baú
+                      Procurar Outro Baú
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-3 flex flex-col items-center w-full">
-                    {/* The Tappable Chest Visual */}
                     <button
                       type="button"
                       onClick={handleTapChest}
-                      className="group relative focus:outline-none transition-transform active:scale-90"
+                      className="relative focus:outline-none transition-transform active:scale-90 cursor-pointer"
                     >
-                      {/* Aura pulsing behind */}
-                      <div className="absolute inset-[-12px] rounded-full bg-purple-600/10 blur-xl animate-pulse" />
-                      
-                      <div className={`text-4xl transition-all duration-75 relative select-none leading-none ${chestTaps > 0 ? "scale-110 rotate-3" : "hover:scale-105"}`}>
+                      <div className={`text-5xl transition-transform select-none leading-none ${chestTaps > 0 ? 'scale-110' : 'hover:scale-105'}`}>
                         📦
                       </div>
-                      
-                      {/* Indicator of clicks left */}
-                      <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[9px] font-black font-mono w-5 h-5 flex items-center justify-center rounded-full shadow-lg border border-yellow-300">
+                      <div className="absolute -bottom-1 -right-1 bg-[#FACC15] text-slate-900 text-[10px] font-extrabold font-mono w-5 h-5 flex items-center justify-center rounded-full shadow border border-amber-500">
                         {chestMaxTaps - chestTaps}
                       </div>
                     </button>
 
-                    {/* Progress lock-breaking bar */}
-                    <div className="w-full max-w-[180px] space-y-1">
-                      <div className="flex justify-between text-[8px] font-bold text-zinc-400 uppercase">
-                        <span>Lacre do Baú</span>
-                        <span className="text-purple-400">{Math.round((chestTaps / chestMaxTaps) * 100)}%</span>
+                    <div className="w-full max-w-[190px] space-y-1">
+                      <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+                        <span>Selo do Baú</span>
+                        <span className="text-[#6D28D9]">{Math.round((chestTaps / chestMaxTaps) * 100)}%</span>
                       </div>
-                      <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden border border-white/5">
-                        <div 
-                          className="h-full bg-gradient-to-r from-purple-600 via-pink-500 to-yellow-400 transition-all duration-150"
+                      <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#6D28D9] to-[#E83EBC] transition-all duration-150"
                           style={{ width: `${(chestTaps / chestMaxTaps) * 100}%` }}
                         />
                       </div>
                     </div>
 
-                    <p className="text-[8px] text-zinc-500 uppercase tracking-wider font-black font-sans">
-                      Dê tap no baú para abrir!
-                    </p>
+                    <p className="text-[11px] text-slate-500 font-bold">Toque no baú para abrir!</p>
                   </div>
                 )}
               </div>
 
-              {/* Decorative note */}
-              <div className="text-[9px] text-zinc-500 bg-white/5 rounded-xl p-2 text-center border border-white/5 font-sans leading-relaxed">
-                💡 O Baú Secreto do Admin pode conceder até <strong className="text-yellow-400">300 XP</strong> instantâneo! Ele reaparece a cada 10 minutos.
+              <div className="text-xs text-slate-600 bg-white rounded-xl p-2.5 text-center border border-slate-200">
+                O baú pode conceder até <strong className="text-[#6D28D9]">300 XP</strong> e recarrega a cada 10 minutos.
               </div>
             </div>
           )}
         </div>
 
-        {/* RIGHT COLUMN: Real-time Dynamic Leaderboard System (Spans 7 columns) */}
-        <div className="lg:col-span-7 bg-black/35 border border-white/5 p-6 rounded-2xl flex flex-col justify-between space-y-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <h4 className="font-sans font-black text-sm text-white uppercase tracking-wider flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-yellow-500" />
-                <span>Ranking Oficial de PKXDoidos</span>
+        {/* RIGHT COLUMN: Real-time Dynamic Leaderboard */}
+        <div className="lg:col-span-7 bg-slate-50 border-2 border-slate-200 p-5 sm:p-6 rounded-3xl flex flex-col justify-between space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h4 className="font-display font-bold text-lg text-slate-900 flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                <span>Ranking Oficial da Comunidade</span>
               </h4>
-              <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest font-black">
-                Top PKXDoidos & Ativos
+              <span className="text-[11px] font-sans text-slate-500 uppercase tracking-wider font-extrabold">
+                Top Exploradores
               </span>
             </div>
-            <p className="text-xs text-gray-300 leading-normal">
-              O ranking é reorganizado instantaneamente conforme você decola seus níveis de XP e soma mais dias seguidos de foguinhos 🔥 acessados!
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              O ranking atualiza em tempo real conforme você ganha XP e mantém sua sequência diária de fogos!
             </p>
 
-            {/* Monthly Reset & Dynamic Prize Banner */}
-            <div className="bg-gradient-to-r from-yellow-400/15 via-amber-500/5 to-transparent border-l-4 border-yellow-400 p-2.5 rounded-r-xl text-left space-y-1 my-2 animate-pulse">
-              <h5 className="font-sans font-black text-[11px] text-yellow-300 uppercase tracking-widest flex items-center gap-1.5">
-                ⭐ DINÂMICA COMPLETA: PRÊMIO TODO MÊS!
+            {/* Monthly Prize Info Card (no border-l-4, no pulse) */}
+            <div className="bg-[#FFFBEB] border-2 border-amber-300 p-3.5 rounded-2xl text-left space-y-1">
+              <h5 className="font-display font-bold text-xs sm:text-sm text-amber-900">
+                Prêmio Especial Todo Mês
               </h5>
-              <p className="font-sans text-[10px] text-zinc-300 leading-relaxed">
-                Atenção, fã-clube! <strong>O ranking de fãs virtual é atualizado e reiniciado todo início de mês</strong> de forma automática. O jogador que ficar em <strong>🥇 1º Lugar (Primeiro Lugar)</strong> no final do mês garantirá um prêmio físico ou digital exclusivo do PKXD Central! Comece a subir de nível! 🚀
+              <p className="font-sans text-xs text-amber-950/80 leading-relaxed">
+                <strong>O ranking é renovado todo início de mês</strong>. Quem encerrar em <strong>1º lugar</strong> recebe destaque e prêmio especial da PKXD Central!
               </p>
             </div>
 
             {/* Monthly Winner Coronation Card */}
             {new Date().getDate() <= 3 && monthlyWinner && (
-              <div className="bg-gradient-to-r from-amber-500/20 via-yellow-500/25 to-amber-600/15 border-2 border-yellow-400/60 p-4 rounded-2xl text-left space-y-2.5 relative overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.25)] my-3">
-                {/* Glowing element */}
-                <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-400/10 rounded-full filter blur-xl pointer-events-none" />
-                <div className="absolute -bottom-5 -left-5 w-20 h-20 bg-amber-400/10 rounded-full filter blur-xl pointer-events-none" />
-                
+              <div className="bg-amber-100 border-2 border-amber-400 p-4 rounded-2xl text-left space-y-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-yellow-400 text-black rounded-xl shadow-lg flex-shrink-0">
-                    <Trophy className="w-5 h-5 fill-current" />
+                  <div className="p-2 bg-[#FACC15] text-slate-900 rounded-xl flex-shrink-0">
+                    <Trophy className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase font-mono font-black text-yellow-300 tracking-widest block leading-none">TEMPORADA ANTERIOR</span>
-                    <h5 className="font-sans font-black text-[13px] text-white uppercase tracking-wider">
-                      👑 GRANDE VENCEDOR COROADO! 👑
+                    <span className="text-[10px] uppercase font-mono font-extrabold text-amber-800 block leading-none">
+                      TEMPORADA ANTERIOR
+                    </span>
+                    <h5 className="font-display font-bold text-sm text-slate-900">
+                      Grande Vencedor da Temporada!
                     </h5>
                   </div>
                 </div>
 
-                <p className="font-sans text-xs text-gray-100 leading-relaxed">
-                  O mês rodou e o fã supremo da última temporada foi definido! Parabéns ao lendário fã-clube oficial de <strong className="text-yellow-300 font-black">@{monthlyWinner.winnerName}</strong>, que alcançou o prestigiado <strong className="text-amber-400 font-bold">Nível {monthlyWinner.winnerLevel}</strong> e manteve <strong className="text-orange-400 font-bold">{monthlyWinner.winnerFlames} 🔥 dias de streak</strong>! 🎉
+                <p className="font-sans text-xs text-slate-800 leading-relaxed">
+                  Parabéns a <strong>@{monthlyWinner.winnerName}</strong>, que alcançou o <strong>Nível {monthlyWinner.winnerLevel}</strong> com <strong>{monthlyWinner.winnerFlames} fogos</strong>!
                 </p>
 
-                <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[10px] font-mono text-yellow-200">
-                  <span className="font-black flex items-center gap-1">
-                    <Award className="w-3.5 h-3.5" /> REALEZA DO PKXD CENTRAL
+                <div className="flex items-center justify-between border-t border-amber-300 pt-2 text-[11px] font-mono text-amber-900 font-bold">
+                  <span className="flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5" /> Destaque PKXD Central
                   </span>
-                  <span className="bg-black/40 px-2 py-0.5 rounded-md text-gray-400 border border-white/5">
-                    Exibido por mais 3 dias
+                  <span className="bg-white/70 px-2 py-0.5 rounded-md border border-amber-300">
+                    Exibido nos 3 primeiros dias
                   </span>
                 </div>
               </div>
@@ -1522,10 +1423,11 @@ export default function FanLevelSection({
           </div>
 
           {/* Leaders List */}
-          <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1 no-scrollbar flex-grow">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar flex-grow">
             {leaderboard.map((player, index) => {
               const rank = index + 1;
               const isUser = player.isCurrentUser;
+              const isConfirming = confirmDeletePlayerId === player.id;
 
               let medalBadge = '';
               if (rank === 1) medalBadge = '🥇';
@@ -1533,91 +1435,85 @@ export default function FanLevelSection({
               else if (rank === 3) medalBadge = '🥉';
 
               return (
-                <div 
-                  key={player.id} 
-                  className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${
-                    isUser 
-                      ? 'bg-gradient-to-r from-orange-500/10 via-yellow-500/5 to-transparent border-orange-500/40 shadow-inner scale-[1.01]' 
-                      : 'bg-zinc-900/30 border-white/5 hover:bg-zinc-900/50'
+                <div
+                  key={player.id}
+                  className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-colors ${
+                    isUser
+                      ? 'bg-[#FFFBEB] border-amber-300'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Rank indicator */}
-                    <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center font-black text-xs text-mono text-gray-400">
-                      {medalBadge ? (
-                        <span className="text-base">{medalBadge}</span>
-                      ) : (
-                        <span>#{rank}</span>
-                      )}
+                    <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center font-extrabold text-xs font-mono text-slate-500">
+                      {medalBadge ? <span className="text-lg">{medalBadge}</span> : <span>#{rank}</span>}
                     </div>
 
-                    {/* Round photo or simple avatar icon */}
-                    <div className="relative w-8 h-8 flex-shrink-0">
+                    <div className="relative w-9 h-9 flex-shrink-0">
                       {player.photoUrl ? (
-                        <img 
-                          src={player.photoUrl} 
+                        <img
+                          src={player.photoUrl}
                           alt={player.name}
-                          className="w-8 h-8 rounded-full object-cover border border-white/10"
+                          className="w-9 h-9 rounded-full object-cover border border-slate-200"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-orange-500 text-black' : 'bg-zinc-800 text-gray-400'}`}>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center ${isUser ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
                           <User className="w-4 h-4" />
                         </div>
                       )}
                     </div>
 
-                    {/* Player Details */}
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-xs font-bold truncate ${isUser ? 'text-orange-400 font-black' : 'text-zinc-200'}`}>
+                        <span className={`text-xs sm:text-sm font-bold truncate ${isUser ? 'text-orange-700' : 'text-slate-900'}`}>
                           {player.name}
                         </span>
                         {isUser && (
-                          <span className="text-[8px] bg-amber-400/15 border border-amber-400/20 text-amber-300 px-1 rounded uppercase font-black tracking-wide flex-shrink-0">
+                          <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-full uppercase font-extrabold">
                             VOCÊ
                           </span>
                         )}
                       </div>
                       <div className="flex flex-col gap-0.5 mt-0.5">
-                        <span className="text-[10px] text-gray-400 font-semibold font-mono">
-                          Nível de Explorador: <span className="text-yellow-400 font-bold">Fã Lvl {player.level}</span>
+                        <span className="text-[11px] text-slate-600 font-semibold font-mono">
+                          Explorador <strong className="text-[#6D28D9]">Nível {player.level}</strong>
                         </span>
-                        {/* Instagram display block */}
+
                         {player.instagram && (player.instagramPublic || isAdmin) && (
-                          <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] text-pink-400 font-semibold font-sans mt-0.5 flex-wrap">
-                            <Instagram className="w-3 h-3 text-pink-500 flex-shrink-0" />
+                          <div className="flex items-center gap-1 text-[11px] text-pink-600 font-semibold font-sans flex-wrap">
+                            <Instagram className="w-3 h-3 flex-shrink-0" />
                             {player.instagram.startsWith('http') ? (
-                              <a 
+                              <a
                                 href={player.instagram}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="hover:underline hover:text-pink-300 transition-colors truncate max-w-[150px]"
+                                className="hover:underline truncate max-w-[150px]"
                               >
-                                {player.instagram.substring(0, 24)}{player.instagram.length > 24 ? '...' : ''}
+                                {player.instagram.substring(0, 24)}
+                                {player.instagram.length > 24 ? '...' : ''}
                               </a>
                             ) : (
-                              <a 
+                              <a
                                 href={`https://instagram.com/${player.instagram.replace('@', '')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="hover:underline hover:text-pink-300 transition-colors"
+                                className="hover:underline"
                               >
                                 {player.instagram.startsWith('@') ? player.instagram : `@${player.instagram}`}
                               </a>
                             )}
                             {!player.instagramPublic && isAdmin && (
-                              <span className="flex items-center gap-0.5 text-[8px] text-yellow-500 bg-yellow-500/10 px-1 py-0.2 rounded border border-yellow-500/20 uppercase font-black ml-1 flex-shrink-0" title="Instagram configurado como privado. Visível apenas para administradores!">
-                                <Lock className="w-2 h-2 text-yellow-500" />
+                              <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 uppercase font-extrabold">
+                                <Lock className="w-2.5 h-2.5" />
                                 <span>Privado</span>
                               </span>
                             )}
                           </div>
                         )}
-                        {/* Admin Email display block */}
+
                         {isAdmin && player.email && (
-                          <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] text-sky-400 font-semibold font-mono mt-1 select-all" title="E-mail do fã (Visível apenas para Administradores)">
-                            <Mail className="w-3 h-3 text-sky-500 flex-shrink-0" />
+                          <div className="flex items-center gap-1 text-[11px] text-sky-700 font-semibold font-mono select-all">
+                            <Mail className="w-3 h-3 flex-shrink-0" />
                             <span className="truncate max-w-[170px]">{player.email}</span>
                           </div>
                         )}
@@ -1625,82 +1521,88 @@ export default function FanLevelSection({
                     </div>
                   </div>
 
-                  {/* Flames/XP Score Badge */}
-                  <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
-                    {/* Fire count */}
-                    <div className="flex items-center gap-1 text-xs font-black font-mono text-orange-400 bg-orange-500/5 p-1 px-2 rounded-lg border border-orange-500/20">
-                      <Flame className="w-3.5 h-3.5 fill-orange-500 text-orange-500 animate-pulse" />
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="flex items-center gap-1 text-xs font-extrabold font-mono tabular-nums text-orange-700 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
+                      <Flame className="w-3.5 h-3.5 fill-orange-500 text-orange-500" />
                       <span>{player.flames}</span>
                     </div>
 
-                    {/* Progress details */}
                     <div className="text-right hidden sm:block">
-                      <div className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Metas</div>
-                      <div className="text-[10px] text-yellow-300 font-mono font-black">{player.xp}/100 XP</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">Progresso</div>
+                      <div className="text-xs text-[#6D28D9] font-mono tabular-nums font-extrabold">{player.xp}/100 XP</div>
                     </div>
 
-                    {/* Admin Delete/Exclude Button */}
                     {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePlayer(player.id, player.name);
-                        }}
-                        className="py-1 px-2 bg-red-650 hover:bg-red-600 text-white border border-red-500/20 font-mono text-[9px] font-black uppercase rounded-lg active:scale-95 transition-all cursor-pointer"
-                        title="Excluir Jogador do Ranking por Nome Impróprio"
-                      >
-                        Excluir
-                      </button>
+                      isConfirming ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePlayer(player.id, player.name);
+                            }}
+                            className="px-2 py-1 bg-rose-600 text-white rounded-lg text-[10px] font-extrabold cursor-pointer"
+                          >
+                            Sim
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeletePlayerId(null);
+                            }}
+                            className="px-2 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold cursor-pointer"
+                          >
+                            Não
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeletePlayerId(player.id);
+                          }}
+                          className="py-1 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-sans text-[10px] font-extrabold uppercase rounded-lg cursor-pointer"
+                          title="Excluir Jogador do Ranking"
+                        >
+                          Excluir
+                        </button>
+                      )
                     )}
                   </div>
-
                 </div>
               );
             })}
           </div>
 
-          <div className="text-right pt-2 text-[10px] text-gray-500 font-bold font-mono">
-            {leaderboard.length} fã-clubes oficiais listados na temporada
+          <div className="text-right pt-1 text-xs text-slate-500 font-mono font-bold tabular-nums">
+            {leaderboard.length} exploradores ranqueados nesta temporada
           </div>
         </div>
-
       </div>
 
-      {/* Guide/How to earn XP */}
-      <div className="p-4 bg-zinc-950/40 rounded-2xl border border-white/5 space-y-2.5">
-        <h5 className="text-[11px] font-black uppercase text-gray-300 tracking-wider flex items-center gap-1.5 font-sans">
-          <Award className="w-4 h-4 text-orange-400 animate-pulse" />
-          Como ganhar XP e evoluir seu Nível de Explorador?
+      {/* How to earn XP */}
+      <div className="p-5 bg-slate-50 rounded-3xl border-2 border-slate-200 space-y-3">
+        <h5 className="font-display text-sm font-bold text-slate-900 flex items-center gap-2">
+          <Award className="w-4 h-4 text-orange-500" />
+          <span>Como ganhar mais XP e subir de Nível?</span>
         </h5>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-300">
-          <div className="space-y-1 bg-black/10 p-2.5 rounded-xl border border-white/5">
-            <div className="flex items-center gap-2 text-[11px] font-black text-yellow-400">
-              <span>⭐ Avaliar Novidades & Spoilers (+150 XP)</span>
-            </div>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-              Avalie os spoilers com notas de 1 a 5 estrelas no modo imersivo para expandir seus pontos!
-            </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600">
+          <div className="space-y-1 bg-white p-3.5 rounded-2xl border border-slate-200">
+            <div className="font-extrabold text-amber-700">⭐ Avaliar Novidades (+150 XP)</div>
+            <p className="leading-relaxed">Avalie as novidades e spoilers com estrelas para somar pontos.</p>
           </div>
-          <div className="space-y-1 bg-black/10 p-2.5 rounded-xl border border-white/5">
-            <div className="flex items-center gap-2 text-[11px] font-black text-pink-400">
-              <span>🔮 Concordar com Teorias (+80 XP)</span>
-            </div>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-              Dê opiniões ou concorde com as teorias dos fãs registradas para levantar novos bônus.
-            </p>
+          <div className="space-y-1 bg-white p-3.5 rounded-2xl border border-slate-200">
+            <div className="font-extrabold text-pink-600">🔮 Apoiar Teorias (+80 XP)</div>
+            <p className="leading-relaxed">Concorde com teorias da comunidade para desbloquear bônus.</p>
           </div>
-          <div className="space-y-1 bg-black/10 p-2.5 rounded-xl border border-white/5">
-            <div className="flex items-center gap-2 text-[11px] font-black text-emerald-400">
-              <span>🟢 Seguir Canal do WhatsApp (+250 XP)</span>
-            </div>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-              Acesse nosso canal oficial para acompanhar spoilers em tempo real e reivindicar mais pontos!
-            </p>
+          <div className="space-y-1 bg-white p-3.5 rounded-2xl border border-slate-200">
+            <div className="font-extrabold text-emerald-700">🟢 Canal do WhatsApp (+250 XP)</div>
+            <p className="leading-relaxed">Acompanhe nosso canal oficial para ganhar energia extra!</p>
           </div>
         </div>
       </div>
-
     </section>
   );
 }

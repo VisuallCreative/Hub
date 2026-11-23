@@ -286,6 +286,39 @@ service cloud.firestore {
     }
 
     // =========================
+    // PK Grammy (Premiação)
+    // =========================
+    match /pk_grammy_config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /pk_grammy_categories/{catId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /pk_grammy_nominees/{nomId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /pk_grammy_votes/{voteId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // =========================
+    // XP & Identidade PK XD
+    // =========================
+    match /user_xp_profiles/{profileId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && request.auth.uid == profileId || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // =========================
     // Default
     // =========================
 

@@ -43,8 +43,8 @@ export interface CreatorRequirement {
   officialSourceUrl: string;
   lastUpdated: string;
   autoVerifiable: boolean;
-  applicableFormat?: CreatorFormat; // applies to specific creator format or all
-  eitherOrGroupId?: string; // e.g. 10 long videos OR 30 shorts
+  applicableFormat?: CreatorFormat;
+  eitherOrGroupId?: string;
   eitherOrLabel?: string;
   notes?: string;
 }
@@ -53,9 +53,15 @@ export interface YouTubeRecentVideo {
   id: string;
   title: string;
   publishedAt: string;
+  publishedText?: string;
+  publishedDaysAgo?: number;
+  durationSeconds?: number;
+  durationText?: string;
   views?: number;
   isShort?: boolean;
+  isLong5Min?: boolean;
   isPkxdContent?: boolean;
+  thumbnailUrl?: string;
 }
 
 export interface ChannelMetrics {
@@ -67,11 +73,26 @@ export interface ChannelMetrics {
   videoCount: number;
   totalViews?: number;
   views3MonthsEstimated?: number;
+  viewsLast90Days?: number;
+  viewsLast16Shorts?: number;
+  last16ShortsCount?: number;
+  longVideosCount?: number;
+  longVideos5MinCount?: number;
+  shortsCount?: number;
+  pkxdLongVideosDetected?: number;
+  pkxdShortsDetected?: number;
+  videosLast30Days?: number;
+  longVideosLast30Days?: number;
+  shortsLast30Days?: number;
   recentVideos: YouTubeRecentVideo[];
   estimatedMonthlyGrowth?: number;
   averageRecentViews?: number;
+  averageLongViews?: number;
+  averageShortViews?: number;
   pkxdVideosDetected?: number;
+  isPkxdChannel?: boolean;
   isPublicDataAvailable: boolean;
+  dataSource?: 'youtube_api' | 'youtube_oauth' | 'youtube_public_scrape' | 'fallback_sample';
   lastCheckedAt: string;
   // User overrides / manual declarations for non-public data
   manualOverrides?: {

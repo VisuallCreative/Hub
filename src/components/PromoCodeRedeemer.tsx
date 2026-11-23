@@ -17,13 +17,14 @@ export default function PromoCodeRedeemer({ videos, isAdmin, onDeleteVideo, onEd
   const [codeText, setCodeText] = useState('');
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [redeemResult, setRedeemResult] = useState<{ success: boolean; msg: string } | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleRedeemCode = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = codeText.toUpperCase().trim().replace(/\s+/g, '');
     if (!cleanCode) {
       playTapSound();
-      setRedeemResult({ success: false, msg: '⚠️ Por favor, digite um código de cupom válido!' });
+      setRedeemResult({ success: false, msg: 'Por favor, digite um código de cupom válido.' });
       return;
     }
 
@@ -32,55 +33,46 @@ export default function PromoCodeRedeemer({ videos, isAdmin, onDeleteVideo, onEd
     setRedeemResult(null);
 
     try {
-      // 1. Check in Firestore 'promo_codes' first
       let docRef = doc(db, 'promo_codes', cleanCode);
       let docSnap = null;
-      let usedCollection = 'promo_codes';
 
       try {
         docSnap = await getDoc(docRef);
-
-        // Fallback to 'generated_promo_codes' if not in 'promo_codes'
         if (!docSnap || !docSnap.exists()) {
           docRef = doc(db, 'generated_promo_codes', cleanCode);
           docSnap = await getDoc(docRef);
-          usedCollection = 'generated_promo_codes';
         }
       } catch (firestoreErr) {
-        console.warn("Firestore promo code lookup failed, checking local fallbacks:", firestoreErr);
+        console.warn('Firestore promo code lookup failed, checking local fallbacks:', firestoreErr);
       }
 
       if (docSnap && docSnap.exists()) {
         const data = docSnap.data();
-        
-        // Check redemption limits
+
         if ((data.currentRedeems || 0) >= (data.maxRedeems || 0)) {
-          setRedeemResult({ 
-            success: false, 
-            msg: `⚠️ O cupom "${cleanCode}" atingiu o limite de resgates e expirou!` 
+          setRedeemResult({
+            success: false,
+            msg: `O cupom "${cleanCode}" atingiu o limite de resgates e expirou.`
           });
           return;
         }
 
-        // Check duplicate redeems
         const userId = auth.currentUser?.uid || localStorage.getItem('pkxd_username_nickname') || 'Jogador_Convidado';
         const redeemedList = data.redeemedUsers || [];
         if (redeemedList.includes(userId)) {
-          setRedeemResult({ 
-            success: false, 
-            msg: `⚠️ Você já resgatou o cupom "${cleanCode}" nesta conta!` 
+          setRedeemResult({
+            success: false,
+            msg: `Você já resgatou o cupom "${cleanCode}" nesta conta.`
           });
           return;
         }
 
-        // Increment redemption count and append user ID
         const updatedList = [...redeemedList, userId];
         await updateDoc(docRef, {
           currentRedeems: (data.currentRedeems || 0) + 1,
           redeemedUsers: updatedList
         });
 
-        // Trigger resource update event
         window.dispatchEvent(new CustomEvent('pkxd_add_gems_coins', {
           detail: { gems: data.gems || 0, coins: data.coins || 0 }
         }));
@@ -88,42 +80,38 @@ export default function PromoCodeRedeemer({ videos, isAdmin, onDeleteVideo, onEd
         playSuccessSound();
         setRedeemResult({
           success: true,
-          msg: `🎉 Cupom resgatado com sucesso! Você ganhou +${data.gems || 0} Joias 💎 e +${data.coins || 0} Moedas 🪙!`
+          msg: `Cupom resgatado! Você ganhou +${data.gems || 0} Joias e +${data.coins || 0} Moedas no seu perfil do portal!`
         });
         setCodeText('');
         return;
       }
 
-      // 2. Offline / Hardcoded codes fallback
       const fallbacks: Record<string, { gems: number; coins: number }> = {
-        'WELCOME': { gems: 50, coins: 2000 },
-        'PKXD2026': { gems: 100, coins: 5000 },
+        WELCOME: { gems: 50, coins: 2000 },
+        PKXD2026: { gems: 100, coins: 5000 },
         '1000GEMAS': { gems: 1000, coins: 0 },
-        'CENTRAL50': { gems: 50, coins: 3000 }
+        CENTRAL50: { gems: 50, coins: 3000 }
       };
 
       if (cleanCode in fallbacks) {
         const reward = fallbacks[cleanCode];
-        
-        // Check duplicate fallback redeems
+
         let localRedeemed: string[] = [];
         try {
           localRedeemed = JSON.parse(localStorage.getItem('pkxd_redeemed_fallbacks') || '[]');
-        } catch (_) {}
+        } catch {}
 
         if (localRedeemed.includes(cleanCode)) {
-          setRedeemResult({ 
-            success: false, 
-            msg: `⚠️ Você já resgatou o cupom "${cleanCode}" nesta conta!` 
+          setRedeemResult({
+            success: false,
+            msg: `Você já resgatou o cupom "${cleanCode}" nesta conta.`
           });
           return;
         }
 
-        // Save to duplicate checklist
         localRedeemed.push(cleanCode);
         localStorage.setItem('pkxd_redeemed_fallbacks', JSON.stringify(localRedeemed));
 
-        // Trigger resource update event
         window.dispatchEvent(new CustomEvent('pkxd_add_gems_coins', {
           detail: { gems: reward.gems, coins: reward.coins }
         }));
@@ -131,41 +119,32 @@ export default function PromoCodeRedeemer({ videos, isAdmin, onDeleteVideo, onEd
         playSuccessSound();
         setRedeemResult({
           success: true,
-          msg: `🎉 Cupom Especial resgatado! Você ganhou +${reward.gems} Joias 💎 e +${reward.coins} Moedas 🪙!`
+          msg: `Cupom especial resgatado! Você ganhou +${reward.gems} Joias e +${reward.coins} Moedas no portal!`
         });
         setCodeText('');
         return;
       }
 
-      // 3. Fallback to not found
-      setRedeemResult({ 
-        success: false, 
-        msg: `❌ Cupom "${cleanCode}" inválido ou expirado! Siga os criadores abaixo para encontrar novos cupons ativos.` 
+      setRedeemResult({
+        success: false,
+        msg: `Cupom "${cleanCode}" inválido ou expirado. Acompanhe os criadores abaixo para pegar novos códigos.`
       });
-
     } catch (err: any) {
-      console.error("Erro no resgate do cupom:", err);
-      setRedeemResult({ 
-        success: false, 
-        msg: `❌ Ocorreu um erro ao processar o resgate: ${err.message}` 
+      console.error('Erro no resgate do cupom:', err);
+      setRedeemResult({
+        success: false,
+        msg: `Ocorreu um erro ao processar o resgate: ${err.message}`
       });
     } finally {
       setIsRedeeming(false);
     }
   };
-  
-  const handleRedeemClick = () => {
-    playTapSound();
-    window.open('https://app.playpkxd.com/promo-code', '_blank', 'noreferrer');
-  };
 
-  const handleWatchClick = (url: string) => {
-    playTapSound();
+  const getVideoHref = (url: string) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      window.open(url, '_blank', 'noreferrer');
-    } else {
-      window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(url)}`, '_blank', 'noreferrer');
+      return url;
     }
+    return `https://www.youtube.com/results?search_query=${encodeURIComponent(url)}`;
   };
 
   const getYoutubeEmbedId = (url: string) => {
@@ -173,7 +152,7 @@ export default function PromoCodeRedeemer({ videos, isAdmin, onDeleteVideo, onEd
       const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
       const match = url.match(regExp);
       return (match && match[2].length === 11) ? match[2] : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   };
@@ -191,349 +170,368 @@ export default function PromoCodeRedeemer({ videos, isAdmin, onDeleteVideo, onEd
   };
 
   return (
-    <div 
+    <div
       id="promo-code-redeemer-box"
-      className="bg-zinc-900/40 border border-white/5 rounded-3xl p-6 sm:p-8 space-y-6 text-left relative overflow-hidden"
+      className="pkxd-glass rounded-3xl p-6 sm:p-8 space-y-6 text-left"
     >
-      {/* Background Glow */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full filter blur-2xl pointer-events-none animate-pulse" />
-      
-      <div className="relative z-10 space-y-6">
-        
-        {/* Main Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-2xl shadow-[0_0_15px_rgba(245,158,11,0.15)]">
-              <Ticket className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-sans font-black text-xl tracking-tight text-white uppercase flex items-center gap-1.5">
-                PRÓXIMOS VÍDEOS/LIVES COM CÓDIGOS ⚡
-              </h3>
-              <p className="font-sans text-xs text-amber-200/90 leading-relaxed">
-                Acompanhe os próximos vídeos e transmissões para garantir seus cupons oficiais e novos códigos!
-              </p>
-            </div>
+      {/* Main Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-slate-100 pb-5">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-[#FFFBEB] border-2 border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+            <Ticket className="w-6 h-6" />
           </div>
-
-          <div className="flex items-center gap-3 self-start sm:self-center">
-            {videos.length > 0 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleScroll('left')}
-                  className="p-1.5 bg-zinc-950 hover:bg-zinc-900 text-gray-300 hover:text-white rounded-lg border border-white/5 active:scale-95 transition-all cursor-pointer"
-                  title="Anterior"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleScroll('right')}
-                  className="p-1.5 bg-zinc-950 hover:bg-zinc-900 text-gray-300 hover:text-white rounded-lg border border-white/5 active:scale-95 transition-all cursor-pointer"
-                  title="Próximo"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <div className="bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl">
-              <span className="font-mono text-xs text-amber-300 font-bold">
-                {videos.length} VÍDEO(S) LISTADO(S)
-              </span>
-            </div>
+          <div>
+            <h3 className="font-display font-bold text-xl sm:text-2xl tracking-tight text-slate-900">
+              Códigos, Cupons & Próximas Lives
+            </h3>
+            <p className="font-sans text-xs sm:text-sm text-slate-600">
+              Resgate recompensas exclusivas do portal e acompanhe os criadores que liberam códigos do PK XD.
+            </p>
           </div>
         </div>
 
-        {/* DUAL REDEEMER - SEPARATED SECTORS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-          
-          {/* SECTOR 1: EXCLUSIVE SITE CODES */}
-          <div className="bg-gradient-to-br from-amber-500/10 via-zinc-900/80 to-zinc-950 border-2 border-amber-500/40 rounded-2xl p-6 space-y-4 shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full filter blur-2xl pointer-events-none" />
-            
-            <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
+        <div className="flex items-center gap-2.5 self-start sm:self-center">
+          {videos.length > 0 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleScroll('left')}
+                className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-200 transition-colors cursor-pointer"
+                title="Anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleScroll('right')}
+                className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-200 transition-colors cursor-pointer"
+                title="Próximo"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <div className="bg-[#FFFBEB] border border-amber-200 px-3 py-1.5 rounded-full">
+            <span className="font-mono tabular-nums text-xs text-amber-800 font-extrabold">
+              {videos.length} vídeo(s) listado(s)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* DUAL REDEEMER */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* SECTOR 1: EXCLUSIVE SITE CODES */}
+        <div className="bg-[#FFFBEB] border-2 border-amber-300 rounded-3xl p-6 space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2 border-b border-amber-200 pb-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                <h4 className="text-xs font-black uppercase text-amber-400 tracking-wider">
-                  CÓDIGOS EXCLUSIVOS DO SITE ⚡
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <h4 className="font-display font-bold text-sm sm:text-base text-amber-900">
+                  Códigos Exclusivos do Portal
                 </h4>
               </div>
-              <span className="bg-amber-400/20 text-amber-300 text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-md border border-amber-400/30">
-                AQUI NO SITE
+              <span className="bg-white text-amber-800 text-[10px] font-sans font-extrabold uppercase px-2.5 py-0.5 rounded-full border border-amber-300">
+                Aqui no Site
               </span>
             </div>
-            
-            <p className="text-[11px] text-gray-300 font-sans leading-relaxed">
-              Resgate cupons criados para <strong className="text-amber-400">receber Moedas 🪙 e Joias 💎 diretamente na sua conta DESTE SITE</strong> (usado para habilitar avatares exclusivos, interações e seu nível de fã na página).
+
+            <p className="text-xs sm:text-sm text-amber-950/80 font-sans leading-relaxed">
+              Resgate cupons para receber <strong className="text-amber-950">Moedas e Joias virtuais no seu perfil deste portal</strong>, liberando avatares e personalizações.
             </p>
 
-            <div className="text-[10px] bg-amber-500/10 border border-amber-500/25 p-2.5 rounded-xl text-amber-200 space-y-1">
-              <span className="font-extrabold uppercase block text-[11px]">🎟️ CÓDIGOS ATIVOS DO SITE:</span>
-              <p>• Experimente: <strong className="text-white underline">WELCOME</strong> (Dá 50 Gemas e 2000 Moedas)</p>
-              <p>• Código Secreto: <strong className="text-white underline">1000GEMAS</strong> (Dá 1000 Gemas gratuitas!)</p>
+            <div className="text-xs bg-white border border-amber-200 p-3 rounded-2xl text-amber-900 space-y-1">
+              <span className="font-extrabold uppercase block text-[11px] text-amber-700">Cupons ativos para testar:</span>
+              <p>• Experimente: <strong className="font-mono underline">WELCOME</strong> (50 Joias + 2.000 Moedas)</p>
+              <p>• Especial: <strong className="font-mono underline">1000GEMAS</strong> (1.000 Joias virtuais)</p>
             </div>
 
-            <form onSubmit={handleRedeemCode} className="flex flex-col gap-2.5 pt-1">
-              <input 
+            <form onSubmit={handleRedeemCode} className="flex flex-col gap-2.5">
+              <input
                 type="text"
                 value={codeText}
                 onChange={(e) => setCodeText(e.target.value)}
-                placeholder="Digite o código do site aqui (Ex: 1000GEMAS)"
-                className="w-full bg-black/60 border border-amber-500/30 rounded-xl px-4 py-3 text-xs font-mono font-black uppercase tracking-widest text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-400 text-center"
+                placeholder="Digite o código aqui (Ex: 1000GEMAS)"
+                className="w-full bg-white border-2 border-amber-300 rounded-2xl px-4 py-3 text-xs sm:text-sm font-mono font-extrabold uppercase tracking-wider text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 text-center"
                 disabled={isRedeeming}
               />
-              
+
               <button
                 type="submit"
                 disabled={isRedeeming}
-                className="w-full py-3 bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-800 text-black font-sans font-black text-xs uppercase rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                className="pkxd-btn-gold w-full py-3 disabled:opacity-50 text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isRedeeming ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
-                    <span>VERIFICANDO NO SITE...</span>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verificando código...</span>
                   </>
                 ) : (
                   <>
-                    <Ticket className="w-3.5 h-3.5 fill-black" />
-                    <span>RESGATAR MOEDA/GEMA DO SITE ⚡</span>
+                    <Ticket className="w-4 h-4" />
+                    <span>Resgatar Recompensa do Site</span>
                   </>
                 )}
               </button>
             </form>
 
-            {/* Feedback message */}
             {redeemResult && (
-              <div className={`p-3 rounded-xl border flex items-start gap-2 text-xs font-sans leading-relaxed transition-all ${
-                redeemResult.success 
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' 
-                  : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
-              }`}>
+              <div
+                className={`p-3 rounded-2xl border-2 flex items-start gap-2 text-xs font-sans font-bold leading-relaxed ${
+                  redeemResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}
+              >
                 {redeemResult.success ? (
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                 ) : (
-                  <ShieldAlert className="w-4.5 h-4.5 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
                 )}
                 <span>{redeemResult.msg}</span>
               </div>
             )}
-            
-            <p className="text-[10px] text-zinc-500 italic text-center leading-tight">
-              *Nota: Estes recursos são virtuais e válidos para a sua experiência neste site de fãs.
-            </p>
           </div>
 
-          {/* SECTOR 2: OFFICIAL PK XD GAME CODES */}
-          <div className="bg-gradient-to-br from-indigo-500/15 via-zinc-900/80 to-zinc-950 border-2 border-indigo-500/40 rounded-2xl p-6 space-y-4 shadow-xl relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full filter blur-2xl pointer-events-none" />
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
-                <div className="flex items-center gap-2">
-                  <Play className="w-4 h-4 text-indigo-400 animate-pulse fill-indigo-400/40" />
-                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
-                    CÓDIGOS OFICIAIS DO JOGO PK XD 🎮
-                  </h4>
-                </div>
-                <span className="bg-indigo-400/20 text-indigo-300 text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-md border border-indigo-400/30">
-                  DENTRO DO JOGO REAL
-                </span>
-              </div>
-              
-              <p className="text-[11px] text-gray-300 font-sans leading-relaxed">
-                Tem um código oficial do jogo PK XD real liberado pelos Creators ou no Instagram oficial? 
-                Estes códigos dão <strong className="text-indigo-300">Moedas, Gemas, Armaduras e Itens raros na sua conta do Jogo PK XD Real</strong> criado pela Afterverse.
-              </p>
-
-              <div className="text-[10px] bg-indigo-950/40 border border-indigo-500/20 p-3 rounded-xl text-indigo-200 leading-relaxed space-y-2">
-                <span className="font-extrabold uppercase text-indigo-300 block text-[11px]">💡 COMO RESGATAR NO JOGO?</span>
-                <p>1. Clique no botão abaixo para abrir a página oficial de resgates do PK XD.</p>
-                <p>2. Faça login com a sua conta do jogo Afterverse.</p>
-                <p>3. Digite o código oficial para que ele caia diretamente no seu celular/jogo!</p>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={handleRedeemClick}
-                className="w-full py-3 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-400 hover:to-pink-400 text-white font-sans font-black text-xs uppercase rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-md"
-              >
-                <Ticket className="w-3.5 h-3.5 fill-white" />
-                <span>ABRIR RESGATES DO JOGO PK XD REAL 🎮</span>
-                <ExternalLink className="w-3 h-3" />
-              </button>
-              
-              <span className="text-[9px] text-zinc-500 block text-center mt-2.5 font-mono">
-                Link Oficial: https://app.playpkxd.com/promo-code
-              </span>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Info Card / Explainer */}
-        <div className="bg-amber-950/25 border border-amber-500/10 p-4 rounded-2xl flex items-start gap-3">
-          <AlertCircle className="text-amber-400 w-5 h-5 flex-shrink-0 mt-0.5" />
-          <p className="font-sans text-xs text-gray-300 leading-relaxed">
-            <strong className="text-amber-300">Como obter códigos neste painel?</strong> Nós não divulgamos os cupons prontos em formato de texto! Em vez disso, acompanhe os criadores listados abaixo que receberam códigos oficiais da desenvolvedora para distribuir em seus vídeos e lives. Assista aos conteúdos para pegá-los!
+          <p className="text-[11px] text-amber-800/75 italic text-center">
+            *Estes recursos são virtuais e exclusivos para personalização neste fã-clube.
           </p>
         </div>
 
-        {/* Videos with High Premium Highlight Border & Horizontal Carousel */}
-        <div className="relative">
-          {videos.length === 0 ? (
-            <div className="bg-black/20 border border-dashed border-white/5 p-8 rounded-2xl text-center space-y-3">
-              <span className="text-2xl block animate-pulse">🔮</span>
-              <h5 className="font-sans font-black text-sm text-gray-300 uppercase tracking-wider">
-                AGUARDANDO PRÓXIMAS LIVES & VÍDEOS!
-              </h5>
-              <p className="font-sans text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
-                Nenhum criador está com vídeo de códigos novos listado agora. Ative as notificações no canal do WhatsApp e fique atento para quando os links forem adicionados!
-              </p>
+        {/* SECTOR 2: OFFICIAL PK XD GAME CODES */}
+        <div className="bg-[#F3F0FF] border-2 border-purple-200 rounded-3xl p-6 space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2 border-b border-purple-200 pb-3">
+              <div className="flex items-center gap-2">
+                <Play className="w-4 h-4 text-[#6D28D9]" />
+                <h4 className="font-display font-bold text-sm sm:text-base text-purple-950">
+                  Códigos Oficiais do Jogo PK XD
+                </h4>
+              </div>
+              <span className="bg-white text-[#6D28D9] text-[10px] font-sans font-extrabold uppercase px-2.5 py-0.5 rounded-full border border-purple-200">
+                Jogo Oficial
+              </span>
             </div>
-          ) : (
-            <div 
-              ref={scrollRef}
-              className="flex gap-6 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scroll-smooth scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent"
-              style={{ WebkitOverflowScrolling: 'touch' }}
+
+            <p className="text-xs sm:text-sm text-purple-950/80 font-sans leading-relaxed">
+              Tem um código oficial liberado pelos Creators da Afterverse? Resgate diretamente no site oficial para receber os itens na sua conta do jogo PK XD.
+            </p>
+
+            <div className="text-xs bg-white border border-purple-200 p-3.5 rounded-2xl text-slate-700 leading-relaxed space-y-1.5">
+              <span className="font-extrabold uppercase text-[#6D28D9] block text-[11px]">Como resgatar no jogo:</span>
+              <p>1. Clique no botão abaixo para abrir a página oficial de resgates.</p>
+              <p>2. Faça login com a sua conta do PK XD.</p>
+              <p>3. Insira o código oficial para receber diretamente no seu celular.</p>
+            </div>
+          </div>
+
+          <div>
+            <a
+              href="https://app.playpkxd.com/promo-code"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => playTapSound()}
+              className="pkxd-btn-primary w-full py-3 text-xs sm:text-sm flex items-center justify-center gap-2"
             >
-              {videos.map((item) => {
-                const embedId = getYoutubeEmbedId(item.content);
-                const thumbnailUrl = embedId ? `https://img.youtube.com/vi/${embedId}/0.jpg` : null;
+              <Ticket className="w-4 h-4" />
+              <span>Abrir Resgates Oficiais PK XD</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
 
-                return (
-                  <div 
-                    key={item.id}
-                    className="snap-start w-[290px] sm:w-[320px] flex-shrink-0 relative p-[2px] rounded-2xl bg-gradient-to-br from-amber-500/80 via-amber-400/20 to-amber-600 shadow-[0_4px_15px_rgba(245,158,11,0.08)] hover:shadow-[0_8px_25px_rgba(245,158,11,0.22)] hover:-translate-y-1 transition-all duration-300 group"
-                  >
-                    <div className="bg-zinc-950 p-4.5 rounded-[14px] flex flex-col justify-between h-full space-y-3">
-                      
-                      <div className="space-y-2">
-                        {/* Video Thumbnail */}
-                        {thumbnailUrl ? (
-                          <div 
-                            onClick={() => handleWatchClick(item.content)}
-                            className="relative aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/5 mb-3 cursor-pointer group-hover:border-amber-400/40 transition-colors"
-                          >
-                            <img 
-                              src={thumbnailUrl} 
-                              alt={item.title} 
-                              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
-                              <div className="w-10 h-10 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:bg-rose-500 transition-all duration-200">
-                                <Play className="w-4 h-4 fill-white translate-x-[1px]" />
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="aspect-video rounded-xl bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/5 flex items-center justify-center mb-3">
-                            <Video className="w-8 h-8 text-zinc-700 animate-pulse" />
-                          </div>
-                        )}
+            <span className="text-[11px] text-purple-800/75 block text-center mt-2 font-mono">
+              https://app.playpkxd.com/promo-code
+            </span>
+          </div>
+        </div>
+      </div>
 
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-[9px] font-mono font-extrabold uppercase px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                              item.date?.includes('Ao Vivo') 
-                                ? 'text-red-400 bg-red-500/15 border-red-500/20 animate-pulse'
-                                : item.date?.includes('Estreia')
-                                ? 'text-purple-400 bg-purple-500/15 border-purple-500/20 font-black'
-                                : item.date?.includes('Agendado') || item.date?.includes('Próxima')
-                                ? 'text-sky-400 bg-sky-500/15 border-sky-500/20'
-                                : 'text-amber-400 bg-amber-500/15 border-amber-500/20'
-                            }`}>
-                              <Sparkles className="w-2.5 h-2.5" />
-                              <span>{item.date || 'CÓDIGO ATIVO'}</span>
-                            </span>
+      {/* Explainer */}
+      <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-start gap-3">
+        <AlertCircle className="text-amber-600 w-5 h-5 flex-shrink-0 mt-0.5" />
+        <p className="font-sans text-xs sm:text-sm text-slate-700 leading-relaxed">
+          <strong className="text-slate-900">Onde conseguir códigos do jogo?</strong> Acompanhe os vídeos e lives dos criadores listados abaixo que recebem cupons oficiais para distribuir durante suas transmissões!
+        </p>
+      </div>
 
-                            {item.scheduledAt && (
-                              <span className="text-[9px] font-mono text-zinc-300 bg-zinc-800/60 px-2 py-0.5 rounded-md border border-white/5 font-bold">
-                                ⏰ {(() => {
-                                  try {
-                                    if (item.scheduledAt.includes('T')) {
-                                      const [datePart, timePart] = item.scheduledAt.split('T');
-                                      const [year, month, day] = datePart.split('-');
-                                      const [hour, min] = timePart.split(':');
-                                      return `${day}/${month} às ${hour}:${min}`;
-                                    }
-                                    return item.scheduledAt;
-                                  } catch (e) {
-                                    return item.scheduledAt;
-                                  }
-                                })()}
-                              </span>
-                            )}
+      {/* Carousel */}
+      <div className="relative">
+        {videos.length === 0 ? (
+          <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-8 rounded-2xl text-center space-y-2">
+            <Video className="w-8 h-8 text-slate-400 mx-auto" />
+            <h5 className="font-display font-bold text-base text-slate-800">
+              Aguardando próximas lives e vídeos
+            </h5>
+            <p className="font-sans text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+              Nenhum criador está com vídeo de códigos listado agora. Acompanhe o canal no WhatsApp para saber assim que novos links entrarem.
+            </p>
+          </div>
+        ) : (
+          <div
+            ref={scrollRef}
+            className="flex gap-5 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scroll-smooth custom-scrollbar"
+          >
+            {videos.map((item) => {
+              const embedId = getYoutubeEmbedId(item.content);
+              const thumbnailUrl = embedId ? `https://img.youtube.com/vi/${embedId}/0.jpg` : null;
+              const isConfirming = confirmDeleteId === item.id;
+
+              return (
+                <div
+                  key={item.id}
+                  className="snap-start w-[290px] sm:w-[320px] flex-shrink-0 bg-slate-50 border-2 border-slate-200 hover:border-amber-400 rounded-2xl p-4 flex flex-col justify-between space-y-3 transition-colors shadow-sm"
+                >
+                  <div className="space-y-2.5">
+                    {thumbnailUrl ? (
+                      <a
+                        href={getVideoHref(item.content)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => playTapSound()}
+                        className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200 block group"
+                      >
+                        <img
+                          src={thumbnailUrl}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/30 flex items-center justify-center">
+                          <div className="w-11 h-11 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-lg">
+                            <Play className="w-4 h-4 fill-white translate-x-[1px]" />
                           </div>
-                          <span className="text-[9px] font-sans text-gray-400 truncate max-w-[120px]">
-                            Por: <strong className="text-gray-300">@{item.author.replace('@', '')}</strong>
-                          </span>
                         </div>
-
-                        <h4 className="font-sans font-black text-xs text-white group-hover:text-amber-300 transition-colors line-clamp-2 leading-snug">
-                          {item.title}
-                        </h4>
-                        
-                        <p className="font-sans text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
-                          {item.excerpt}
-                        </p>
+                      </a>
+                    ) : (
+                      <div className="aspect-video rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+                        <Video className="w-8 h-8 text-slate-400" />
                       </div>
+                    )}
 
-                      <div className="space-y-2 pt-2 border-t border-white/5">
-                        <button
-                          onClick={() => handleWatchClick(item.content)}
-                          className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-sans text-[11px] font-black tracking-wide uppercase transition-all duration-150 flex items-center justify-center gap-1.5 border border-rose-500/20 cursor-pointer shadow-md active:scale-95"
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`text-[10px] font-sans font-extrabold uppercase px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
+                            item.date?.includes('Ao Vivo')
+                              ? 'text-rose-700 bg-rose-100 border-rose-200'
+                              : item.date?.includes('Estreia')
+                              ? 'text-purple-700 bg-purple-100 border-purple-200'
+                              : item.date?.includes('Agendado') || item.date?.includes('Próxima')
+                              ? 'text-sky-700 bg-sky-100 border-sky-200'
+                              : 'text-amber-800 bg-amber-100 border-amber-200'
+                          }`}
                         >
-                          <Play className="w-3 h-3 fill-white" />
-                          <span>ASSISTIR & PEGAR CÓDIGO 🍿</span>
-                        </button>
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>{item.date || 'Código Ativo'}</span>
+                        </span>
 
-                        {isAdmin && (
-                          <div className="flex gap-2 justify-end pt-1">
-                            <button
-                              onClick={() => {
-                                playTapSound();
-                                onEditVideo(item);
-                              }}
-                              className="p-1 px-2.5 bg-yellow-400/10 hover:bg-yellow-400/20 text-yellow-400 rounded-lg border border-yellow-400/20 transition-colors text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                            >
-                              <Edit2 className="w-2.5 h-2.5" />
-                              <span>Editar</span>
-                            </button>
+                        {item.scheduledAt && (
+                          <span className="text-[10px] font-mono tabular-nums text-slate-700 bg-white px-2 py-0.5 rounded-full border border-slate-200 font-bold">
+                            {(() => {
+                              try {
+                                if (item.scheduledAt.includes('T')) {
+                                  const [datePart, timePart] = item.scheduledAt.split('T');
+                                  const [, month, day] = datePart.split('-');
+                                  const [hour, min] = timePart.split(':');
+                                  return `${day}/${month} • ${hour}:${min}`;
+                                }
+                                return item.scheduledAt;
+                              } catch {
+                                return item.scheduledAt;
+                              }
+                            })()}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-sans text-slate-500 truncate max-w-[120px]">
+                        Por <strong className="text-slate-800">@{item.author.replace('@', '')}</strong>
+                      </span>
+                    </div>
+
+                    <h4 className="font-display font-bold text-sm text-slate-900 line-clamp-2 leading-snug">
+                      {item.title}
+                    </h4>
+
+                    <p className="font-sans text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                      {item.excerpt}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
+                    <a
+                      href={getVideoHref(item.content)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => playTapSound()}
+                      className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-sans text-xs font-extrabold uppercase tracking-wide transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>Assistir & Pegar Código</span>
+                    </a>
+
+                    {isAdmin && (
+                      <div className="flex gap-2 justify-end pt-1">
+                        <button
+                          onClick={() => {
+                            playTapSound();
+                            onEditVideo(item);
+                          }}
+                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg border border-amber-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Editar</span>
+                        </button>
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => {
                                 playTapSound();
                                 onDeleteVideo(item.id);
+                                setConfirmDeleteId(null);
                               }}
-                              className="p-1 px-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg border border-red-500/20 transition-colors text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                              className="px-2 py-1 bg-rose-600 text-white rounded-lg text-[11px] font-bold cursor-pointer"
                             >
-                              <Trash2 className="w-2.5 h-2.5" />
-                              <span>Excluir</span>
+                              Sim
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-[11px] font-bold cursor-pointer"
+                            >
+                              Não
                             </button>
                           </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              playTapSound();
+                              setConfirmDeleteId(item.id);
+                            }}
+                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Excluir</span>
+                          </button>
                         )}
                       </div>
-
-                    </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-        {/* Master Portal Redemption CTA Button */}
-        <div className="pt-3 text-center border-t border-white/5">
-          <button
-            onClick={handleRedeemClick}
-            className="w-full sm:w-auto px-5 py-3.5 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-black font-sans font-black text-xs rounded-xl shadow-[0_4px_15px_rgba(245,158,11,0.2)] hover:shadow-[0_6px_20px_rgba(245,158,11,0.3)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer flex items-center justify-center gap-2 mx-auto transition-all"
-          >
-            <Ticket className="w-4 h-4 fill-black flex-shrink-0 animate-pulse" />
-            <span className="tracking-wide">IR PARA O PORTAL DE RESGATE OFICIAL PK XD 🌟</span>
-            <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
-          </button>
-        </div>
-
+      {/* Master Portal CTA */}
+      <div className="pt-2 text-center border-t border-slate-100">
+        <a
+          href="https://app.playpkxd.com/promo-code"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => playTapSound()}
+          className="pkxd-btn-gold w-full sm:w-auto px-6 py-3.5 text-xs sm:text-sm inline-flex items-center justify-center gap-2"
+        >
+          <Ticket className="w-4 h-4 flex-shrink-0" />
+          <span>Ir para o Portal Oficial de Resgates PK XD</span>
+          <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+        </a>
       </div>
     </div>
   );

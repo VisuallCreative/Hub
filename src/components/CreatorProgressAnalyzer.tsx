@@ -1,66 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Sparkles, 
-  Search, 
-  Youtube, 
-  CheckCircle2, 
-  AlertCircle, 
-  Clock, 
-  TrendingUp, 
-  ArrowLeft, 
-  ShieldCheck, 
-  SlidersHorizontal, 
-  Settings2, 
-  Layers, 
-  Video, 
-  Eye, 
-  Users, 
-  Calendar, 
-  ExternalLink, 
-  Info, 
-  Check, 
-  ChevronRight, 
-  RefreshCw, 
-  Award, 
-  Flame, 
-  LogOut, 
+import {
+  Sparkles,
+  Search,
+  Youtube,
+  CheckCircle2,
+  AlertCircle,
+  TrendingUp,
+  ArrowLeft,
+  ShieldCheck,
+  Settings2,
+  Layers,
+  Info,
+  Check,
+  ChevronRight,
+  RefreshCw,
+  Flame,
+  LogOut,
   HelpCircle,
   BarChart3,
   Lightbulb,
-  Crown,
   Rocket,
   Star,
   Trophy,
   Zap,
   Lock,
-  Unlock,
-  ArrowUpRight,
-  ChevronUp
+  X,
+  Eye,
+  PlayCircle,
+  Users,
+  Video,
+  Clock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut 
+import {
+  signInWithPopup,
+  GoogleAuthProvider
 } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
-import { 
-  CreatorRequirement, 
-  ChannelMetrics, 
-  CreatorFormat, 
-  ProgramTier, 
-  AnalysisSummary 
+import { auth } from '../firebase';
+import {
+  CreatorRequirement,
+  ChannelMetrics,
+  CreatorFormat,
+  ProgramTier,
+  AnalysisSummary
 } from '../types/creator';
-import { 
-  getStoredRequirements, 
-  saveStoredRequirements, 
-  OFFICIAL_CREATOR_REQUIREMENTS,
+import {
+  getStoredRequirements,
+  saveStoredRequirements,
   PKXD_CREATOR_TIERS
 } from '../data/creatorRequirements';
-import { 
-  evaluateRequirements, 
-  getChannelTierProgressions 
+import {
+  evaluateRequirements,
+  getChannelTierProgressions
 } from '../utils/creatorAnalyzer';
 import CreatorRequirementsConfigModal from './CreatorRequirementsConfigModal';
 
@@ -73,14 +65,28 @@ interface CreatorProgressAnalyzerProps {
   onOpenAuthModal?: (mode?: 'login' | 'register') => void;
 }
 
-// Sample channels for quick testing and demonstration
 const SAMPLE_CHANNELS = [
-  { name: 'PK XD Universe', query: '@pkxd' },
-  { name: 'Gamer PK XD', query: '@pkxduniverse' },
+  { name: 'PK XD Universe', query: '@PKXDUniverse' },
+  { name: 'ILovePizza XD', query: '@ILovePizzaaXD' },
   { name: 'Exemplo em Crescimento', query: '@PKXD_Creator' },
 ];
 
-// Offline & sample realistic fallback metrics if API returns non-JSON or proxy error
+function parseIsoDurationSec(iso: string): number {
+  if (!iso) return 0;
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
+  if (!m) return 0;
+  return parseInt(m[1] || '0', 10) * 3600 + parseInt(m[2] || '0', 10) * 60 + parseInt(m[3] || '0', 10);
+}
+
+function formatSecToClock(sec: number): string {
+  if (!sec || sec <= 0) return '';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
 const SAMPLE_METRICS: Record<string, ChannelMetrics> = {
   '@pkxd': {
     channelId: 'UCgxHjaiR0og0buoCibBbj5A',
@@ -105,7 +111,7 @@ const SAMPLE_METRICS: Record<string, ChannelMetrics> = {
     channelId: 'UCpkxduniverse_sample',
     title: 'Gamer PK XD Universe',
     handle: '@pkxduniverse',
-    avatarUrl: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
+    avatarUrl: '',
     subscriberCount: 28500,
     videoCount: 145,
     totalViews: 1980000,
@@ -124,7 +130,7 @@ const SAMPLE_METRICS: Record<string, ChannelMetrics> = {
     channelId: 'UCcreator_growth_sample',
     title: 'Exemplo em Crescimento PK XD',
     handle: '@PKXD_Creator',
-    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    avatarUrl: '',
     subscriberCount: 6200,
     videoCount: 55,
     totalViews: 310000,
@@ -141,6 +147,28 @@ const SAMPLE_METRICS: Record<string, ChannelMetrics> = {
   }
 };
 
+function ChannelAvatar({ url, title, sizeClass = 'w-14 h-14' }: { url?: string; title: string; sizeClass?: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (url && !failed) {
+    return (
+      <img
+        src={url}
+        alt={title}
+        onError={() => setFailed(true)}
+        className={`${sizeClass} rounded-2xl object-cover border-2 border-emerald-400 shadow-sm shrink-0`}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  return (
+    <div className={`${sizeClass} rounded-2xl bg-violet-100 border-2 border-violet-300 flex items-center justify-center text-violet-800 font-display font-bold text-xl shrink-0`}>
+      {(title || 'C').slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
 async function resolveChannelFallback(query: string): Promise<ChannelMetrics | null> {
   const clean = query.trim().toLowerCase().replace(/\s+/g, '');
   for (const [k, v] of Object.entries(SAMPLE_METRICS)) {
@@ -149,7 +177,6 @@ async function resolveChannelFallback(query: string): Promise<ChannelMetrics | n
     }
   }
 
-  // Try public oEmbed for basic channel identification
   try {
     const handleStr = query.startsWith('@') ? query : `@${query.replace(/https?:\/\/(www\.)?youtube\.com\//, '').replace('/', '')}`;
     const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(`https://www.youtube.com/${handleStr}`)}`;
@@ -161,7 +188,7 @@ async function resolveChannelFallback(query: string): Promise<ChannelMetrics | n
           channelId: `UC_${encodeURIComponent(handleStr)}`,
           title: oembedData.title || handleStr,
           handle: handleStr,
-          avatarUrl: oembedData.thumbnail_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
+          avatarUrl: oembedData.thumbnail_url || '',
           subscriberCount: 5200,
           videoCount: 35,
           totalViews: 180000,
@@ -186,9 +213,7 @@ export default function CreatorProgressAnalyzer({
   onBackToHub,
   soundEnabled = true,
   triggerAudio,
-  user,
-  onAddXP,
-  onOpenAuthModal
+  onAddXP
 }: CreatorProgressAnalyzerProps) {
   const [requirements, setRequirements] = useState<CreatorRequirement[]>(getStoredRequirements);
   const [queryInput, setQueryInput] = useState('');
@@ -202,32 +227,24 @@ export default function CreatorProgressAnalyzer({
   const [analyzingChannel, setAnalyzingChannel] = useState<ChannelMetrics | null>(null);
   const [userAccessToken, setUserAccessToken] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [showManualSearch, setShowManualSearch] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'met' | 'pending'>('all');
-  
-  const currentUser = user || auth.currentUser;
-  const isLoggedInWithGoogle = Boolean(
-    currentUser && (currentUser.providerData?.some((p: any) => p.providerId === 'google.com') || currentUser.email)
-  );
-  
-  // Channel state
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+
   const [channelData, setChannelData] = useState<ChannelMetrics | null>(() => {
     try {
       const saved = localStorage.getItem('pkxd_analyzed_channel');
       if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    } catch {}
     return null;
   });
 
-  // User preferences & format toggle
   const [creatorFormat, setCreatorFormat] = useState<CreatorFormat>('long_video');
   const [selectedTier, setSelectedTier] = useState<ProgramTier>('stardust');
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
 
-  // Manual declaration inputs for non-auto-verifiable requirements
   const [manualDeclarations, setManualDeclarations] = useState<{
     pkxdViews3Months?: number;
     pkxdLongVideosCount?: number;
@@ -237,20 +254,27 @@ export default function CreatorProgressAnalyzer({
   }>(() => {
     try {
       const saved = localStorage.getItem('pkxd_creator_manual_declarations');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Clean up legacy default 0 values that used to wipe out real YouTube views/videos
+        return {
+          ...parsed,
+          pkxdViews3Months: parsed.pkxdViews3Months > 0 ? parsed.pkxdViews3Months : undefined,
+          pkxdLongVideosCount: parsed.pkxdLongVideosCount > 0 ? parsed.pkxdLongVideosCount : undefined,
+          pkxdShortsCount: parsed.pkxdShortsCount > 0 ? parsed.pkxdShortsCount : undefined
+        };
+      }
+    } catch {}
     return {
-      pkxdViews3Months: 0,
       communityCompliant: false,
       termsAccepted: false
     };
   });
+  const [showAllVideos, setShowAllVideos] = useState(false);
 
-  // Growth projection simulation slider
   const [simWeeklyVideos, setSimWeeklyVideos] = useState(2);
   const [simMonthlySubGrowth, setSimMonthlySubGrowth] = useState(150);
 
-  // Save channel to localStorage
   const handleSaveChannel = (channel: ChannelMetrics | null) => {
     setChannelData(channel);
     try {
@@ -259,7 +283,7 @@ export default function CreatorProgressAnalyzer({
       } else {
         localStorage.removeItem('pkxd_analyzed_channel');
       }
-    } catch (e) {}
+    } catch {}
   };
 
   const handleUpdateDeclaration = (field: string, val: any) => {
@@ -267,22 +291,20 @@ export default function CreatorProgressAnalyzer({
       const updated = { ...prev, [field]: val };
       try {
         localStorage.setItem('pkxd_creator_manual_declarations', JSON.stringify(updated));
-      } catch (e) {}
+      } catch {}
       return updated;
     });
   };
 
-  // Run analysis calculation for the currently selected tier
-  const analysis: AnalysisSummary | null = channelData 
+  const analysis: AnalysisSummary | null = channelData
     ? evaluateRequirements(
-        requirements, 
-        { ...channelData, manualOverrides: manualDeclarations }, 
-        creatorFormat, 
+        requirements,
+        { ...channelData, manualOverrides: manualDeclarations },
+        creatorFormat,
         selectedTier
       )
     : null;
 
-  // Comprehensive evaluation across all 4 tiers for progression and climbing tiers
   const tierEvolution = channelData
     ? getChannelTierProgressions(
         requirements,
@@ -291,7 +313,6 @@ export default function CreatorProgressAnalyzer({
       )
     : null;
 
-  // Trigger celebration confetti when 100% is reached
   useEffect(() => {
     if (analysis?.isAllRequiredMet) {
       try {
@@ -301,13 +322,12 @@ export default function CreatorProgressAnalyzer({
           origin: { y: 0.6 }
         });
         if (triggerAudio) triggerAudio('levelUp');
-      } catch (e) {}
+      } catch {}
     }
   }, [analysis?.isAllRequiredMet]);
 
-  // Format a raw YouTube API item into ChannelMetrics
   const formatRawYouTubeChannel = (item: any): ChannelMetrics => {
-    const channelId = item.id; // Strictly YouTube Channel ID (starts with UC...)
+    const channelId = item.id;
     const snippet = item.snippet || {};
     const stats = item.statistics || {};
 
@@ -315,7 +335,6 @@ export default function CreatorProgressAnalyzer({
     const vidCount = parseInt(stats.videoCount || '0', 10);
     const viewCount = parseInt(stats.viewCount || '0', 10);
 
-    // Exact custom handle or formatted handle from title
     let handle = '';
     if (snippet.customUrl) {
       handle = snippet.customUrl.startsWith('@') ? snippet.customUrl : `@${snippet.customUrl}`;
@@ -323,10 +342,11 @@ export default function CreatorProgressAnalyzer({
       handle = `@${(snippet.title || 'canal').replace(/\s+/g, '').toLowerCase()}`;
     }
 
-    const avatarUrl = snippet.thumbnails?.high?.url 
-      || snippet.thumbnails?.medium?.url 
-      || snippet.thumbnails?.default?.url 
-      || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80';
+    const avatarUrl =
+      snippet.thumbnails?.high?.url ||
+      snippet.thumbnails?.medium?.url ||
+      snippet.thumbnails?.default?.url ||
+      '';
 
     return {
       channelId,
@@ -346,20 +366,19 @@ export default function CreatorProgressAnalyzer({
     };
   };
 
-  // Start animated flow for identified channel
   const startAnalyzingFlow = async (channel: ChannelMetrics, token?: string, uploadsPlaylistId?: string) => {
     setIsConnecting(false);
     setAnalyzingChannel(channel);
     setConnectionStep('analyzing');
     if (triggerAudio) triggerAudio('tap');
 
-    let enrichedChannel = { ...channel };
+    let enrichedChannel: ChannelMetrics = { ...channel, dataSource: 'youtube_oauth' };
+    const pkxdRegex = /pk\s*xd|pkxd|afterverse|admin\s*pk|nimda/i;
 
-    // Fetch recent uploads from playlist if token & playlist are available
     if (token && uploadsPlaylistId) {
       try {
         const vRes = await fetch(
-          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${uploadsPlaylistId}`,
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${uploadsPlaylistId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`
@@ -368,59 +387,218 @@ export default function CreatorProgressAnalyzer({
         );
         if (vRes.ok) {
           const vData = await vRes.json();
-          const recent = (vData.items || []).map((vItem: any) => {
+          let playlistItems = vData.items || [];
+
+          // Fetch one extra page if available so channels mixing long videos & shorts still capture all 16 newest Shorts
+          if (vData.nextPageToken) {
+            try {
+              const vRes2 = await fetch(
+                `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&pageToken=${encodeURIComponent(vData.nextPageToken)}&playlistId=${uploadsPlaylistId}`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`
+                  }
+                }
+              );
+              if (vRes2.ok) {
+                const vData2 = await vRes2.json();
+                playlistItems = [...playlistItems, ...(vData2.items || [])];
+              }
+            } catch {}
+          }
+
+          const videoIds = playlistItems
+            .map((vItem: any) => vItem.snippet?.resourceId?.videoId)
+            .filter(Boolean);
+
+          const detailsMap: Record<string, any> = {};
+          // YouTube videos endpoint accepts up to 50 IDs per call
+          for (let i = 0; i < videoIds.length; i += 50) {
+            const batch = videoIds.slice(i, i + 50);
+            try {
+              const statsRes = await fetch(
+                `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet&id=${batch.join(',')}`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`
+                  }
+                }
+              );
+              if (statsRes.ok) {
+                const statsData = await statsRes.json();
+                (statsData.items || []).forEach((item: any) => {
+                  detailsMap[item.id] = item;
+                });
+              }
+            } catch (statsErr) {
+              console.warn('Erro ao buscar estatísticas dos vídeos via OAuth:', statsErr);
+            }
+          }
+
+          const rawRecent = playlistItems.map((vItem: any) => {
             const vSnippet = vItem.snippet || {};
-            const title = vSnippet.title || '';
-            const isShort = title.toLowerCase().includes('#shorts') || title.toLowerCase().includes('shorts');
-            const isPkxdContent = title.toLowerCase().includes('pk xd') || title.toLowerCase().includes('pkxd');
+            const vId = vSnippet.resourceId?.videoId || vItem.id;
+            const detail = detailsMap[vId];
+            const title = detail?.snippet?.title || vSnippet.title || '';
+            const desc = detail?.snippet?.description || vSnippet.description || '';
+            const tags = (detail?.snippet?.tags || []).join(' ');
+            const publishedAt = detail?.snippet?.publishedAt || vSnippet.publishedAt || new Date().toISOString();
+            const durationSeconds = parseIsoDurationSec(detail?.contentDetails?.duration || '');
+            const views = parseInt(detail?.statistics?.viewCount || '0', 10);
+            const isShort =
+              (durationSeconds > 0 && durationSeconds <= 61) ||
+              /#shorts|\bshorts\b/i.test(title);
+            const isLong5Min = !isShort && durationSeconds >= 300;
+            const publishedDaysAgo = Math.max(
+              0,
+              Math.floor((Date.now() - new Date(publishedAt).getTime()) / 86400000)
+            );
+            const isPkxdContent = pkxdRegex.test(`${title} ${desc} ${tags}`);
+
             return {
-              id: vSnippet.resourceId?.videoId || vItem.id,
+              id: vId,
               title,
-              publishedAt: vSnippet.publishedAt || new Date().toISOString(),
+              publishedAt,
+              publishedDaysAgo,
+              durationSeconds: durationSeconds || undefined,
+              durationText: isShort ? 'Short' : formatSecToClock(durationSeconds),
               isShort,
+              isLong5Min,
               isPkxdContent,
-              views: 0
+              views,
+              thumbnailUrl:
+                detail?.snippet?.thumbnails?.medium?.url ||
+                vSnippet.thumbnails?.medium?.url ||
+                `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`
             };
           });
 
-          const pkxdDetected = recent.filter((v: any) => v.isPkxdContent).length;
-          const shortsCount = recent.filter((v: any) => v.isShort).length;
-          enrichedChannel.recentVideos = recent;
-          enrichedChannel.pkxdVideosDetected = pkxdDetected;
+          const explicitPkxdMatches = rawRecent.filter((v: any) => v.isPkxdContent).length;
+          const isPkxdChannel =
+            pkxdRegex.test(`${channel.title} ${channel.handle}`) ||
+            (rawRecent.length > 0 && explicitPkxdMatches / rawRecent.length >= 0.25);
 
-          // Automatically set creator format based on user's recent content
-          if (shortsCount > recent.length / 2 && recent.length > 0) {
+          const recent = rawRecent.map((v: any) => ({
+            ...v,
+            isPkxdContent: v.isPkxdContent || isPkxdChannel
+          }));
+
+          const longVids = recent.filter((v: any) => !v.isShort);
+          const shortVids = recent.filter((v: any) => v.isShort);
+
+          const longWithViews = longVids.filter((v: any) => v.views > 0);
+          const shortWithViews = shortVids.filter((v: any) => v.views > 0);
+          const allWithViews = recent.filter((v: any) => v.views > 0);
+
+          const sumLongViews = longWithViews.reduce((acc: number, v: any) => acc + v.views, 0);
+          const sumShortViews = shortWithViews.reduce((acc: number, v: any) => acc + v.views, 0);
+          const sumAllViews = allWithViews.reduce((acc: number, v: any) => acc + v.views, 0);
+
+          const videosLast30Days = recent.filter((v: any) => v.publishedDaysAgo <= 31).length;
+          const longVideosLast30Days = longVids.filter((v: any) => v.publishedDaysAgo <= 31).length;
+          const shortsLast30Days = shortVids.filter((v: any) => v.publishedDaysAgo <= 31).length;
+          const viewsLast90Days = recent
+            .filter((v: any) => v.publishedDaysAgo <= 92)
+            .reduce((acc: number, v: any) => acc + (v.views || 0), 0);
+
+          const last16Shorts = shortVids.slice(0, 16);
+          const viewsLast16Shorts = last16Shorts.reduce((acc: number, v: any) => acc + (v.views || 0), 0);
+
+          enrichedChannel.recentVideos = recent;
+          enrichedChannel.isPkxdChannel = isPkxdChannel;
+          enrichedChannel.videoCount = Math.max(enrichedChannel.videoCount || 0, recent.length);
+          enrichedChannel.totalViews = Math.max(enrichedChannel.totalViews || 0, sumAllViews);
+          enrichedChannel.viewsLast16Shorts = viewsLast16Shorts;
+          enrichedChannel.last16ShortsCount = last16Shorts.length;
+          enrichedChannel.longVideosCount = longVids.length;
+          enrichedChannel.longVideos5MinCount = longVids.filter((v: any) => v.isLong5Min).length;
+          enrichedChannel.shortsCount = shortVids.length;
+          enrichedChannel.pkxdVideosDetected = recent.filter((v: any) => v.isPkxdContent).length;
+          enrichedChannel.pkxdLongVideosDetected = longVids.filter((v: any) => v.isPkxdContent).length;
+          enrichedChannel.pkxdShortsDetected = shortVids.filter((v: any) => v.isPkxdContent).length;
+          enrichedChannel.videosLast30Days = videosLast30Days;
+          enrichedChannel.longVideosLast30Days = longVideosLast30Days;
+          enrichedChannel.shortsLast30Days = shortsLast30Days;
+          enrichedChannel.viewsLast90Days = viewsLast90Days || sumAllViews;
+          enrichedChannel.averageLongViews =
+            longWithViews.length > 0 ? Math.round(sumLongViews / longWithViews.length) : enrichedChannel.averageRecentViews;
+          enrichedChannel.averageShortViews =
+            shortWithViews.length > 0 ? Math.round(sumShortViews / shortWithViews.length) : enrichedChannel.averageRecentViews;
+          enrichedChannel.averageRecentViews =
+            allWithViews.length > 0 ? Math.round(sumAllViews / allWithViews.length) : enrichedChannel.averageRecentViews;
+
+          if (shortVids.length > longVids.length && recent.length > 0) {
             setCreatorFormat('shorts');
+          } else if (longVids.length > 0) {
+            setCreatorFormat('long_video');
           }
         }
       } catch (err) {
-        console.warn('Vídeos recentes não puderam ser carregados:', err);
+        console.warn('Vídeos recentes não puderam ser carregados via OAuth:', err);
       }
     }
 
-    // Show the requested transition:
-    // ✓ YouTube conectado
-    // Canal encontrado: [FOTO] Nome do Canal, @handle
-    // ANALISANDO SEU PROGRESSO...
+    // Fallback enrichment via public backend endpoint if OAuth playlist returned no videos or fewer than 16 Shorts
+    if (
+      ((enrichedChannel.recentVideos?.length || 0) === 0 || (enrichedChannel.last16ShortsCount || 0) < 16) &&
+      (channel.handle || channel.channelId)
+    ) {
+      try {
+        const res = await fetch(`/api/youtube/channel?query=${encodeURIComponent(channel.handle || channel.channelId)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.success && json?.data) {
+            const pub = json.data;
+            const usePubShorts = (pub.last16ShortsCount || 0) > (enrichedChannel.last16ShortsCount || 0);
+            enrichedChannel = {
+              ...enrichedChannel,
+              videoCount: Math.max(enrichedChannel.videoCount || 0, pub.videoCount || 0),
+              totalViews: Math.max(enrichedChannel.totalViews || 0, pub.totalViews || 0),
+              viewsLast90Days: pub.viewsLast90Days || enrichedChannel.viewsLast90Days,
+              viewsLast16Shorts: usePubShorts
+                ? (pub.viewsLast16Shorts ?? 0)
+                : (enrichedChannel.viewsLast16Shorts ?? pub.viewsLast16Shorts ?? 0),
+              last16ShortsCount: usePubShorts
+                ? (pub.last16ShortsCount ?? 0)
+                : (enrichedChannel.last16ShortsCount ?? pub.last16ShortsCount ?? 0),
+              longVideosCount: Math.max(enrichedChannel.longVideosCount || 0, pub.longVideosCount || 0),
+              longVideos5MinCount: Math.max(enrichedChannel.longVideos5MinCount || 0, pub.longVideos5MinCount || 0),
+              shortsCount: Math.max(enrichedChannel.shortsCount || 0, pub.shortsCount || 0),
+              pkxdVideosDetected: Math.max(enrichedChannel.pkxdVideosDetected || 0, pub.pkxdVideosDetected || 0),
+              pkxdLongVideosDetected: Math.max(enrichedChannel.pkxdLongVideosDetected || 0, pub.pkxdLongVideosDetected || 0),
+              pkxdShortsDetected: Math.max(enrichedChannel.pkxdShortsDetected || 0, pub.pkxdShortsDetected || 0),
+              videosLast30Days: Math.max(enrichedChannel.videosLast30Days || 0, pub.videosLast30Days || 0),
+              longVideosLast30Days: Math.max(enrichedChannel.longVideosLast30Days || 0, pub.longVideosLast30Days || 0),
+              shortsLast30Days: Math.max(enrichedChannel.shortsLast30Days || 0, pub.shortsLast30Days || 0),
+              averageRecentViews: enrichedChannel.averageRecentViews || pub.averageRecentViews,
+              averageLongViews: enrichedChannel.averageLongViews || pub.averageLongViews || enrichedChannel.averageRecentViews,
+              averageShortViews: enrichedChannel.averageShortViews || pub.averageShortViews || enrichedChannel.averageRecentViews,
+              recentVideos: (enrichedChannel.recentVideos?.length || 0) > 0 ? enrichedChannel.recentVideos : (pub.recentVideos || []),
+              isPkxdChannel: enrichedChannel.isPkxdChannel || Boolean(pub.isPkxdChannel),
+            };
+          }
+        }
+      } catch (pubErr) {
+        console.warn('Fallback público opcional falhou:', pubErr);
+      }
+    }
+
     setTimeout(() => {
       handleSaveChannel(enrichedChannel);
       setConnectionStep('idle');
       setAnalyzingChannel(null);
       if (triggerAudio) triggerAudio('success');
-    }, 1600);
+    }, 900);
   };
 
-  // Official YouTube Channel connection handler
   const handleConnectYouTube = async () => {
     setIsConnecting(true);
     setConnectionStep('connecting');
     setErrorMessage(null);
-    setStatusMessage(null);
     if (triggerAudio) triggerAudio('tap');
 
     try {
       const provider = new GoogleAuthProvider();
-      // Official YouTube Readonly Scope
       provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
       provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -435,10 +613,14 @@ export default function CreatorProgressAnalyzer({
       setUserAccessToken(accessToken);
 
       if (onAddXP) {
-        onAddXP(50, 'Conexão oficial do Canal do YouTube');
+        try {
+          if (!localStorage.getItem('pkxd_creator_xp_awarded')) {
+            localStorage.setItem('pkxd_creator_xp_awarded', '1');
+            onAddXP(50, 'Conexão oficial do Canal do YouTube');
+          }
+        } catch {}
       }
 
-      // Query official YouTube Data API v3 for the authenticated user's channels
       const ytRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails,statistics&mine=true', {
         headers: {
           Authorization: `Bearer ${accessToken}`
@@ -461,7 +643,6 @@ export default function CreatorProgressAnalyzer({
       }
 
       if (items.length > 1) {
-        // Multiple channels found on this account
         const formattedList = items.map((item: any) => ({
           channel: formatRawYouTubeChannel(item),
           rawItem: item
@@ -472,10 +653,8 @@ export default function CreatorProgressAnalyzer({
         return;
       }
 
-      // Single channel found
       const formatted = formatRawYouTubeChannel(items[0]);
       await startAnalyzingFlow(formatted, accessToken, items[0].contentDetails?.relatedPlaylists?.uploads);
-
     } catch (authErr: any) {
       console.error('YouTube connection error:', authErr);
       setIsConnecting(false);
@@ -489,12 +668,10 @@ export default function CreatorProgressAnalyzer({
     }
   };
 
-  // User selects one channel from the multi-channel selection list
   const handleSelectDetectedChannel = async (entry: { channel: ChannelMetrics; rawItem: any }) => {
     await startAnalyzingFlow(entry.channel, userAccessToken || undefined, entry.rawItem?.contentDetails?.relatedPlaylists?.uploads);
   };
 
-  // Optional manual fallback search by public @handle
   const handleSearchChannel = async (queryToSearch?: string) => {
     const targetQuery = (queryToSearch || queryInput).trim();
     if (!targetQuery) {
@@ -522,14 +699,11 @@ export default function CreatorProgressAnalyzer({
         } catch (jsonErr) {
           console.warn('Falha no parse JSON da API:', jsonErr);
         }
-      } else {
-        console.warn('Resposta não-JSON recebida da rota de busca. Ativando fallback de resolução.');
       }
     } catch (networkErr) {
       console.warn('Erro de rede ao consultar /api/youtube/channel:', networkErr);
     }
 
-    // If server API was unavailable, offline, or returned non-JSON/error, use robust client fallback
     if (!fetchSucceeded) {
       const fallback = await resolveChannelFallback(targetQuery);
       if (fallback) {
@@ -540,7 +714,7 @@ export default function CreatorProgressAnalyzer({
 
     if (!fetchSucceeded || !json || !json.data) {
       setIsLoading(false);
-      setErrorMessage(json?.error || `Não foi possível encontrar o canal "${targetQuery}". Verifique se o @handle está correto ou conecte seu canal oficial.`);
+      setErrorMessage(json?.error || `Não foi possível encontrar o canal "${targetQuery}". Verifique o @handle ou conecte seu canal oficial.`);
       return;
     }
 
@@ -550,15 +724,30 @@ export default function CreatorProgressAnalyzer({
         channelId: fetched.channelId,
         title: fetched.title,
         handle: fetched.handle,
-        avatarUrl: fetched.avatarUrl,
-        subscriberCount: fetched.subscriberCount,
-        videoCount: fetched.videoCount,
-        totalViews: fetched.totalViews,
-        views3MonthsEstimated: fetched.totalViews ? Math.round(fetched.totalViews * 0.25) : 0,
+        avatarUrl: fetched.avatarUrl || '',
+        subscriberCount: fetched.subscriberCount || 0,
+        videoCount: fetched.videoCount || 0,
+        totalViews: fetched.totalViews || 0,
+        views3MonthsEstimated: fetched.viewsLast16Shorts ?? fetched.viewsLast90Days ?? 0,
+        viewsLast90Days: fetched.viewsLast90Days || 0,
+        viewsLast16Shorts: fetched.viewsLast16Shorts ?? 0,
+        last16ShortsCount: fetched.last16ShortsCount ?? 0,
+        longVideosCount: fetched.longVideosCount ?? 0,
+        longVideos5MinCount: fetched.longVideos5MinCount ?? 0,
+        shortsCount: fetched.shortsCount ?? 0,
+        pkxdLongVideosDetected: fetched.pkxdLongVideosDetected ?? 0,
+        pkxdShortsDetected: fetched.pkxdShortsDetected ?? 0,
+        videosLast30Days: fetched.videosLast30Days ?? 0,
+        longVideosLast30Days: fetched.longVideosLast30Days ?? 0,
+        shortsLast30Days: fetched.shortsLast30Days ?? 0,
         recentVideos: fetched.recentVideos || [],
-        estimatedMonthlyGrowth: fetched.estimatedMonthlyGrowth || Math.max(100, Math.round(fetched.subscriberCount * 0.04)),
+        estimatedMonthlyGrowth: fetched.estimatedMonthlyGrowth || Math.max(50, Math.round((fetched.subscriberCount || 0) * 0.04)),
         averageRecentViews: fetched.averageRecentViews || 0,
+        averageLongViews: fetched.averageLongViews || fetched.averageRecentViews || 0,
+        averageShortViews: fetched.averageShortViews || fetched.averageRecentViews || 0,
         pkxdVideosDetected: fetched.pkxdVideosDetected || 0,
+        isPkxdChannel: Boolean(fetched.isPkxdChannel),
+        dataSource: fetched.dataSource || 'youtube_public_scrape',
         isPublicDataAvailable: true,
         lastCheckedAt: new Date().toISOString()
       };
@@ -566,8 +755,19 @@ export default function CreatorProgressAnalyzer({
       handleSaveChannel(formattedChannel);
       if (triggerAudio) triggerAudio('success');
 
-      if (formattedChannel.recentVideos.filter(v => v.isShort).length >= 5) {
+      if (onAddXP) {
+        try {
+          if (!localStorage.getItem('pkxd_creator_xp_awarded')) {
+            localStorage.setItem('pkxd_creator_xp_awarded', '1');
+            onAddXP(50, 'Análise do Canal do YouTube no Progresso Creator');
+          }
+        } catch {}
+      }
+
+      if ((formattedChannel.shortsCount || 0) > (formattedChannel.longVideosCount || 0) && (formattedChannel.shortsCount || 0) >= 5) {
         setCreatorFormat('shorts');
+      } else if ((formattedChannel.longVideosCount || 0) > 0) {
+        setCreatorFormat('long_video');
       }
     } catch (err: any) {
       console.error('Erro ao processar dados do canal:', err);
@@ -577,26 +777,40 @@ export default function CreatorProgressAnalyzer({
     }
   };
 
-  const handleDisconnect = () => {
-    if (window.confirm('Deseja desconectar o canal e limpar os dados da análise?')) {
-      handleSaveChannel(null);
-      setConnectionStep('idle');
-      setDetectedChannels([]);
-      setAnalyzingChannel(null);
-      setQueryInput('');
-      if (triggerAudio) triggerAudio('tap');
+  // Auto-refresh stale cached channel that was saved before the accurate last-16-Shorts fix
+  useEffect(() => {
+    if (
+      channelData &&
+      channelData.handle &&
+      channelData.dataSource !== 'fallback_sample' &&
+      (channelData.videoCount === 0 ||
+        channelData.longVideosCount === undefined ||
+        channelData.viewsLast16Shorts === undefined)
+    ) {
+      handleSearchChannel(channelData.handle);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleConfirmDisconnect = () => {
+    handleSaveChannel(null);
+    setConnectionStep('idle');
+    setDetectedChannels([]);
+    setAnalyzingChannel(null);
+    setQueryInput('');
+    setConfirmDisconnect(false);
+    if (triggerAudio) triggerAudio('tap');
   };
 
   return (
-    <div className="w-full min-h-screen bg-slate-950 text-zinc-100 pb-24 selection:bg-purple-500 selection:text-white">
+    <div className="w-full min-h-screen text-white pb-20">
       {/* Top Breadcrumb Navigation */}
-      <div className="max-w-5xl mx-auto px-4 pt-6 pb-2">
-        <div className="flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-4 pt-2 pb-2">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <button
             id="back-to-hub-analyzer-btn"
             onClick={onBackToHub}
-            className="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-white bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+            className="pkxd-pop-btn flex items-center gap-2 text-xs font-bold px-4 py-2 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" /> Voltar ao Hub
           </button>
@@ -604,26 +818,26 @@ export default function CreatorProgressAnalyzer({
           <button
             id="open-config-btn"
             onClick={() => setIsConfigModalOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-bold text-purple-300 hover:text-purple-200 bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/30 px-3 py-2 rounded-xl transition-all cursor-pointer shadow-sm"
+            className="pkxd-btn-gold flex items-center gap-1.5 text-xs font-extrabold px-4 py-2 cursor-pointer"
           >
-            <Settings2 className="w-4 h-4 text-purple-400" />
+            <Settings2 className="w-4 h-4" />
             <span>Configurar Requisitos</span>
           </button>
         </div>
       </div>
 
       {/* Hero Header Section */}
-      <div className="max-w-5xl mx-auto px-4 pt-4 pb-8 text-center relative overflow-hidden">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/30 text-purple-300 text-xs font-black uppercase tracking-wider mb-3 shadow-[0_0_20px_rgba(168,85,247,0.15)]">
-          <Sparkles className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
+      <div className="max-w-5xl mx-auto px-4 pt-4 pb-8 text-center">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F9C826] border-2 border-[#120624] text-[#120624] text-xs font-extrabold uppercase tracking-wider mb-3">
+          <Sparkles className="w-3.5 h-3.5" />
           <span>Creator Progress Analyzer</span>
         </div>
 
-        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight uppercase">
-          Ver Meu <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 bg-clip-text text-transparent">Progresso Creator</span>
+        <h1 className="pkxd-comic-title font-display text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
+          Ver Meu Progresso Creator
         </h1>
 
-        <p className="mt-2 text-sm sm:text-base text-zinc-300 max-w-2xl mx-auto font-medium leading-relaxed">
+        <p className="mt-2 text-sm sm:text-base text-purple-100/90 max-w-2xl mx-auto font-medium leading-relaxed">
           Descubra quanto falta para você atingir os requisitos oficiais para se tornar Creator do PK XD.
         </p>
       </div>
@@ -631,104 +845,104 @@ export default function CreatorProgressAnalyzer({
       {/* Main Container */}
       <div className="max-w-5xl mx-auto px-4 space-y-6">
         {/* Step 1: Input Channel / Connect Card */}
-        <div 
+        <div
           id="channel-input-card"
-          className="bg-zinc-900/90 border border-purple-500/20 rounded-3xl p-5 sm:p-7 shadow-xl backdrop-blur-sm relative overflow-hidden"
+          className="pkxd-glass rounded-3xl p-5 sm:p-7 relative overflow-hidden"
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
             <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
-                <Youtube className="w-4 h-4 text-red-500" />
+              <span className="text-xs font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1.5">
+                <Youtube className="w-4 h-4" />
                 Conectar ou Informar Canal
               </span>
-              <h2 className="text-lg font-bold text-white mt-0.5">
+              <h2 className="font-display text-xl font-bold text-slate-900 mt-0.5">
                 {channelData ? 'Canal Conectado' : 'Qual é o seu canal no YouTube?'}
               </h2>
             </div>
 
             <button
               onClick={() => setShowPrivacyDetails(!showPrivacyDetails)}
-              className="text-xs text-zinc-400 hover:text-zinc-200 flex items-center gap-1 self-start md:self-auto cursor-pointer"
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 self-start md:self-auto cursor-pointer bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200"
             >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>Privacidade & Dados Utilizados</span>
             </button>
           </div>
 
-          {/* Privacy Dropdown Notice */}
           <AnimatePresence>
             {showPrivacyDetails && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mb-5 p-4 rounded-2xl bg-zinc-950/80 border border-zinc-800 text-xs text-zinc-300 space-y-2"
+                className="mb-5 p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-xs text-slate-700 space-y-2"
               >
-                <div className="flex items-center gap-2 font-bold text-emerald-400">
+                <div className="flex items-center gap-2 font-bold text-emerald-800">
                   <ShieldCheck className="w-4 h-4" />
                   <span>Transparência e Coleta Segura de Dados</span>
                 </div>
                 <p className="leading-relaxed">
-                  O <strong>Creator Progress Analyzer</strong> consulta exclusivamente <strong>informações públicas</strong> disponibilizadas pela API oficial do YouTube (como nome, foto pública de perfil, quantidade de inscritos e contagem de vídeos públicos).
+                  O <strong>Creator Progress Analyzer</strong> consulta exclusivamente <strong>informações públicas</strong> disponibilizadas pela API oficial do YouTube (como nome, foto pública de perfil, quantidade de inscritos, vídeos públicos e visualizações).
                 </p>
-                <p className="text-zinc-400 leading-relaxed">
-                  🔒 Nós <strong>não solicitamos senhas, permissões invasivas ou acesso a dados privados</strong> da sua conta. Você pode desconectar ou limpar a análise a qualquer momento com um clique.
+                <p className="text-slate-600 leading-relaxed">
+                  Nós <strong>não solicitamos senhas ou acesso para editar/publicar</strong> no seu canal. Você pode desconectar ou limpar a análise a qualquer momento.
                 </p>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Step 1: YouTube Connection & Identification Flow */}
           {connectionStep === 'connecting' ? (
-            <div className="p-8 rounded-2xl bg-zinc-950/90 border border-red-500/30 text-center space-y-4 animate-in fade-in">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-500 shadow-lg shadow-red-500/20">
+            <div className="p-8 rounded-2xl bg-rose-50 border-2 border-rose-200 text-center space-y-4">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-white border-2 border-rose-200 flex items-center justify-center text-rose-600 shadow-sm">
                 <RefreshCw className="w-8 h-8 animate-spin" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-lg font-black text-white">Conectando com o YouTube...</h3>
-                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                <h3 className="font-display text-lg font-bold text-slate-900">Conectando com o Google / YouTube...</h3>
+                <p className="text-xs text-slate-600 max-w-md mx-auto">
                   Aguardando autorização da conta e identificando os dados oficiais do seu canal via YouTube API.
                 </p>
               </div>
             </div>
           ) : connectionStep === 'no_channel' ? (
-            <div className="p-6 sm:p-8 rounded-2xl bg-zinc-950/90 border border-amber-500/30 space-y-4 animate-in fade-in">
+            <div className="p-6 sm:p-8 rounded-2xl bg-amber-50 border-2 border-amber-200 space-y-4">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-white border-2 border-amber-300 flex items-center justify-center text-amber-600 shrink-0">
                   <AlertCircle className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-base font-black text-white">Nenhum canal do YouTube encontrado nesta conta</h3>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    A conta Google autorizada não possui um canal do YouTube criado. Certifique-se de conectar a conta correta onde seu canal está cadastrado ou crie seu canal no YouTube.
+                  <h3 className="font-display text-base font-bold text-slate-900">
+                    Nenhum canal do YouTube encontrado nesta conta
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    A conta Google autorizada não possui um canal do YouTube criado. Conecte a conta correta onde seu canal está cadastrado.
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button
                   onClick={handleConnectYouTube}
-                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-red-600/30 active:scale-95"
+                  className="px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-display font-bold text-xs uppercase tracking-wider cursor-pointer shadow-sm"
                 >
-                  ▶ Tentar com outra conta Google
+                  Tentar com outra conta Google
                 </button>
                 <button
                   onClick={() => setConnectionStep('idle')}
-                  className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white font-bold text-xs transition-colors cursor-pointer"
+                  className="pkxd-btn-outline px-4 py-2.5 rounded-2xl font-bold text-xs cursor-pointer"
                 >
                   Voltar
                 </button>
               </div>
             </div>
           ) : connectionStep === 'select_channel' ? (
-            <div className="p-6 sm:p-8 rounded-2xl bg-zinc-950/90 border border-purple-500/30 space-y-5 animate-in fade-in">
+            <div className="p-6 sm:p-8 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-5">
               <div className="space-y-1">
-                <span className="text-[11px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-violet-700 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4" />
                   Múltiplos Canais Encontrados
                 </span>
-                <h3 className="text-xl font-black text-white">Qual canal você quer analisar?</h3>
-                <p className="text-xs text-zinc-400">
-                  Sua conta possui mais de um canal no YouTube. Escolha qual deles deseja vincular à análise de Creator:
+                <h3 className="font-display text-xl font-bold text-slate-900">Qual canal você quer analisar?</h3>
+                <p className="text-xs text-slate-600">
+                  Escolha qual canal deseja vincular à análise de Creator:
                 </p>
               </div>
 
@@ -736,21 +950,16 @@ export default function CreatorProgressAnalyzer({
                 {detectedChannels.map((entry, idx) => (
                   <div
                     key={entry.channel.channelId || idx}
-                    className="p-4 rounded-2xl bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800 hover:border-purple-500/50 transition-all flex flex-col justify-between gap-3 shadow-md group"
+                    className="p-4 rounded-2xl bg-white border-2 border-slate-200 hover:border-violet-400 transition-all flex flex-col justify-between gap-3 shadow-sm"
                   >
                     <div className="flex items-center gap-3">
-                      <img
-                        src={entry.channel.avatarUrl}
-                        alt={entry.channel.title}
-                        className="w-12 h-12 rounded-xl object-cover border border-purple-500/30 shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
+                      <ChannelAvatar url={entry.channel.avatarUrl} title={entry.channel.title} sizeClass="w-12 h-12" />
                       <div className="min-w-0">
-                        <h4 className="text-sm font-black text-white truncate group-hover:text-purple-300 transition-colors">
+                        <h4 className="text-sm font-bold text-slate-900 truncate">
                           {entry.channel.title}
                         </h4>
-                        <p className="text-xs text-zinc-400 font-mono truncate">{entry.channel.handle}</p>
-                        <p className="text-[11px] text-purple-400 font-semibold mt-0.5">
+                        <p className="text-xs text-slate-500 font-mono truncate">{entry.channel.handle}</p>
+                        <p className="text-xs text-violet-700 font-bold mt-0.5 tabular-nums">
                           {entry.channel.subscriberCount.toLocaleString('pt-BR')} inscritos • {entry.channel.videoCount} vídeos
                         </p>
                       </div>
@@ -758,7 +967,7 @@ export default function CreatorProgressAnalyzer({
 
                     <button
                       onClick={() => handleSelectDetectedChannel(entry)}
-                      className="w-full py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 flex items-center justify-center gap-1.5"
+                      className="pkxd-btn-primary w-full py-2.5 rounded-xl text-xs font-display font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <span>Selecionar este canal</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -770,92 +979,77 @@ export default function CreatorProgressAnalyzer({
               <div className="pt-2 flex justify-end">
                 <button
                   onClick={() => setConnectionStep('idle')}
-                  className="text-xs text-zinc-400 hover:text-white cursor-pointer"
+                  className="text-xs font-bold text-slate-500 hover:text-slate-900 cursor-pointer"
                 >
                   Cancelar seleção
                 </button>
               </div>
             </div>
           ) : connectionStep === 'analyzing' && analyzingChannel ? (
-            /* Experience requested verbatim:
-               ✓ YouTube conectado
-               Canal encontrado:
-               [foto] Nome do Canal
-               @handle
-               ANALISANDO SEU PROGRESSO...
-            */
-            <div className="p-8 sm:p-10 rounded-2xl bg-zinc-950/95 border border-emerald-500/40 text-center space-y-6 shadow-2xl animate-in zoom-in-95 duration-300">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black text-xs uppercase tracking-wider">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>✓ YouTube conectado</span>
+            <div className="p-8 sm:p-10 rounded-3xl bg-emerald-50 border-2 border-emerald-200 text-center space-y-5">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-emerald-300 text-emerald-700 font-bold text-xs uppercase tracking-wider">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>YouTube conectado</span>
               </div>
 
               <div className="space-y-3">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
                   Canal encontrado:
                 </span>
-                
+
                 <div className="flex flex-col items-center justify-center gap-3">
-                  <img
-                    src={analyzingChannel.avatarUrl}
-                    alt={analyzingChannel.title}
-                    className="w-20 h-20 rounded-2xl object-cover border-2 border-emerald-500/60 shadow-xl"
-                    referrerPolicy="no-referrer"
-                  />
+                  <ChannelAvatar url={analyzingChannel.avatarUrl} title={analyzingChannel.title} sizeClass="w-20 h-20" />
                   <div>
-                    <h3 className="text-xl sm:text-2xl font-black text-white">
+                    <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900">
                       {analyzingChannel.title}
                     </h3>
-                    <p className="text-sm font-mono text-purple-400 mt-0.5">
+                    <p className="text-sm font-mono text-violet-700 mt-0.5 font-bold">
                       {analyzingChannel.handle}
                     </p>
-                    <p className="text-[11px] text-zinc-500 font-mono mt-1">
+                    <p className="text-xs text-slate-500 font-mono mt-1">
                       ID: {analyzingChannel.channelId}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-zinc-800/80 flex flex-col items-center gap-2">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-purple-400 animate-pulse">
+              <div className="pt-4 border-t border-emerald-200 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-violet-700">
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>ANALISANDO SEU PROGRESSO...</span>
+                  <span>Analisando seu progresso...</span>
                 </div>
-                <p className="text-[11px] text-zinc-500">
-                  Calculando métricas de inscritos, visualizações e requisitos oficiais de Creator.
+                <p className="text-xs text-slate-600">
+                  Calculando métricas de inscritos, vídeos, visualizações e requisitos oficiais de Creator.
                 </p>
               </div>
             </div>
           ) : !channelData ? (
-            /* Standalone Connection Box when not connected */
             <div className="space-y-4">
-              <div 
+              <div
                 id="connect-youtube-container"
-                className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-zinc-950 via-zinc-900/90 to-zinc-950 border border-red-500/30 hover:border-red-500/50 transition-all shadow-2xl relative overflow-hidden"
+                className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-rose-50/90 via-white to-violet-50/90 border-2 border-rose-200 transition-all"
               >
-                <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="space-y-2 max-w-xl">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/15 border border-red-500/30 text-[11px] font-black uppercase tracking-wider text-red-400">
-                      <Youtube className="w-4 h-4 text-red-500" />
-                      <span>Conexão Oficial com o YouTube</span>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="space-y-2.5 max-w-xl">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 border border-rose-200 text-xs font-bold uppercase tracking-wider text-rose-700">
+                      <Youtube className="w-4 h-4" />
+                      <span>Conexão Oficial com Google & YouTube</span>
                     </div>
 
-                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                       Conecte seu canal oficial do YouTube
                     </h3>
-                    
-                    <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
-                      O sistema identificará o seu canal oficial (ID do canal, nome, foto pública e métricas) e iniciará automaticamente a análise detalhada de todos os requisitos para Creator do PK XD.
+
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      Entre com sua conta Google para identificar automaticamente seu canal (inscritos, vídeos longos +5 min, Shorts e views reais) e iniciar a análise completa dos requisitos de Creator do PK XD.
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-zinc-400">
-                      <span className="flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5 text-emerald-400" /> Identificação automática do Channel ID
+                    <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-700 font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <Check className="w-4 h-4 text-emerald-600" /> Identificação automática do canal
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5 text-emerald-400" /> Métricas em tempo real
+                      <span className="flex items-center gap-1.5">
+                        <Check className="w-4 h-4 text-emerald-600" /> Vídeos, Shorts e views reais em tempo real
                       </span>
                     </div>
                   </div>
@@ -866,53 +1060,53 @@ export default function CreatorProgressAnalyzer({
                       type="button"
                       disabled={isConnecting}
                       onClick={handleConnectYouTube}
-                      className="w-full md:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-sm sm:text-base font-black uppercase tracking-wider transition-all shadow-xl shadow-red-600/40 hover:shadow-red-600/60 flex items-center justify-center gap-3 cursor-pointer active:scale-95 disabled:opacity-50"
+                      className="w-full md:w-auto px-7 py-4 rounded-2xl bg-rose-600 hover:bg-rose-700 border-b-4 border-rose-800 text-white text-sm sm:text-base font-display font-bold uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer active:translate-y-0.5 disabled:opacity-50"
                     >
                       {isConnecting ? (
                         <>
                           <RefreshCw className="w-5 h-5 animate-spin" />
-                          <span>Conectando YouTube...</span>
+                          <span>Conectando Google...</span>
                         </>
                       ) : (
                         <>
-                          <span className="text-lg leading-none">▶</span>
-                          <span>CONECTAR MEU YOUTUBE</span>
+                          <Youtube className="w-5 h-5" />
+                          <span>Conectar com Google</span>
                         </>
                       )}
                     </button>
-                    <span className="text-[10px] text-zinc-500 font-medium">
-                      Conexão segura via Google OAuth & YouTube API
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Login seguro via Google OAuth & YouTube API
                     </span>
                   </div>
                 </div>
 
                 {errorMessage && (
-                  <div className="mt-5 p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-xs text-red-300 flex items-center gap-2.5">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <div className="mt-5 p-3.5 rounded-2xl bg-rose-100 border-2 border-rose-300 text-xs text-rose-800 font-bold flex items-center gap-2.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
               </div>
 
-              {/* Collapsible Manual Search by Handle */}
-              <div className="pt-2 text-center">
+              {/* Manual Search Toggle */}
+              <div className="pt-1 text-center">
                 <button
                   onClick={() => setShowManualSearch(!showManualSearch)}
-                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                  className="text-xs font-bold text-slate-600 hover:text-violet-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>{showManualSearch ? 'Ocultar busca manual' : 'Ou consultar canal por @handle público'}</span>
-                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showManualSearch ? 'rotate-90' : ''}`} />
+                  <span>{showManualSearch ? 'Ocultar busca por @handle' : 'Ou consultar canal por @handle público'}</span>
+                  <ChevronRight className={`w-4 h-4 transition-transform ${showManualSearch ? 'rotate-90' : ''}`} />
                 </button>
 
                 {showManualSearch && (
                   <motion.div
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 p-4 rounded-2xl bg-zinc-950/80 border border-zinc-800 text-left space-y-3"
+                    className="mt-3 p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 text-left space-y-3"
                   >
                     <div className="flex flex-col sm:flex-row gap-2.5">
                       <div className="relative flex-1">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                           <Search className="w-4 h-4" />
                         </div>
                         <input
@@ -921,8 +1115,8 @@ export default function CreatorProgressAnalyzer({
                           value={queryInput}
                           onChange={(e) => setQueryInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSearchChannel()}
-                          placeholder="Digite o @handle (ex: @pkxd, @meucanal)..."
-                          className="w-full bg-zinc-900 border border-zinc-700/80 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                          placeholder="Digite o @handle (ex: @ILovePizzaaXD, @meucanal)..."
+                          className="w-full bg-white border-2 border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500"
                         />
                       </div>
 
@@ -930,7 +1124,7 @@ export default function CreatorProgressAnalyzer({
                         id="search-channel-btn"
                         disabled={isLoading}
                         onClick={() => handleSearchChannel()}
-                        className="px-5 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase text-xs tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shrink-0"
+                        className="pkxd-btn-primary px-5 py-2.5 rounded-2xl font-display font-bold uppercase text-xs tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shrink-0"
                       >
                         {isLoading ? (
                           <>
@@ -947,7 +1141,7 @@ export default function CreatorProgressAnalyzer({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <span className="text-[10px] font-semibold text-zinc-500">Testar com exemplos:</span>
+                      <span className="text-[11px] font-bold text-slate-500">Testar com exemplos:</span>
                       {SAMPLE_CHANNELS.map(s => (
                         <button
                           key={s.query}
@@ -955,7 +1149,7 @@ export default function CreatorProgressAnalyzer({
                             setQueryInput(s.query);
                             handleSearchChannel(s.query);
                           }}
-                          className="text-[10px] bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-purple-300 hover:text-white px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                          className="text-xs bg-white hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-violet-700 font-bold px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
                         >
                           {s.query}
                         </button>
@@ -966,70 +1160,121 @@ export default function CreatorProgressAnalyzer({
               </div>
             </div>
           ) : (
-            /* Connected Channel Profile Badge */
-            <div className="p-4 sm:p-5 rounded-2xl bg-zinc-950/90 border border-emerald-500/30 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                {channelData.avatarUrl ? (
-                  <img
-                    src={channelData.avatarUrl}
-                    alt={channelData.title}
-                    className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500/60 shadow-md shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-2xl bg-purple-900/50 border border-purple-500/40 flex items-center justify-center text-purple-300 font-black text-xl shrink-0">
-                    {channelData.title.slice(0, 1).toUpperCase()}
+            /* Connected Channel Profile Badge + Real Metrics Bar */
+            <div className="space-y-4">
+              <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50 border-2 border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <ChannelAvatar url={channelData.avatarUrl} title={channelData.title} />
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-display text-lg font-bold text-slate-900">{channelData.title}</h3>
+                      <span className="text-[11px] bg-emerald-100 border border-emerald-300 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>YouTube Conectado</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 font-mono mt-0.5">
+                      <span>{channelData.handle}</span>
+                      <span>•</span>
+                      <span className="text-[11px] text-slate-500">ID: {channelData.channelId}</span>
+                    </div>
                   </div>
-                )}
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-black text-white">{channelData.title}</h3>
-                    <span className="text-[10px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 px-2.5 py-0.5 rounded-full font-extrabold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                      <span>✓ YouTube Conectado</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
-                    <span>{channelData.handle}</span>
-                    <span>•</span>
-                    <span className="text-[11px] text-zinc-500">ID: {channelData.channelId}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] text-zinc-400 mt-1 font-medium">
-                    <span className="text-purple-300 font-bold">
-                      {channelData.subscriberCount.toLocaleString('pt-BR')} inscritos
-                    </span>
-                    <span>•</span>
-                    <span>{channelData.videoCount.toLocaleString('pt-BR')} vídeos</span>
-                    {channelData.pkxdVideosDetected ? (
-                      <>
-                        <span>•</span>
-                        <span className="text-pink-300 font-bold">~{channelData.pkxdVideosDetected} vídeos PK XD</span>
-                      </>
-                    ) : null}
-                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
+                  <button
+                    id="reanalyze-btn"
+                    onClick={() => handleSearchChannel(channelData.handle || channelData.channelId)}
+                    disabled={isLoading}
+                    className="pkxd-btn-outline px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    title="Atualizar dados do canal"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                    <span>{isLoading ? 'Atualizando...' : 'Atualizar'}</span>
+                  </button>
+
+                  {confirmDisconnect ? (
+                    <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-xl">
+                      <span className="text-xs font-bold text-rose-800">Desconectar?</span>
+                      <button
+                        type="button"
+                        onClick={handleConfirmDisconnect}
+                        className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold cursor-pointer"
+                      >
+                        Sim
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDisconnect(false)}
+                        className="p-1 rounded-lg bg-white text-slate-600 border border-slate-200 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      id="disconnect-channel-btn"
+                      onClick={() => setConfirmDisconnect(true)}
+                      className="px-3.5 py-2 rounded-full text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border-2 border-rose-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                      title="Trocar de canal"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Trocar Canal</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                <button
-                  id="reanalyze-btn"
-                  onClick={() => handleSearchChannel(channelData.handle)}
-                  disabled={isLoading}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  title="Atualizar dados do canal"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                  <span>Atualizar</span>
-                </button>
-                <button
-                  id="disconnect-channel-btn"
-                  onClick={handleDisconnect}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-red-400 hover:text-red-300 bg-red-950/20 hover:bg-red-950/40 border border-red-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
-                  title="Trocar de canal"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Trocar Canal</span>
-                </button>
+              {/* 4-Metric Real YouTube Stats Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-2xl bg-violet-50 border-2 border-violet-200">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-violet-700">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Inscritos</span>
+                  </div>
+                  <p className="font-display text-xl sm:text-2xl font-bold text-[#120624] mt-1 tabular-nums">
+                    {(channelData.subscriberCount || 0).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-pink-50 border-2 border-pink-200">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-pink-700">
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Vídeos no Canal</span>
+                  </div>
+                  <p className="font-display text-xl sm:text-2xl font-bold text-[#120624] mt-1 tabular-nums">
+                    {(channelData.videoCount || 0).toLocaleString('pt-BR')}
+                  </p>
+                  <p className="text-[11px] font-semibold text-slate-600 mt-0.5 tabular-nums">
+                    {channelData.longVideosCount ?? 0} longos · {channelData.shortsCount ?? 0} Shorts analisados
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-200">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-amber-800">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Total de Views</span>
+                  </div>
+                  <p className="font-display text-xl sm:text-2xl font-bold text-[#120624] mt-1 tabular-nums">
+                    {(channelData.totalViews || 0).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-sky-50 border-2 border-sky-200">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-sky-800">
+                    <PlayCircle className="w-3.5 h-3.5" />
+                    <span>Média ({creatorFormat === 'shorts' ? 'Shorts' : 'Longos'})</span>
+                  </div>
+                  <p className="font-display text-xl sm:text-2xl font-bold text-[#120624] mt-1 tabular-nums">
+                    {(creatorFormat === 'shorts'
+                      ? (channelData.averageShortViews || channelData.averageRecentViews || 0)
+                      : (channelData.averageLongViews || channelData.averageRecentViews || 0)
+                    ).toLocaleString('pt-BR')}
+                  </p>
+                  <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                    views por vídeo recente
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -1039,20 +1284,19 @@ export default function CreatorProgressAnalyzer({
         {channelData && analysis && (
           <div className="space-y-6">
             {/* Format & Tier Control Selector */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-              {/* Creator Format Toggle */}
-              <div className="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-800/80">
-                <span className="text-[10px] uppercase font-bold text-zinc-500 px-2 hidden sm:inline">Formato:</span>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pkxd-glass p-3.5 rounded-3xl">
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                <span className="text-[11px] uppercase font-bold text-slate-500 px-2 hidden sm:inline">Formato:</span>
                 <button
                   id="format-long-btn"
                   onClick={() => {
                     setCreatorFormat('long_video');
                     if (triggerAudio) triggerAudio('tap');
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     creatorFormat === 'long_video'
-                      ? 'bg-purple-600 text-white shadow'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   YouTube Longo (+5m)
@@ -1063,32 +1307,31 @@ export default function CreatorProgressAnalyzer({
                     setCreatorFormat('shorts');
                     if (triggerAudio) triggerAudio('tap');
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     creatorFormat === 'shorts'
-                      ? 'bg-pink-600 text-white shadow'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-pink-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   YouTube Shorts
                 </button>
               </div>
 
-              {/* Tier Target Toggle: Stardust & Rising Star */}
-              <div className="flex items-center flex-wrap gap-1.5 bg-zinc-950 p-1.5 rounded-xl border border-zinc-800/80">
-                <span className="text-[10px] uppercase font-bold text-zinc-500 px-1 hidden sm:inline">Meta para Subir:</span>
+              <div className="flex items-center flex-wrap gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                <span className="text-[11px] uppercase font-bold text-slate-500 px-2 hidden sm:inline">Meta:</span>
                 <button
                   id="tier-stardust-btn"
                   onClick={() => {
                     setSelectedTier('stardust');
                     if (triggerAudio) triggerAudio('tap');
                   }}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     selectedTier === 'stardust'
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
-                  <Star className="w-3.5 h-3.5 text-indigo-400" />
+                  <Star className="w-3.5 h-3.5" />
                   <span>Tier 1: Stardust</span>
                 </button>
                 <button
@@ -1097,61 +1340,63 @@ export default function CreatorProgressAnalyzer({
                     setSelectedTier('rising_star');
                     if (triggerAudio) triggerAudio('tap');
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     selectedTier === 'rising_star'
-                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
-                  <Rocket className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Tier 2: Rising Star (Subir de Nível)</span>
+                  <Rocket className="w-3.5 h-3.5" />
+                  <span>Tier 2: Rising Star</span>
                 </button>
               </div>
             </div>
 
-            {/* SEU PROGRESSO PARA CREATOR - High-impact Dashboard Summary Card */}
-            <div 
+            {/* Dashboard Summary Card */}
+            <div
               id="creator-progress-summary"
-              className={`p-6 sm:p-8 rounded-3xl border shadow-2xl relative overflow-hidden ${
+              className={`p-6 sm:p-8 rounded-3xl transition-all ${
                 analysis.isAllRequiredMet
-                  ? 'bg-gradient-to-br from-emerald-950/80 via-zinc-900 to-zinc-950 border-emerald-500/40 shadow-emerald-500/10'
-                  : 'bg-gradient-to-br from-purple-950/60 via-zinc-900 to-zinc-950 border-purple-500/30 shadow-purple-500/10'
+                  ? 'bg-emerald-50/80 backdrop-blur-md border-2 border-emerald-300 shadow-sm'
+                  : 'pkxd-glass border-violet-200/80'
               }`}
             >
               <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="space-y-2 text-center md:text-left">
+                <div className="space-y-2.5 text-center md:text-left">
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-black uppercase tracking-wider text-purple-300">
-                      <span>SEU PROGRESSO PARA CREATOR</span>
-                    </div>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-violet-100 border border-violet-200 text-xs font-bold uppercase tracking-wider text-violet-800">
+                      Seu Progresso para Creator
+                    </span>
 
-                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${
-                      selectedTier === 'stardust'
-                        ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
-                        : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                    }`}>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                        selectedTier === 'stardust'
+                          ? 'bg-sky-50 border-sky-200 text-sky-800'
+                          : 'bg-amber-100 border-amber-300 text-amber-900'
+                      }`}
+                    >
                       {selectedTier === 'stardust' ? <Star className="w-3.5 h-3.5" /> : <Rocket className="w-3.5 h-3.5" />}
                       <span>
-                        Meta: {selectedTier === 'stardust' ? 'Tier 1 (Stardust - Entrada)' : 'Tier 2 (Rising Star - Subir de Nível)'}
+                        {selectedTier === 'stardust' ? 'Tier 1: Stardust' : 'Tier 2: Rising Star'}
                       </span>
-                    </div>
+                    </span>
                   </div>
 
-                  <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
+                  <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
                     {channelData.title}
                   </h2>
-                  <p className="text-sm font-mono text-zinc-400">{channelData.handle}</p>
+                  <p className="text-sm font-mono text-slate-500 font-bold">{channelData.handle}</p>
 
-                  <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-2">
+                  <div className="pt-1 flex flex-wrap items-center justify-center md:justify-start gap-2.5">
                     {analysis.isAllRequiredMet ? (
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black text-sm uppercase tracking-wider shadow-lg">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                        <span>🎉 ATINGIU TODOS OS CRITÉRIOS DESTE TIER!</span>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-600 text-white font-display font-bold text-sm uppercase tracking-wider shadow-sm">
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>Atingiu todos os critérios deste Tier!</span>
                       </div>
                     ) : (
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-300 font-black text-sm uppercase tracking-wider shadow-lg">
-                        <Flame className="w-5 h-5 text-pink-400" />
-                        <span>🚀 FALTAM {analysis.totalCount - analysis.metCount} REQUISITOS PARA SUBIR!</span>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-violet-100 border-2 border-violet-200 text-violet-900 font-display font-bold text-sm uppercase tracking-wider">
+                        <Flame className="w-5 h-5 text-pink-600" />
+                        <span>Faltam {analysis.totalCount - analysis.metCount} requisitos para subir</span>
                       </div>
                     )}
 
@@ -1161,67 +1406,61 @@ export default function CreatorProgressAnalyzer({
                           setSelectedTier(tierEvolution.nextTier!);
                           if (triggerAudio) triggerAudio('tap');
                         }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/20 transition-all cursor-pointer"
+                        className="pkxd-btn-gold inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer"
                       >
-                        <Zap className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Próximo a Subir: {tierEvolution.nextTier.toUpperCase()} →</span>
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Ver próximo nível: {tierEvolution.nextTier.toUpperCase()}</span>
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* Big Circular/Bar Overall Progress Gauge */}
-                <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-zinc-950/70 border border-white/10 min-w-[210px] text-center">
-                  <span className="text-xs uppercase font-black text-zinc-400 tracking-wider">
+                {/* Progress Gauge Box */}
+                <div className="flex flex-col items-center justify-center p-5 rounded-3xl bg-slate-50 border-2 border-slate-200 min-w-[220px] text-center">
+                  <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
                     Progresso no Tier
                   </span>
-                  <div className="text-4xl sm:text-5xl font-black my-1 bg-gradient-to-r from-purple-400 via-pink-400 to-emerald-400 bg-clip-text text-transparent">
+                  <div className="font-display text-4xl sm:text-5xl font-bold my-1 text-violet-700 tabular-nums">
                     {analysis.overallPercentage}%
                   </div>
-                  
-                  {/* Visual mini-bar */}
-                  <div className="w-full bg-zinc-800 h-2.5 rounded-full overflow-hidden my-1.5">
-                    <div 
+
+                  <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden my-2">
+                    <div
                       className={`h-full rounded-full transition-all duration-700 ${
-                        analysis.isAllRequiredMet
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                          : 'bg-gradient-to-r from-purple-600 to-pink-500'
+                        analysis.isAllRequiredMet ? 'bg-emerald-500' : 'bg-violet-600'
                       }`}
                       style={{ width: `${analysis.overallPercentage}%` }}
                     />
                   </div>
 
-                  <span className="text-[11px] font-bold text-zinc-400">
+                  <span className="text-xs font-bold text-slate-600 tabular-nums">
                     {analysis.metCount} de {analysis.totalCount} critérios cumpridos
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* TRILHA DE TIERS: SUBA DE NÍVEL (Novo Módulo de Evolução) */}
+            {/* Tier Roadmap */}
             {tierEvolution && (
-              <div id="creator-tier-roadmap" className="bg-zinc-900/70 border border-zinc-800 rounded-3xl p-6 space-y-5">
+              <div id="creator-tier-roadmap" className="pkxd-glass rounded-3xl p-6 space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-400">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-600">
                       <Trophy className="w-4 h-4" />
-                      <span>Trilha de Tiers Oficial: Como Subir de Nível</span>
+                      <span>Trilha de Tiers Oficial</span>
                     </div>
-                    <h3 className="text-lg font-black text-white uppercase tracking-tight mt-0.5">
-                      Progressão dos Níveis Oficiais: Stardust e Rising Star
+                    <h3 className="font-display text-xl font-bold text-slate-900 mt-0.5">
+                      Progressão dos Níveis: Stardust e Rising Star
                     </h3>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      Veja o que você precisa alcançar para subir de Tier e desbloquear novos benefícios no jogo.
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Veja o que você precisa alcançar para subir de Tier e desbloquear benefícios no jogo.
                     </p>
                   </div>
 
-                  {/* Current Status Pill */}
-                  <div className="flex items-center gap-2 bg-zinc-950 px-4 py-2 rounded-2xl border border-zinc-800 self-start sm:self-auto">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="text-xs font-bold text-zinc-400">
-                      Nível Atual:
-                    </span>
-                    <span className="text-xs font-black text-white uppercase bg-white/10 px-2 py-0.5 rounded-md">
+                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-2xl border-2 border-slate-200 self-start sm:self-auto">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs font-bold text-slate-500">Nível Atual:</span>
+                    <span className="text-xs font-bold text-slate-900 uppercase bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
                       {tierEvolution.currentTier === 'aspirant'
                         ? 'Aspirante a Creator'
                         : tierEvolution.currentTier === 'stardust'
@@ -1231,8 +1470,7 @@ export default function CreatorProgressAnalyzer({
                   </div>
                 </div>
 
-                {/* 2-Tier Interactive Advancement Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {tierEvolution.progressions.map((tier) => {
                     const isSelected = selectedTier === tier.tierId;
                     const tierMeta = PKXD_CREATOR_TIERS.find(t => t.id === tier.tierId);
@@ -1248,121 +1486,117 @@ export default function CreatorProgressAnalyzer({
                           setSelectedTier(tier.tierId);
                           if (triggerAudio) triggerAudio('tap');
                         }}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                        className={`p-5 rounded-3xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
                           isSelected
-                            ? 'bg-zinc-800/90 border-purple-500 shadow-lg shadow-purple-500/10 ring-2 ring-purple-500/30'
-                            : 'bg-zinc-950/60 border-zinc-800/90 hover:border-zinc-700 hover:bg-zinc-900/60'
+                            ? 'bg-violet-50 border-violet-500 shadow-sm'
+                            : 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
                         }`}
                       >
                         <div>
-                          {/* Top row: Tier Level & Status Badge */}
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300">
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700">
                               Nível {tier.level}
                             </span>
 
                             {tier.isUnlocked ? (
-                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
-                                <Check className="w-2.5 h-2.5" />
+                              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 flex items-center gap-1">
+                                <Check className="w-3 h-3" />
                                 <span>Alcançado</span>
                               </span>
                             ) : tier.isNextToClimb ? (
-                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center gap-1 animate-pulse">
-                                <Zap className="w-2.5 h-2.5" />
+                              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 flex items-center gap-1">
+                                <Zap className="w-3 h-3" />
                                 <span>Próximo a Subir</span>
                               </span>
                             ) : (
-                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 flex items-center gap-1">
-                                <Lock className="w-2.5 h-2.5" />
+                              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 flex items-center gap-1">
+                                <Lock className="w-3 h-3" />
                                 <span>Bloqueado</span>
                               </span>
                             )}
                           </div>
 
-                          {/* Tier Title & Icon */}
-                          <div className="flex items-center gap-2.5 mb-1.5">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                              tier.tierId === 'stardust'
-                                ? 'bg-indigo-500/20 text-indigo-400'
-                                : 'bg-amber-500/20 text-amber-400'
-                            }`}>
-                              {tier.tierId === 'stardust' ? <Star className="w-4 h-4" /> : <Rocket className="w-4 h-4" />}
+                          <div className="flex items-center gap-3 mb-2">
+                            <div
+                              className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                                tier.tierId === 'stardust'
+                                  ? 'bg-indigo-100 text-indigo-700'
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}
+                            >
+                              {tier.tierId === 'stardust' ? <Star className="w-5 h-5" /> : <Rocket className="w-5 h-5" />}
                             </div>
 
                             <div>
-                              <h4 className="text-sm font-black text-white uppercase tracking-tight leading-tight">
+                              <h4 className="font-display text-base font-bold text-slate-900">
                                 {tier.name}
                               </h4>
-                              <span className="text-[11px] text-zinc-400">
+                              <span className="text-xs font-mono font-bold text-slate-500 tabular-nums">
                                 {targetSubs.toLocaleString('pt-BR')} inscritos mín.
                               </span>
                             </div>
                           </div>
 
-                          {/* Progress bar inside card */}
                           <div className="mt-3 mb-2">
-                            <div className="flex items-center justify-between text-[11px] font-bold mb-1">
-                              <span className="text-zinc-400">Progresso</span>
-                              <span className={tier.percentage === 100 ? 'text-emerald-400' : 'text-purple-400'}>
+                            <div className="flex items-center justify-between text-xs font-bold mb-1">
+                              <span className="text-slate-500">Progresso</span>
+                              <span className={`tabular-nums ${tier.percentage === 100 ? 'text-emerald-700' : 'text-violet-700'}`}>
                                 {tier.percentage}%
                               </span>
                             </div>
-                            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-500 ${
-                                  tier.isUnlocked
-                                    ? 'bg-emerald-400'
-                                    : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                                  tier.isUnlocked ? 'bg-emerald-500' : 'bg-violet-600'
                                 }`}
                                 style={{ width: `${tier.percentage}%` }}
                               />
                             </div>
                           </div>
 
-                          {/* What's needed to climb */}
-                          <div className="text-[11px] text-zinc-400 space-y-1 py-1">
+                          <div className="text-xs text-slate-600 space-y-1 py-1">
                             {tier.isUnlocked ? (
-                              <p className="text-emerald-400 font-bold flex items-center gap-1">
-                                <Check className="w-3 h-3" />
+                              <p className="text-emerald-700 font-bold flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5" />
                                 <span>Requisitos 100% atingidos!</span>
                               </p>
                             ) : (
-                              <p className="text-zinc-300">
+                              <p className="text-slate-700">
                                 {tier.subscribersNeeded > 0 ? (
-                                  <span>Faltam <strong className="text-white">{tier.subscribersNeeded.toLocaleString('pt-BR')}</strong> inscritos</span>
+                                  <span>
+                                    Faltam <strong className="text-slate-900">{tier.subscribersNeeded.toLocaleString('pt-BR')}</strong> inscritos
+                                  </span>
                                 ) : (
-                                  <span>Inscritos OK! Conclua os outros critérios</span>
+                                  <span>Inscritos OK! Conclua os outros critérios.</span>
                                 )}
                               </p>
                             )}
 
-                            {/* Reward snippet */}
                             {tierMeta && (
-                              <div className="pt-1 text-[10px] text-amber-300/90 font-medium">
-                                🎁 {tierMeta.benefits[0] || 'Benefícios exclusivos'}
+                              <div className="pt-1 text-xs text-amber-800 font-semibold">
+                                Benefício: {tierMeta.benefits[0] || 'Benefícios exclusivos'}
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {/* Action button */}
-                        <div className="pt-3 border-t border-zinc-800/80 mt-2">
+                        <div className="pt-3 border-t border-slate-200 mt-2">
                           <button
-                            className={`w-full py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                            className={`w-full py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
                               isSelected
-                                ? 'bg-purple-600 text-white shadow'
-                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                                ? 'bg-violet-600 text-white'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:border-violet-300'
                             }`}
                           >
                             {isSelected ? (
                               <>
-                                <Check className="w-3 h-3" />
+                                <Check className="w-3.5 h-3.5" />
                                 <span>Focado Neste Tier</span>
                               </>
                             ) : (
                               <>
                                 <span>Focar para Subir</span>
-                                <ChevronRight className="w-3 h-3" />
+                                <ChevronRight className="w-3.5 h-3.5" />
                               </>
                             )}
                           </button>
@@ -1378,50 +1612,48 @@ export default function CreatorProgressAnalyzer({
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 px-1">
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-zinc-300 flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-purple-400" />
+                  <h3 className="pkxd-comic-title font-display text-lg sm:text-xl font-bold uppercase tracking-wide flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-[#F9C826]" />
                     <span>
-                      Requisitos: {selectedTier === 'stardust' ? 'Tier 1: Stardust (Entrada)' : 'Tier 2: Rising Star (Subir de Nível)'}
+                      Requisitos: {selectedTier === 'stardust' ? 'Tier 1: Stardust' : 'Tier 2: Rising Star'}
                     </span>
                   </h3>
-                  <span className="text-xs text-zinc-500">
-                    Metas para subir no {creatorFormat === 'long_video' ? 'Formato Vídeos Longos (+5 min)' : 'Formato Shorts'}
+                  <span className="text-xs text-purple-100/90 font-medium">
+                    Metas para {creatorFormat === 'long_video' ? 'Vídeos Longos (+5 min)' : 'YouTube Shorts'}
                   </span>
                 </div>
 
-                {/* Filter Tabs: Todos, Concluídos, Pendentes */}
-                <div className="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-1.5 bg-white p-1 rounded-2xl border-2 border-slate-200">
                   <button
                     onClick={() => setActiveFilter('all')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       activeFilter === 'all'
-                        ? 'bg-purple-600 text-white shadow'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-violet-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     Todos ({analysis.totalCount})
                   </button>
                   <button
                     onClick={() => setActiveFilter('met')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       activeFilter === 'met'
-                        ? 'bg-emerald-600 text-white shadow'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span>Concluídos ({analysis.metCount})</span>
+                    Concluídos ({analysis.metCount})
                   </button>
                   <button
                     onClick={() => setActiveFilter('pending')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       activeFilter === 'pending'
-                        ? 'bg-amber-600 text-white shadow'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-amber-500 text-slate-950'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span>Pendentes ({analysis.totalCount - analysis.metCount})</span>
+                    Pendentes ({analysis.totalCount - analysis.metCount})
                   </button>
                 </div>
               </div>
@@ -1434,193 +1666,257 @@ export default function CreatorProgressAnalyzer({
                     return true;
                   })
                   .map(item => {
-                  const { requirement, currentValue, targetValue, percentage, isMet, isAutoVerified, deficitText, estimateText } = item;
-                  
-                  return (
-                    <div
-                      key={requirement.id}
-                      className={`p-5 rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between ${
-                        isMet
-                          ? 'bg-emerald-950/20 border-emerald-500/40 shadow-sm'
-                          : isAutoVerified
-                            ? 'bg-zinc-900/80 border-purple-500/25 hover:border-purple-500/50'
-                            : 'bg-zinc-900/60 border-zinc-800'
-                      }`}
-                    >
-                      {/* Top Row: Title & Badge */}
-                      <div>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            {isMet ? (
-                              <span className="text-lg">🟢</span>
-                            ) : (
-                              <span className="text-lg">🟡</span>
-                            )}
-                            <h4 className="text-sm font-bold text-white leading-tight">
+                    const { requirement, currentValue, targetValue, percentage, isMet, isAutoVerified, deficitText, estimateText } = item;
+
+                    return (
+                      <div
+                        key={requirement.id}
+                        className={`p-5 rounded-3xl border-2 transition-all flex flex-col justify-between ${
+                          isMet
+                            ? 'bg-emerald-50/75 backdrop-blur-md border-emerald-300'
+                            : 'pkxd-glass'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h4 className="font-display text-base font-bold text-slate-900 leading-tight">
                               {requirement.name}
                             </h4>
+
+                            {isMet ? (
+                              <span className="text-[11px] uppercase font-bold px-2.5 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-full shrink-0 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Concluído
+                              </span>
+                            ) : (
+                              <span className="text-[11px] uppercase font-bold px-2.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-900 rounded-full shrink-0">
+                                Pendente
+                              </span>
+                            )}
                           </div>
 
-                          {isMet ? (
-                            <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-full shrink-0 flex items-center gap-1">
-                              <Check className="w-3 h-3" /> Concluído
-                            </span>
-                          ) : (
-                            <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-full shrink-0">
-                              Pendente
-                            </span>
-                          )}
+                          <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                            {requirement.description}
+                          </p>
                         </div>
 
-                        <p className="text-xs text-zinc-400 leading-relaxed mb-3">
-                          {requirement.description}
-                        </p>
-                      </div>
-
-                      {/* Middle: Key metrics grid (Valor atual, necessário, quanto falta, progresso) */}
-                      <div className="space-y-2.5 pt-2 border-t border-zinc-800/80">
-                        <div className="grid grid-cols-2 gap-2 text-[11px] p-2 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
-                          <div>
-                            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Valor Atual</span>
-                            <span className="font-mono font-bold text-white">
-                              {typeof currentValue === 'number' 
-                                ? `${currentValue.toLocaleString('pt-BR')} ${requirement.unit}`
-                                : currentValue ? 'Confirmado' : 'Pendente'
-                              }
-                            </span>
+                        <div className="space-y-2.5 pt-3 border-t border-slate-100">
+                          <div className="grid grid-cols-2 gap-2 text-xs p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+                            <div>
+                              <span className="text-slate-500 block text-[10px] uppercase font-bold">Valor Atual</span>
+                              <span className="font-mono font-bold text-slate-900 tabular-nums">
+                                {typeof currentValue === 'number'
+                                  ? `${currentValue.toLocaleString('pt-BR')} ${requirement.unit}`
+                                  : currentValue ? 'Confirmado' : 'Pendente'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block text-[10px] uppercase font-bold">Necessário</span>
+                              <span className="font-mono font-bold text-slate-700 tabular-nums">
+                                {typeof targetValue === 'number'
+                                  ? `${targetValue.toLocaleString('pt-BR')} ${requirement.unit}`
+                                  : 'Obrigatório'}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Valor Necessário</span>
-                            <span className="font-mono font-bold text-zinc-300">
-                              {typeof targetValue === 'number'
-                                ? `${targetValue.toLocaleString('pt-BR')} ${requirement.unit}`
-                                : 'Obrigatório'
-                              }
+
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-600 font-semibold">
+                              {isMet ? 'Meta alcançada' : 'Progresso da meta:'}
                             </span>
+                            <span className="font-bold text-violet-700 font-mono tabular-nums">{percentage}%</span>
                           </div>
-                        </div>
 
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-zinc-400 text-[11px] font-semibold">
-                            {isMet ? 'Meta alcançada' : 'Progresso da meta:'}
-                          </span>
-                          <span className="font-black text-purple-300">{percentage}%</span>
-                        </div>
+                          <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isMet ? 'bg-emerald-500' : 'bg-violet-600'
+                              }`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
 
-                        {/* Visual ASCII / Tailwind Progress Bar */}
-                        <div className="w-full bg-zinc-800/90 h-3 rounded-full overflow-hidden p-0.5 border border-zinc-700/50">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              isMet
-                                ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                                : 'bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600'
-                            }`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
+                          <div className="flex items-center justify-between text-xs pt-0.5">
+                            {isMet ? (
+                              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                Requisito 100% concluído
+                              </span>
+                            ) : (
+                              <span className="text-pink-700 font-bold">
+                                Falta: {deficitText || item.statusMessage}
+                              </span>
+                            )}
 
-                        {/* Deficit / Status text */}
-                        <div className="flex items-center justify-between text-xs pt-0.5">
-                          {isMet ? (
-                            <span className="text-emerald-400 font-bold flex items-center gap-1 text-[11px]">
-                              ✓ Requisito 100% concluído
-                            </span>
-                          ) : (
-                            <span className="text-pink-300 font-bold text-[11px]">
-                              Quanto falta: {deficitText || item.statusMessage}
-                            </span>
+                            {!isAutoVerified && (
+                              <span className="text-[11px] text-slate-500 flex items-center gap-1" title="Critério requer confirmação manual">
+                                <HelpCircle className="w-3.5 h-3.5" /> Declaração
+                              </span>
+                            )}
+                          </div>
+
+                          {!isMet && estimateText && (
+                            <div className="mt-2 p-2.5 rounded-2xl bg-violet-50 border border-violet-200 text-xs text-violet-900 leading-relaxed whitespace-pre-line">
+                              {estimateText}
+                            </div>
                           )}
 
                           {!isAutoVerified && (
-                            <span className="text-[10px] text-zinc-500 flex items-center gap-1" title="Critério requer confirmação">
-                              <HelpCircle className="w-3 h-3" /> Declaração
-                            </span>
-                          )}
-                        </div>
+                            <div className="mt-2 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                              <span className="text-[11px] text-slate-500">
+                                Confirmação manual necessária:
+                              </span>
 
-                        {/* Rich Estimation Box if not met and estimate available */}
-                        {!isMet && estimateText && (
-                          <div className="mt-3 p-2.5 rounded-xl bg-purple-950/30 border border-purple-500/20 text-xs text-purple-200 leading-relaxed whitespace-pre-line">
-                            {estimateText}
-                          </div>
-                        )}
+                              {requirement.metricType === 'community_compliance' && (
+                                <button
+                                  onClick={() => handleUpdateDeclaration('communityCompliant', !manualDeclarations.communityCompliant)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                                    manualDeclarations.communityCompliant
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  {manualDeclarations.communityCompliant ? 'Em Conformidade' : 'Declarar'}
+                                </button>
+                              )}
 
-                        {/* Manual Action Toggle for Non-Auto-Verifiable Requirements */}
-                        {!isAutoVerified && (
-                          <div className="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-2">
-                            <span className="text-[11px] text-zinc-400">
-                              Não foi possível verificar este requisito automaticamente.
-                            </span>
-                            
-                            {requirement.metricType === 'community_compliance' && (
-                              <button
-                                onClick={() => handleUpdateDeclaration('communityCompliant', !manualDeclarations.communityCompliant)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer shrink-0 ${
-                                  manualDeclarations.communityCompliant
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-zinc-800 text-zinc-400 hover:text-white'
-                                }`}
-                              >
-                                {manualDeclarations.communityCompliant ? '✓ Em Conformidade' : 'Declarar'}
-                              </button>
-                            )}
+                              {requirement.metricType === 'program_terms' && (
+                                <button
+                                  onClick={() => handleUpdateDeclaration('termsAccepted', !manualDeclarations.termsAccepted)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                                    manualDeclarations.termsAccepted
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  {manualDeclarations.termsAccepted ? 'Aceito' : 'Aceitar Termos'}
+                                </button>
+                              )}
 
-                            {requirement.metricType === 'program_terms' && (
-                              <button
-                                onClick={() => handleUpdateDeclaration('termsAccepted', !manualDeclarations.termsAccepted)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer shrink-0 ${
-                                  manualDeclarations.termsAccepted
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-zinc-800 text-zinc-400 hover:text-white'
-                                }`}
-                              >
-                                {manualDeclarations.termsAccepted ? '✓ Aceito' : 'Aceitar Termos'}
-                              </button>
-                            )}
-
-                            {requirement.metricType === 'views_3months' && (
-                              <div className="flex items-center gap-1">
+                              {requirement.metricType === 'views_3months' && (
                                 <input
                                   type="number"
-                                  placeholder="Suas views PK XD"
+                                  placeholder="Views 16 Shorts"
                                   value={manualDeclarations.pkxdViews3Months || ''}
                                   onChange={(e) => handleUpdateDeclaration('pkxdViews3Months', parseInt(e.target.value, 10) || 0)}
-                                  className="w-24 bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-white"
+                                  className="w-28 bg-white border-2 border-slate-200 rounded-xl px-2.5 py-1 text-xs text-slate-900 font-mono"
                                 />
-                              </div>
-                            )}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
 
-            {/* "O que falta para você?" Section (Prioritized Checklist) */}
-            <div 
+            {/* Analyzed Recent Videos Card */}
+            {channelData.recentVideos && channelData.recentVideos.length > 0 && (
+              <div id="analyzed-videos-section" className="pkxd-glass p-5 sm:p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-display text-base sm:text-lg font-bold text-[#120624] flex items-center gap-2">
+                      <PlayCircle className="w-5 h-5 text-[#6D28D9]" />
+                      <span>Vídeos Analisados do Canal ({channelData.recentVideos.length})</span>
+                    </h3>
+                    <p className="text-xs text-slate-600">
+                      Contagem real de visualizações, formato e duração extraídos diretamente do YouTube.
+                    </p>
+                  </div>
+                  {channelData.recentVideos.length > 6 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllVideos((prev) => !prev)}
+                      className="pkxd-pop-btn px-3.5 py-1.5 text-xs cursor-pointer self-start sm:self-auto"
+                    >
+                      {showAllVideos ? 'Mostrar menos' : `Ver todos (${channelData.recentVideos.length})`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(showAllVideos ? channelData.recentVideos : channelData.recentVideos.slice(0, 6)).map((vid) => (
+                    <a
+                      key={vid.id}
+                      href={vid.isShort ? `https://www.youtube.com/shorts/${vid.id}` : `https://www.youtube.com/watch?v=${vid.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-3 rounded-2xl bg-slate-50 hover:bg-violet-50 border-2 border-slate-200 hover:border-violet-400 transition-colors flex flex-col justify-between gap-2"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <img
+                          src={vid.thumbnailUrl || `https://i.ytimg.com/vi/${vid.id}/hqdefault.jpg`}
+                          alt={vid.title}
+                          referrerPolicy="no-referrer"
+                          className="w-20 h-14 rounded-xl object-cover border border-slate-300 shrink-0 bg-slate-200"
+                        />
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span
+                              className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                                vid.isShort
+                                  ? 'bg-pink-100 text-pink-800'
+                                  : vid.isLong5Min
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-violet-100 text-violet-800'
+                              }`}
+                            >
+                              {vid.isShort ? 'Short' : vid.isLong5Min ? 'Longo +5m' : 'Vídeo'}
+                            </span>
+                            {vid.durationText && !vid.isShort && (
+                              <span className="text-[10px] font-mono font-bold text-slate-600 inline-flex items-center gap-0.5">
+                                <Clock className="w-2.5 h-2.5" />
+                                {vid.durationText}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
+                            {vid.title}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 pt-1.5 border-t border-slate-200 tabular-nums">
+                        <span className="inline-flex items-center gap-1 text-[#6D28D9]">
+                          <Eye className="w-3.5 h-3.5" />
+                          {(vid.views || 0).toLocaleString('pt-BR')} views
+                        </span>
+                        {vid.publishedText ? (
+                          <span className="text-slate-500 truncate">{vid.publishedText}</span>
+                        ) : vid.publishedAt ? (
+                          <span className="text-slate-500">
+                            {new Date(vid.publishedAt).toLocaleDateString('pt-BR')}
+                          </span>
+                        ) : null}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Prioritized Checklist & Growth Simulator */}
+            <div
               id="what-is-missing-section"
-              className="p-5 sm:p-6 rounded-3xl bg-zinc-900/70 border border-zinc-800 shadow-lg space-y-4"
+              className="p-5 sm:p-6 rounded-3xl pkxd-glass space-y-4"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-pink-500/20 text-pink-400">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-pink-50 border border-pink-200 text-pink-600">
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-white uppercase tracking-wide">
+                    <h3 className="font-display text-base sm:text-lg font-bold text-slate-900 uppercase">
                       O que falta para você?
                     </h3>
-                    <p className="text-xs text-zinc-400">
-                      Lista priorizada de metas para você focar e atingir o status Creator
+                    <p className="text-xs text-slate-600">
+                      Lista priorizada de metas para atingir o status Creator
                     </p>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setShowSimulator(!showSimulator)}
-                  className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1.5 cursor-pointer bg-purple-950/40 border border-purple-500/30 px-3 py-1.5 rounded-xl transition-all"
+                  className="text-xs font-bold text-violet-700 hover:text-violet-900 flex items-center gap-1.5 cursor-pointer bg-violet-50 hover:bg-violet-100 border-2 border-violet-200 px-3.5 py-2 rounded-2xl transition-all self-start sm:self-auto"
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span>{showSimulator ? 'Ocultar Simulador' : 'Simulador de Crescimento'}</span>
@@ -1628,9 +1924,11 @@ export default function CreatorProgressAnalyzer({
               </div>
 
               {analysis.pendingRequirements.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 text-sm font-bold flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                  <span>Parabéns! Você já cumpriu todos os critérios do Tier selecionado! Continue criando conteúdo com consistência para fortalecer sua candidatura.</span>
+                <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-emerald-900 text-sm font-bold flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>
+                    Parabéns! Você já cumpriu todos os critérios do Tier selecionado! Continue criando conteúdo com consistência.
+                  </span>
                 </div>
               ) : (
                 <div className="space-y-2.5">
@@ -1639,31 +1937,31 @@ export default function CreatorProgressAnalyzer({
                     return (
                       <div
                         key={req.id}
-                        className="p-3.5 rounded-2xl bg-zinc-950/80 border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-start sm:items-center gap-3">
-                          <span className="w-6 h-6 rounded-xl bg-purple-950 border border-purple-500/30 text-purple-300 flex items-center justify-center text-xs font-black shrink-0">
+                          <span className="w-7 h-7 rounded-xl bg-violet-100 border border-violet-200 text-violet-800 flex items-center justify-center text-xs font-bold shrink-0 tabular-nums">
                             {idx + 1}
                           </span>
                           <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-xs sm:text-sm font-bold text-white">{req.name}</h4>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{req.name}</h4>
                               {req.isRequired && (
-                                <span className="text-[9px] uppercase px-1.5 py-0.2 bg-pink-500/20 text-pink-300 rounded font-black">
+                                <span className="text-[10px] uppercase px-2 py-0.5 bg-pink-100 text-pink-800 rounded-full font-bold">
                                   Obrigatório
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-zinc-400 mt-0.5">{item.deficitText || item.statusMessage}</p>
+                            <p className="text-xs text-slate-600 mt-0.5">{item.deficitText || item.statusMessage}</p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                           <div className="text-right">
-                            <span className="text-xs font-bold text-purple-400">{item.percentage}%</span>
-                            <span className="text-[10px] text-zinc-500 block">concluído</span>
+                            <span className="text-xs font-bold text-violet-700 font-mono tabular-nums">{item.percentage}%</span>
+                            <span className="text-[10px] text-slate-500 block">concluído</span>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-zinc-600" />
+                          <ChevronRight className="w-4 h-4 text-slate-400" />
                         </div>
                       </div>
                     );
@@ -1671,24 +1969,23 @@ export default function CreatorProgressAnalyzer({
                 </div>
               )}
 
-              {/* Interactive Growth Simulator / Projection */}
               <AnimatePresence>
                 {showSimulator && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="mt-4 p-5 rounded-2xl bg-zinc-950 border border-purple-500/30 space-y-4"
+                    className="mt-4 p-5 rounded-2xl bg-violet-50/70 border-2 border-violet-200 space-y-4"
                   >
-                    <div className="flex items-center gap-2 text-xs font-black uppercase text-purple-300">
-                      <Lightbulb className="w-4 h-4 text-yellow-400" />
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase text-violet-800">
+                      <Lightbulb className="w-4 h-4 text-amber-500" />
                       <span>Simulador de Projeção de Metas</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs text-zinc-400 mb-1">
-                          Sua média de novos inscritos por mês: <strong>{simMonthlySubGrowth}</strong>
+                        <label className="block text-xs text-slate-700 mb-1.5">
+                          Sua média de novos inscritos por mês: <strong className="font-mono">{simMonthlySubGrowth}</strong>
                         </label>
                         <input
                           type="range"
@@ -1697,13 +1994,13 @@ export default function CreatorProgressAnalyzer({
                           step="20"
                           value={simMonthlySubGrowth}
                           onChange={(e) => setSimMonthlySubGrowth(parseInt(e.target.value, 10))}
-                          className="w-full accent-purple-500 cursor-pointer"
+                          className="w-full accent-violet-600 cursor-pointer"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs text-zinc-400 mb-1">
-                          Vídeos/Shorts que planeja postar por semana: <strong>{simWeeklyVideos}</strong>
+                        <label className="block text-xs text-slate-700 mb-1.5">
+                          Vídeos/Shorts por semana: <strong className="font-mono">{simWeeklyVideos}</strong>
                         </label>
                         <input
                           type="range"
@@ -1712,13 +2009,13 @@ export default function CreatorProgressAnalyzer({
                           step="1"
                           value={simWeeklyVideos}
                           onChange={(e) => setSimWeeklyVideos(parseInt(e.target.value, 10))}
-                          className="w-full accent-pink-500 cursor-pointer"
+                          className="w-full accent-pink-600 cursor-pointer"
                         />
                       </div>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-purple-900/20 border border-purple-500/20 text-xs text-zinc-300">
-                      💡 <strong>Cenário estimado:</strong> Publicando <strong>{simWeeklyVideos} vídeos por semana</strong> (~{simWeeklyVideos * 4} vídeos/mês), você supera a frequência mensal exigida de 8 a 16 vídeos em <strong>30 dias</strong>! E com +{simMonthlySubGrowth} inscritos/mês, canais com déficit atingem a meta de 1.000 inscritos rapidamente.
+                    <div className="p-3.5 rounded-xl bg-white border border-violet-200 text-xs text-slate-700">
+                      <strong>Cenário estimado:</strong> Publicando <strong>{simWeeklyVideos} vídeos por semana</strong> (~{simWeeklyVideos * 4} vídeos/mês), você supera a frequência mensal exigida de 8 a 16 vídeos em <strong>30 dias</strong>. Com +{simMonthlySubGrowth} inscritos/mês, canais com déficit avançam rapidamente rumo aos 1.000 inscritos.
                     </div>
                   </motion.div>
                 )}
@@ -1726,18 +2023,18 @@ export default function CreatorProgressAnalyzer({
             </div>
 
             {/* Official Disclaimer Footer Note (MANDATORY REQUIREMENT) */}
-            <div 
+            <div
               id="official-disclaimer-note"
-              className="p-5 rounded-2xl bg-zinc-950/90 border border-zinc-800 text-center space-y-2 text-zinc-400"
+              className="p-5 rounded-3xl pkxd-glass text-center space-y-2 text-slate-600"
             >
-              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-zinc-300">
-                <Info className="w-4 h-4 text-purple-400" />
+              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-800">
+                <Info className="w-4 h-4 text-violet-700" />
                 <span>Aviso Importante</span>
               </div>
-              <p className="text-xs leading-relaxed max-w-2xl mx-auto italic text-zinc-300">
+              <p className="text-xs leading-relaxed max-w-2xl mx-auto italic text-slate-700">
                 «Esta análise é apenas informativa. A aprovação final depende da plataforma e pode considerar critérios que não estão disponíveis publicamente.»
               </p>
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-[11px] text-slate-500">
                 Baseado nos critérios oficiais do Programa de Creators PK XD (Afterverse Creators). Fonte oficial revisada em 01/12/2025.
               </p>
             </div>
@@ -1745,7 +2042,6 @@ export default function CreatorProgressAnalyzer({
         )}
       </div>
 
-      {/* Config Requirements Modal */}
       <CreatorRequirementsConfigModal
         isOpen={isConfigModalOpen}
         onClose={() => setIsConfigModalOpen(false)}

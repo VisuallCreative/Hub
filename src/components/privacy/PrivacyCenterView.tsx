@@ -1,16 +1,14 @@
 import React from 'react';
-import { 
-  ShieldCheck, 
-  Lock, 
-  Cookie, 
-  FileText, 
-  Trash2, 
-  ScrollText, 
-  ArrowLeft, 
+import {
+  ShieldCheck,
+  Lock,
+  Cookie,
+  FileText,
+  Trash2,
+  ScrollText,
+  ArrowLeft,
   ArrowRight,
-  Sparkles,
-  CheckCircle2,
-  ExternalLink
+  CheckCircle2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -42,10 +40,11 @@ export default function PrivacyCenterView({
     {
       id: 'privacy-policy-card',
       icon: Lock,
-      color: 'from-purple-500/20 to-indigo-500/20 border-purple-500/30 text-purple-300',
+      cardStyle: 'pkxd-glass border-purple-200/80 hover:border-[#6D28D9]',
+      iconBox: 'bg-[#F3F0FF] text-[#6D28D9] border-purple-200',
       badge: 'Transparência',
       title: 'Privacidade',
-      subtitle: 'Entenda como seus dados são utilizados.',
+      subtitle: 'Entenda como seus dados são utilizados no portal.',
       actionLabel: 'Ver Política Completa',
       onClick: () => {
         if (triggerAudio) triggerAudio('tap');
@@ -55,10 +54,11 @@ export default function PrivacyCenterView({
     {
       id: 'cookies-card',
       icon: Cookie,
-      color: 'from-pink-500/20 to-purple-500/20 border-pink-500/30 text-pink-300',
+      cardStyle: 'pkxd-glass border-pink-200/80 hover:border-pink-500',
+      iconBox: 'bg-pink-50 text-pink-600 border-pink-200',
       badge: 'Preferências',
       title: 'Cookies',
-      subtitle: 'Gerencie suas preferências de cookies.',
+      subtitle: 'Gerencie suas preferências de cookies e sessões.',
       actionLabel: 'Configurar Cookies',
       onClick: () => {
         if (triggerAudio) triggerAudio('tap');
@@ -68,10 +68,11 @@ export default function PrivacyCenterView({
     {
       id: 'user-data-card',
       icon: FileText,
-      color: 'from-cyan-500/20 to-blue-500/20 border-cyan-500/30 text-cyan-300',
+      cardStyle: 'pkxd-glass border-sky-200/80 hover:border-[#0284C7]',
+      iconBox: 'bg-[#EFF8FF] text-[#0284C7] border-sky-200',
       badge: 'Acesso & Relatório',
       title: 'Seus dados',
-      subtitle: 'Solicite informações relacionadas aos seus dados.',
+      subtitle: 'Exporte ou solicite informações relacionadas aos seus dados.',
       actionLabel: 'Solicitar Meus Dados',
       onClick: () => {
         if (triggerAudio) triggerAudio('tap');
@@ -81,10 +82,11 @@ export default function PrivacyCenterView({
     {
       id: 'delete-data-card',
       icon: Trash2,
-      color: 'from-rose-500/20 to-red-500/20 border-rose-500/30 text-rose-300',
+      cardStyle: 'pkxd-glass border-rose-200/80 hover:border-rose-500',
+      iconBox: 'bg-rose-50 text-rose-600 border-rose-200',
       badge: 'Direito ao Esquecimento',
       title: 'Excluir dados',
-      subtitle: 'Solicite a exclusão dos dados quando aplicável.',
+      subtitle: 'Solicite a exclusão dos seus registros quando aplicável.',
       actionLabel: 'Solicitar Exclusão',
       onClick: () => {
         if (triggerAudio) triggerAudio('tap');
@@ -94,10 +96,11 @@ export default function PrivacyCenterView({
     {
       id: 'terms-of-use-card',
       icon: ScrollText,
-      color: 'from-indigo-500/20 to-purple-500/20 border-indigo-500/30 text-indigo-300',
+      cardStyle: 'pkxd-glass border-amber-200/80 hover:border-amber-500',
+      iconBox: 'bg-[#FFFBEB] text-amber-700 border-amber-200',
       badge: 'Regras de Uso',
       title: 'Termos de Uso',
-      subtitle: 'Leia as regras de utilização do site.',
+      subtitle: 'Leia as regras de convivência e utilização do site.',
       actionLabel: 'Ler Termos de Uso',
       onClick: () => {
         if (triggerAudio) triggerAudio('tap');
@@ -107,72 +110,66 @@ export default function PrivacyCenterView({
   ];
 
   return (
-    <div id="privacy-center-view" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 text-white">
-      {/* Top Bar Back */}
-      <div className="flex items-center justify-between gap-4 mb-8 pb-4 border-b border-zinc-800">
+    <div id="privacy-center-view" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 text-slate-900 text-left">
+      <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-purple-200/80">
         <button
           onClick={handleBack}
-          className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 text-xs font-bold text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+          className="pkxd-btn-outline px-4 py-2 text-xs flex items-center gap-1.5 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Voltar ao Portal</span>
         </button>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-emerald-400 font-bold bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-full flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" />
-            <span>LGPD Compliant</span>
-          </span>
-        </div>
+        <span className="text-xs text-emerald-700 font-extrabold bg-[#ECFDF5] border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span>LGPD Compliant</span>
+        </span>
       </div>
 
       {/* Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden p-6 sm:p-8 bg-gradient-to-br from-purple-950/40 via-zinc-950 to-indigo-950/30 border border-purple-500/30 mb-8 shadow-xl">
-        <div className="max-w-2xl space-y-3 relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-black uppercase tracking-wider">
+      <div className="rounded-[34px] p-6 sm:p-8 pkxd-glass mb-8">
+        <div className="max-w-2xl space-y-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F3F0FF] border border-purple-200 text-[#6D28D9] text-xs font-extrabold uppercase tracking-wider">
             <ShieldCheck className="w-4 h-4" />
             <span>Centro de Transparência</span>
           </div>
 
-          <h1 className="font-sans font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl lg:text-4xl text-slate-900 tracking-tight">
             Privacidade e Direitos
           </h1>
 
-          <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed font-sans">
-            Sua privacidade e o controle sobre seus dados são prioridades absolutas no PKXD Central. Gerencie suas escolhas, consulte nossos termos e exerça seus direitos de forma clara e descomplicada.
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
+            Sua privacidade e o controle sobre suas informações são prioridades no PKXD Central. Gerencie cookies, consulte nossos termos e exerça seus direitos de forma simples.
           </p>
         </div>
-
-        {/* Subtle background glow */}
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* The 5 Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-        {cards.map((card, idx) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {cards.map((card) => {
           const Icon = card.icon;
           return (
             <motion.div
               key={card.id}
-              whileHover={{ y: -3 }}
-              transition={{ duration: 0.18 }}
-              className={`rounded-2xl p-5 bg-gradient-to-br ${card.color} backdrop-blur-sm border flex flex-col justify-between transition-all group shadow-lg`}
+              whileHover={{ y: -2 }}
+              transition={{ duration: 0.16 }}
+              className={`rounded-3xl p-5 border-2 flex flex-col justify-between transition-colors group shadow-sm ${card.cardStyle}`}
             >
-              <div className="space-y-3 mb-4">
+              <div className="space-y-3 mb-5">
                 <div className="flex items-center justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center">
+                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${card.iconBox}`}>
                     <Icon className="w-5 h-5" />
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-black/50 border border-white/10 text-zinc-300">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600">
                     {card.badge}
                   </span>
                 </div>
 
                 <div>
-                  <h3 className="font-sans font-black text-lg text-white group-hover:text-purple-200 transition-colors">
+                  <h3 className="font-display font-bold text-lg text-slate-900">
                     {card.title}
                   </h3>
-                  <p className="text-xs text-zinc-300 leading-relaxed mt-1 font-sans">
+                  <p className="text-xs text-slate-600 leading-relaxed mt-1 font-sans">
                     {card.subtitle}
                   </p>
                 </div>
@@ -181,7 +178,7 @@ export default function PrivacyCenterView({
               <button
                 id={card.id}
                 onClick={card.onClick}
-                className="w-full py-2.5 px-3.5 rounded-xl bg-black/50 hover:bg-black/80 border border-white/15 text-xs font-bold text-white flex items-center justify-between transition-all cursor-pointer group-hover:border-purple-400 active:scale-95"
+                className="pkxd-btn-outline w-full py-2.5 px-3.5 text-xs flex items-center justify-between cursor-pointer"
               >
                 <span>{card.actionLabel}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -191,11 +188,14 @@ export default function PrivacyCenterView({
         })}
       </div>
 
-      {/* Direct Quick Contact Footer */}
-      <div className="p-5 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-xs text-zinc-400 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans">
+      {/* Quick Contact Footer */}
+      <div className="p-5 rounded-3xl pkxd-glass text-xs text-slate-600 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans">
         <div className="space-y-0.5 text-center sm:text-left">
-          <strong className="text-zinc-200 block">Dúvidas ou Requisições Especiais?</strong>
-          <span>Entre em contato com o responsável: <strong className="text-white">[NOME DO RESPONSÁVEL]</strong> • <span className="font-mono text-purple-300">[E-MAIL DE PRIVACIDADE]</span></span>
+          <strong className="text-slate-900 block text-sm">Dúvidas ou Requisições Especiais?</strong>
+          <span>
+            Responsável: <strong className="text-slate-900">Equipe PKXD Central</strong> •{' '}
+            <span className="font-mono font-bold text-[#6D28D9]">privacidade@pkxdcentral.site</span>
+          </span>
         </div>
 
         <button
@@ -203,12 +203,11 @@ export default function PrivacyCenterView({
             if (triggerAudio) triggerAudio('tap');
             onOpenDataRequest();
           }}
-          className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs cursor-pointer transition-colors shrink-0 active:scale-95 shadow"
+          className="pkxd-btn-primary px-5 py-2.5 text-xs cursor-pointer shrink-0"
         >
           Abrir Solicitação
         </button>
       </div>
-
     </div>
   );
 }

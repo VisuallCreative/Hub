@@ -18,13 +18,14 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 interface PWAInstallerProps {
-  onAddXP?: (amount: number, reason: string) => void;
+  onAddXP?: (amount: number, reason: string, rewardKey?: string) => void;
   triggerAudio?: (type: 'tap' | 'levelUp' | 'success') => void;
   forceOpenModal?: boolean;
+  hideInlineBanner?: boolean;
   onCloseModal?: () => void;
 }
 
-export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, onCloseModal }: PWAInstallerProps) {
+export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, hideInlineBanner = false, onCloseModal }: PWAInstallerProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -95,8 +96,21 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
       setPushEnabled(Notification.permission === 'granted');
     }
 
+    // Award one-time +100 XP automatically if opened as installed PWA
+    if (isStandalone && onAddXP) {
+      onAddXP(100, 'Instalou o aplicativo PKXD Central no Celular', 'pwa_install_100');
+    }
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+      if (onAddXP) onAddXP(100, 'Instalou o aplicativo PKXD Central no Celular', 'pwa_install_100');
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -111,8 +125,9 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
       if (outcome === 'accepted') {
         setIsInstalled(true);
         setShowInstallModal(false);
-        showToast('🎉 Aplicativo PKXD Central instalado com sucesso!');
-        if (onAddXP) onAddXP(100, 'Instalou o aplicativo PKXD Central no Celular');
+        if (onCloseModal) onCloseModal();
+        showToast('Aplicativo PKXD Central instalado com sucesso! (+100 XP)');
+        if (onAddXP) onAddXP(100, 'Instalou o aplicativo PKXD Central no Celular', 'pwa_install_100');
         if (triggerAudio) triggerAudio('levelUp');
       }
       setDeferredPrompt(null);
@@ -124,12 +139,12 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
   const handleTogglePush = async () => {
     if (triggerAudio) triggerAudio('tap');
     if (!('Notification' in window)) {
-      showToast('⚠️ Seu navegador não suporta notificações Push do sistema.');
+      showToast('Seu navegador não suporta notificações Push do sistema.');
       return;
     }
 
     if (Notification.permission === 'granted') {
-      showToast('🔔 Notificações do PKXD Central já estão ativas!');
+      showToast('Notificações do PKXD Central já estão ativas!');
       setPushEnabled(true);
       return;
     }
@@ -140,11 +155,11 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
         setPushEnabled(true);
         if (triggerAudio) triggerAudio('success');
         if (onAddXP) onAddXP(50, 'Ativou notificações de Spoilers e Eventos');
-        showToast('✅ Notificações ativadas! Você receberá avisos de novos eventos e códigos.');
+        showToast('Notificações ativadas! Você receberá avisos de novos eventos e códigos.');
 
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then((reg) => {
-            reg.showNotification('PKXD Central 🔔', {
+            reg.showNotification('PKXD Central', {
               body: 'Tudo pronto! Você receberá alertas de torneios, spoilers e códigos do jogo.',
               icon: '/favicon.png',
               badge: '/favicon.png'
@@ -152,7 +167,7 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
           });
         }
       } else {
-        showToast('ℹ️ Permissão de notificação negada no navegador.');
+        showToast('Permissão de notificação negada no navegador.');
       }
     } catch (e) {
       console.error(e);
@@ -175,9 +190,9 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-purple-950/95 text-yellow-300 border-2 border-yellow-400 px-5 py-3 rounded-2xl shadow-2xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2 max-w-md text-center"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-white text-slate-900 border-2 border-violet-300 px-5 py-3 rounded-2xl shadow-xl text-xs sm:text-sm font-bold flex items-center gap-2 max-w-md text-center"
           >
-            <Sparkles className="w-4 h-4 text-yellow-400 flex-shrink-0 animate-spin" />
+            <Sparkles className="w-4 h-4 text-violet-600 flex-shrink-0" />
             <span>{toastMessage}</span>
           </motion.div>
         )}
@@ -185,43 +200,36 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
 
       {/* Offline Status Bar */}
       {!isOnline && (
-        <div className="bg-amber-500/20 border-2 border-amber-500/50 p-3.5 rounded-2xl text-amber-200 text-xs font-bold flex items-center justify-between gap-3 shadow-lg animate-pulse">
+        <div className="bg-amber-50 border-2 border-amber-300 p-3.5 rounded-2xl text-amber-900 text-xs font-bold flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <WifiOff className="w-4 h-4 text-amber-400" />
-            <span>Modo Offline Ativo — Você está navegando em dados salvos em cache no seu celular! 📱</span>
+            <WifiOff className="w-4 h-4 text-amber-600" />
+            <span>Modo Offline Ativo — Você está navegando em dados salvos em cache no seu dispositivo.</span>
           </div>
-          <span className="text-[10px] bg-amber-500/30 px-2 py-0.5 rounded-lg uppercase font-mono">Cache PWA</span>
+          <span className="text-[11px] bg-white px-2.5 py-0.5 rounded-full border border-amber-200 font-bold">Cache PWA</span>
         </div>
       )}
 
       {/* Main PWA Install & Notification Bar Banner */}
-      {!bannerDismissed && (
-        <div className="bg-gradient-to-r from-purple-950/90 via-zinc-900 to-indigo-950/90 border-2 border-purple-500/40 rounded-3xl p-4 sm:p-5 text-white shadow-[0_4px_25px_rgba(147,51,234,0.2)] relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4">
-          
-          {/* Top light glow */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full filter blur-xl pointer-events-none" />
-
+      {!hideInlineBanner && !bannerDismissed && (
+        <div className="pkxd-pop-card p-4 sm:p-5 text-slate-900 flex flex-col md:flex-row items-center justify-between gap-4">
           {/* Left info area */}
           <div className="flex items-center gap-3.5 text-left w-full md:w-auto">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-indigo-600 p-0.5 shadow-lg flex-shrink-0 flex items-center justify-center">
-              <div className="w-full h-full bg-purple-950 rounded-[14px] flex items-center justify-center text-yellow-300">
-                <Smartphone className="w-6 h-6 animate-bounce" />
-              </div>
+            <div className="w-12 h-12 rounded-2xl bg-[#7C3AED] border-2 border-[#120624] text-white shadow-[0_3px_0_#16032E] flex-shrink-0 flex items-center justify-center">
+              <Smartphone className="w-6 h-6" />
             </div>
 
             <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <h4 className="font-sans font-black text-sm sm:text-base text-white uppercase tracking-wider flex items-center gap-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="font-display font-bold text-sm sm:text-base text-[#120624] flex items-center gap-1.5">
                   <span>Instalar PKXD Central no Celular</span>
-                  <span className="text-yellow-300">📲</span>
                 </h4>
                 {isInstalled && (
-                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Instalado
+                  <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Instalado
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-gray-300 leading-tight">
+              <p className="text-xs text-slate-600 leading-snug font-medium">
                 Acesse o app direto da tela inicial do celular com carregamento instantâneo, tela cheia e notificações!
               </p>
             </div>
@@ -230,29 +238,32 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
             <button
+              type="button"
               onClick={handleNativeInstall}
-              className="flex-1 md:flex-none px-4 py-2.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white font-sans text-xs font-black uppercase tracking-wider rounded-xl shadow-lg border border-pink-400/40 cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="pkxd-btn-primary flex-1 md:flex-none px-4 py-2.5 text-xs uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2"
             >
-              <Download className="w-4 h-4 text-yellow-300 animate-pulse" />
-              <span>{isInstalled ? 'Ver Guia do App 📱' : 'Instalar App (+100 XP) 🚀'}</span>
+              <Download className="w-4 h-4" />
+              <span>{isInstalled ? 'Ver Guia do App' : 'Instalar App (+100 XP)'}</span>
             </button>
 
             <button
+              type="button"
               onClick={handleTogglePush}
-              className={`flex-1 md:flex-none px-3.5 py-2.5 rounded-xl font-sans text-xs font-black uppercase tracking-wider border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 md:flex-none px-3.5 py-2.5 rounded-full font-sans text-xs font-bold uppercase tracking-wider border-2 border-[#120624] transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 pushEnabled
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                  : 'bg-purple-900/60 hover:bg-purple-800 text-yellow-300 border-purple-500/40'
+                  ? 'bg-emerald-100 text-emerald-900'
+                  : 'bg-white hover:bg-slate-50 text-[#120624]'
               }`}
               title="Ativar Notificações Push de Eventos e Spoilers"
             >
-              <Bell className={`w-3.5 h-3.5 ${pushEnabled ? 'text-emerald-400' : 'animate-bounce text-yellow-300'}`} />
-              <span>{pushEnabled ? 'Alertas Ativos 🔔' : 'Notificações 🔔'}</span>
+              <Bell className={`w-3.5 h-3.5 ${pushEnabled ? 'text-emerald-700' : 'text-[#EC4899]'}`} />
+              <span>{pushEnabled ? 'Alertas Ativos' : 'Notificações'}</span>
             </button>
 
             <button
+              type="button"
               onClick={dismissBanner}
-              className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl transition-all cursor-pointer"
+              className="p-2 bg-white hover:bg-slate-100 text-[#120624] rounded-full border-2 border-[#120624] transition-all cursor-pointer"
               title="Fechar Banner"
             >
               <X className="w-4 h-4" />
@@ -263,169 +274,173 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, on
 
       {/* Comprehensive Install & PWA Guide Modal */}
       {showInstallModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-purple-500/50 rounded-3xl p-6 w-full max-w-lg relative shadow-2xl text-left space-y-5 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#120624]/75 backdrop-blur-sm p-4">
+          <div className="pkxd-pop-card p-6 w-full max-w-lg relative text-left space-y-5 max-h-[90vh] overflow-y-auto text-[#120624]">
             
             {/* Close button */}
             <button
+              type="button"
               onClick={() => {
                 setShowInstallModal(false);
                 if (onCloseModal) onCloseModal();
               }}
-              className="absolute top-4 right-4 p-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer transition-all"
+              className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-full cursor-pointer transition-all"
             >
               <X className="w-4 h-4" />
             </button>
 
             {/* Header */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 p-0.5 shadow-lg flex items-center justify-center">
-                <div className="w-full h-full bg-zinc-900 rounded-[14px] flex items-center justify-center text-yellow-300">
-                  <Smartphone className="w-6 h-6" />
-                </div>
+              <div className="w-12 h-12 rounded-2xl bg-violet-600 text-white shadow-xs flex items-center justify-center">
+                <Smartphone className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-sans font-black text-lg text-white uppercase tracking-wide">
-                  Instalar PKXD Central 📲
+                <h3 className="font-display font-bold text-lg text-[#120624]">
+                  Instalar PKXD Central no Celular
                 </h3>
-                <p className="text-xs text-purple-300">
-                  Tenha a Central PK XD direto no seu celular como aplicativo oficial!
+                <p className="text-xs text-slate-600 font-medium">
+                  Acesse o app direto da tela inicial do celular com carregamento instantâneo, tela cheia e notificações!
                 </p>
               </div>
             </div>
 
             {/* Direct Native Button if available */}
             {deferredPrompt && (
-              <div className="p-4 bg-purple-950/80 border-2 border-purple-400 rounded-2xl space-y-2">
-                <p className="text-xs text-white font-bold">
-                  ✨ Seu navegador suporta instalação instantânea em 1 toque:
+              <div className="p-4 bg-violet-50 border-2 border-violet-200 rounded-2xl space-y-2.5">
+                <p className="text-xs text-slate-800 font-bold">
+                  Seu navegador suporta instalação rápida em 1 toque:
                 </p>
                 <button
+                  type="button"
                   onClick={handleNativeInstall}
-                  className="w-full py-3 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white font-sans text-xs font-black uppercase tracking-wider rounded-xl shadow-xl border border-white/20 cursor-pointer flex items-center justify-center gap-2"
+                  className="pkxd-btn-primary w-full py-3 text-xs uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <Download className="w-4 h-4 text-yellow-300" />
-                  <span>Instalar Agora no Celular 🚀</span>
+                  <Download className="w-4 h-4" />
+                  <span>Instalar Agora</span>
                 </button>
               </div>
             )}
 
             {/* Guide Tabs for different operating systems */}
             <div className="space-y-3">
-              <div className="flex items-center gap-1.5 p-1 bg-black/50 rounded-xl border border-white/10 text-xs">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
                 <button
+                  type="button"
                   onClick={() => setActiveGuideTab('android')}
-                  className={`flex-1 py-2 px-2 rounded-lg font-black uppercase text-[11px] transition-all cursor-pointer ${
+                  className={`flex-1 py-2 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                     activeGuideTab === 'android'
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-violet-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  🤖 Android (Chrome)
+                  Android (Chrome)
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveGuideTab('ios')}
-                  className={`flex-1 py-2 px-2 rounded-lg font-black uppercase text-[11px] transition-all cursor-pointer ${
+                  className={`flex-1 py-2 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                     activeGuideTab === 'ios'
-                      ? 'bg-pink-600 text-white shadow-md'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-pink-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  🍎 iPhone / iPad (Safari)
+                  iPhone (Safari)
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveGuideTab('desktop')}
-                  className={`flex-1 py-2 px-2 rounded-lg font-black uppercase text-[11px] transition-all cursor-pointer ${
+                  className={`flex-1 py-2 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                     activeGuideTab === 'desktop'
-                      ? 'bg-indigo-600 text-white shadow-md'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  💻 PC / Mac
+                  PC / Mac
                 </button>
               </div>
 
               {/* Android Guide */}
               {activeGuideTab === 'android' && (
-                <div className="space-y-2.5 text-xs text-white">
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">1</span>
+                <div className="space-y-2 text-xs text-slate-700">
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">1</span>
                     <span>Abra este site no <strong>Google Chrome</strong> ou <strong>Samsung Internet</strong> no seu celular.</span>
                   </div>
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">2</span>
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">2</span>
                     <span>Toque no botão de <strong>menu (3 pontinhos ⋮)</strong> no canto superior direito.</span>
                   </div>
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">3</span>
-                    <span>Selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial" 📲</strong>.</span>
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">3</span>
+                    <span>Selecione <strong>&quot;Instalar aplicativo&quot;</strong> ou <strong>&quot;Adicionar à tela inicial&quot;</strong>.</span>
                   </div>
                 </div>
               )}
 
               {/* iOS Safari Guide */}
               {activeGuideTab === 'ios' && (
-                <div className="space-y-2.5 text-xs text-white">
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">1</span>
+                <div className="space-y-2 text-xs text-slate-700">
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-pink-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">1</span>
                     <span>Abra este site no <strong>Safari</strong> no seu iPhone ou iPad.</span>
                   </div>
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">2</span>
-                    <span>Toque no botão de <strong>Compartilhar <Share className="w-3.5 h-3.5 inline text-pink-400 mx-1" /></strong> na barra inferior do Safari.</span>
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-pink-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">2</span>
+                    <span>Toque no botão de <strong>Compartilhar <Share className="w-3.5 h-3.5 inline text-pink-600 mx-1" /></strong> na barra inferior do Safari.</span>
                   </div>
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">3</span>
-                    <span>Role para baixo e toque em <strong>"Adicionar à Tela de Início ➕"</strong>, depois confirme em <strong>"Adicionar"</strong>.</span>
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-pink-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">3</span>
+                    <span>Role para baixo e toque em <strong>&quot;Adicionar à Tela de Início&quot;</strong> e confirme em <strong>&quot;Adicionar&quot;</strong>.</span>
                   </div>
                 </div>
               )}
 
               {/* Desktop Guide */}
               {activeGuideTab === 'desktop' && (
-                <div className="space-y-2.5 text-xs text-white">
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">1</span>
-                    <span>No <strong>Google Chrome</strong> ou <strong>Microsoft Edge</strong> no computador.</span>
+                <div className="space-y-2 text-xs text-slate-700">
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-sky-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">1</span>
+                    <span>Abra no <strong>Google Chrome</strong> ou <strong>Microsoft Edge</strong> no computador.</span>
                   </div>
-                  <div className="flex items-start gap-2.5 p-3 bg-black/40 rounded-xl border border-white/10">
-                    <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">2</span>
-                    <span>Clique no ícone de <strong>Instalar Aplicativo (ícone de monitor com seta ou +)</strong> na barra de endereços URL.</span>
+                  <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-sky-600 text-white text-[10px] flex items-center justify-center flex-shrink-0 font-bold">2</span>
+                    <span>Clique no ícone de <strong>Instalar Aplicativo</strong> no canto direito da barra de endereços.</span>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Benefits List */}
-            <div className="bg-black/30 p-3.5 rounded-2xl border border-white/5 space-y-2">
-              <h5 className="text-[11px] font-black uppercase text-yellow-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Vantagens do App Instalado:
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+              <h5 className="text-xs font-bold uppercase text-slate-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-violet-600" /> Vantagens do App Instalado
               </h5>
-              <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-300 font-bold">
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 font-semibold">
                 <div className="flex items-center gap-1.5">
-                  <Zap className="w-3 h-3 text-yellow-400" /> Abertura Instantânea
+                  <Zap className="w-3.5 h-3.5 text-amber-500" /> Abertura rápida
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Wifi className="w-3 h-3 text-emerald-400" /> Acesso Offline
+                  <Wifi className="w-3.5 h-3.5 text-emerald-600" /> Leitura offline
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Bell className="w-3 h-3 text-pink-400" /> Alertas de Spoilers
+                  <Bell className="w-3.5 h-3.5 text-pink-600" /> Alertas de spoilers
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3 h-3 text-cyan-400" /> Tela Cheia sem Abas
+                  <ShieldCheck className="w-3.5 h-3.5 text-sky-600" /> Tela cheia limpa
                 </div>
               </div>
             </div>
 
             {/* Bottom Button */}
             <button
+              type="button"
               onClick={() => {
                 setShowInstallModal(false);
                 if (onCloseModal) onCloseModal();
               }}
-              className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-sans text-xs font-black uppercase rounded-xl cursor-pointer shadow-lg transition-all"
+              className="pkxd-btn-primary w-full py-3 text-xs uppercase cursor-pointer"
             >
-              Entendido! Fechar Guia 👍
+              Entendido, fechar guia
             </button>
           </div>
         </div>

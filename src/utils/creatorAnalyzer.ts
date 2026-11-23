@@ -1,10 +1,10 @@
-import { 
-  CreatorRequirement, 
-  ChannelMetrics, 
-  CreatorFormat, 
-  ProgramTier, 
-  EvaluatedRequirement, 
-  AnalysisSummary 
+import {
+  CreatorRequirement,
+  ChannelMetrics,
+  CreatorFormat,
+  ProgramTier,
+  EvaluatedRequirement,
+  AnalysisSummary
 } from '../types/creator';
 
 export function evaluateRequirements(
@@ -13,88 +13,201 @@ export function evaluateRequirements(
   format: CreatorFormat,
   targetTier: ProgramTier = 'stardust'
 ): AnalysisSummary {
-  // Filter requirements relevant to the selected format and tier
-  const relevantReqs = requirements.filter(req => {
-    // Format check
+  const relevantReqs = requirements.filter((req) => {
     if (req.applicableFormat && req.applicableFormat !== 'both' && format !== 'both') {
       if (req.applicableFormat !== format) return false;
     }
 
-    // Tier check
     if (targetTier === 'rising_star') {
       return req.category === 'rising_star' || req.category === 'admission';
     } else {
-      // admission + stardust criteria
       return req.category === 'admission' || req.category === 'stardust';
     }
   });
 
-  // Track either-or groups (e.g., 10 long videos OR 30 shorts)
   const groupMetMap: Record<string, boolean> = {};
 
-  // First pass: compute current values and basic completion
-  const preliminaryEvaluations = relevantReqs.map(req => {
+  const recentVideos = channel.recentVideos || [];
+  const longVideos = recentVideos.filter((v) => !v.isShort);
+  const shortVideos = recentVideos.filter((v) => v.isShort);
+
+  // Derive accurate real metrics even if loaded from an older cached shape
+  const detectedLong5Min =
+    channel.longVideos5MinCount ??
+    longVideos.filter((v) => v.isLong5Min || (v.durationSeconds !== undefined && v.durationSeconds >= 300)).length;
+
+  const detectedLongTotal = channel.longVideosCount ?? longVideos.length;
+  const detectedShortsTotal = channel.shortsCount ?? shortVideos.length;
+
+  const detectedPkxdLongs =
+    channel.pkxdLongVideosDetected ??
+    longVideos.filter((v) => v.isPkxdContent).length;
+
+  const detectedPkxdShorts =
+    channel.pkxdShortsDetected ??
+    shortVideos.filter((v) => v.isPkxdContent).length;
+
+  // Compute total views fallback from recent videos if totalViews is missing
+  const recentViewsSum = recentVideos.reduce((acc, v) => acc + (v.views || 0), 0);
+  const effectiveTotalViews =
+    (channel.totalViews && channel.totalViews > 0 ? channel.totalViews : 0) ||
+    (channel.viewsLast90Days && channel.viewsLast90Days > 0 ? channel.viewsLast90Days : 0) ||
+    recentViewsSum ||
+    (channel.views3MonthsEstimated || 0);
+
+  // Compute real 30-day upload frequency from actual video dates
+  const calcLast30Days = (list: typeof recentVideos) => {
+    let count = 0;
+    let hasAnyDate = false;
+    for (const v of list) {
+      let days = v.publishedDaysAgo;
+      if (days === undefined && v.publishedAt) {
+        const ts = new Date(v.publishedAt).getTime();
+        if (!Number.isNaN(ts)) {
+          days = Math.max(0, Math.floor((Date.now() - ts) / 86400000));
+        }
+      }
+      if (days !== undefined) {
+        hasAnyDate = true;
+        if (days <= 31) count++;
+      }
+    }
+    return { count, hasAnyDate };
+  };
+
+  const preliminaryEvaluations = relevantReqs.map((req) => {
     let currentValue = 0;
     let isAutoVerified = req.autoVerifiable;
 
     switch (req.metricType) {
       case 'subscribers':
         currentValue = channel.subscriberCount || 0;
+        isAutoVerified = true;
         break;
 
-      case 'views_3months':
-        // Conta todas as visualizações dos vídeos de PK XD / vídeos do canal
-        if (channel.manualOverrides?.pkxdViews3Months !== undefined) {
-          currentValue = channel.manualOverrides.pkxdViews3Months;
-        } else if (channel.totalViews !== undefined && channel.totalViews > 0) {
-          currentValue = channel.totalViews;
-        } else if (channel.views3MonthsEstimated !== undefined && channel.views3MonthsEstimated > 0) {
-          currentValue = channel.views3MonthsEstimated;
-        } else if (channel.recentVideos && channel.recentVideos.length > 0) {
-          currentValue = channel.recentVideos.reduce((acc, v) => acc + (v.views || 0), 0);
+      case 'views_3months': {
+        // Only apply manual override if user explicitly typed a positive number
+        const manualViews = channel.manualOverrides?.pkxdViews3Months;
+        if (typeof manualViews === 'number' && manualViews > 0) {
+          currentValue = manualViews;
+          isAutoVerified = false;
+        } else if (typeof channel.viewsLast16Shorts === 'number') {
+          currentValue = channel.viewsLast16Shorts;
+          isAutoVerified = true;
+        } else {
+          // Fallback: sum strictly the newest 16 Shorts from recentVideos (never lifetime totalViews)
+          const last16Shorts = shortVideos.slice(0, 16);
+          currentValue = last16Shorts.reduce((acc, v) => acc + (v.views || 0), 0);
+          isAutoVerified = true;
+        }
+        break;
+      }
+
+      case 'pkxd_long_videos': {
+        const manualLongs = channel.manualOverrides?.pkxdLongVideosCount;
+        if (typeof manualLongs === 'number' && manualLongs > 0) {
+          currentValue = manualLongs;
+          isAutoVerified = false;
+        } else if (detectedLong5Min > 0) {
+          // Real count of long videos (>= 5 min) detected from the channel's /videos tab or API
+          // If the channel is a PK XD channel and has more total videos than our sample window, reflect detected long videos accurately
+          currentValue = channel.isPkxdChannel
+            ? Math.max(detectedLong5Min, detectedPkxdLongs > 0 ? detectedPkxdLongs : detectedLong5Min)
+            : detectedLong5Min;
+          isAutoVerified = true;
+        } else if (detectedPkxdLongs > 0) {
+          currentValue = detectedPkxdLongs;
+          isAutoVerified = true;
+        } else if (detectedLongTotal > 0) {
+          currentValue = detectedLongTotal;
+          isAutoVerified = true;
+        } else {
+          currentValue = channel.videoCount || 0;
+          isAutoVerified = (channel.videoCount || 0) > 0;
+        }
+        break;
+      }
+
+      case 'pkxd_shorts': {
+        const manualShorts = channel.manualOverrides?.pkxdShortsCount;
+        if (typeof manualShorts === 'number' && manualShorts > 0) {
+          currentValue = manualShorts;
+          isAutoVerified = false;
+        } else if (detectedPkxdShorts > 0) {
+          currentValue = detectedPkxdShorts;
+          isAutoVerified = true;
+        } else if (detectedShortsTotal > 0) {
+          currentValue = detectedShortsTotal;
+          isAutoVerified = true;
+        } else {
+          currentValue = channel.videoCount || 0;
+          isAutoVerified = (channel.videoCount || 0) > 0;
+        }
+        break;
+      }
+
+      case 'monthly_frequency': {
+        if (format === 'shorts') {
+          if (typeof channel.shortsLast30Days === 'number' && channel.shortsLast30Days > 0) {
+            currentValue = channel.shortsLast30Days;
+            isAutoVerified = true;
+          } else {
+            const s30 = calcLast30Days(shortVideos);
+            const all30 = calcLast30Days(recentVideos);
+            if (s30.hasAnyDate) {
+              currentValue = s30.count;
+              isAutoVerified = true;
+            } else if (typeof channel.videosLast30Days === 'number' && channel.videosLast30Days > 0) {
+              currentValue = channel.videosLast30Days;
+              isAutoVerified = true;
+            } else if (all30.hasAnyDate) {
+              currentValue = all30.count;
+              isAutoVerified = true;
+            } else {
+              currentValue = Math.min(detectedShortsTotal, Math.round((channel.videoCount || 0) / 12));
+              isAutoVerified = false;
+            }
+          }
+        } else {
+          if (typeof channel.longVideosLast30Days === 'number' && channel.longVideosLast30Days > 0) {
+            currentValue = channel.longVideosLast30Days;
+            isAutoVerified = true;
+          } else {
+            const l30 = calcLast30Days(longVideos);
+            const all30 = calcLast30Days(recentVideos);
+            if (l30.hasAnyDate) {
+              currentValue = l30.count;
+              isAutoVerified = true;
+            } else if (typeof channel.videosLast30Days === 'number' && channel.videosLast30Days > 0) {
+              currentValue = channel.videosLast30Days;
+              isAutoVerified = true;
+            } else if (all30.hasAnyDate) {
+              currentValue = all30.count;
+              isAutoVerified = true;
+            } else {
+              currentValue = Math.round((channel.videoCount || 0) / 12);
+              isAutoVerified = false;
+            }
+          }
+        }
+        break;
+      }
+
+      case 'avg_views': {
+        if (format === 'shorts' && channel.averageShortViews && channel.averageShortViews > 0) {
+          currentValue = channel.averageShortViews;
+        } else if (format === 'long_video' && channel.averageLongViews && channel.averageLongViews > 0) {
+          currentValue = channel.averageLongViews;
+        } else if (channel.averageRecentViews && channel.averageRecentViews > 0) {
+          currentValue = channel.averageRecentViews;
+        } else if (effectiveTotalViews > 0 && channel.videoCount > 0) {
+          currentValue = Math.round(effectiveTotalViews / channel.videoCount);
         } else {
           currentValue = 0;
         }
         isAutoVerified = true;
         break;
-
-      case 'pkxd_long_videos':
-        if (channel.manualOverrides?.pkxdLongVideosCount !== undefined) {
-          currentValue = channel.manualOverrides.pkxdLongVideosCount;
-          isAutoVerified = false;
-        } else if (channel.pkxdVideosDetected !== undefined && channel.pkxdVideosDetected > 0) {
-          currentValue = channel.pkxdVideosDetected;
-          isAutoVerified = true;
-        } else {
-          // If total public videos is known, display it as reference
-          currentValue = channel.videoCount || 0;
-          isAutoVerified = false;
-        }
-        break;
-
-      case 'pkxd_shorts':
-        if (channel.manualOverrides?.pkxdShortsCount !== undefined) {
-          currentValue = channel.manualOverrides.pkxdShortsCount;
-          isAutoVerified = false;
-        } else {
-          currentValue = channel.videoCount || 0;
-          isAutoVerified = false;
-        }
-        break;
-
-      case 'monthly_frequency': {
-        // Calculate based on recent video frequency (estimated videos in last 30 days)
-        const recentCount = channel.recentVideos?.length || 0;
-        // If user published multiple videos recently, calculate approximate monthly pace
-        const estimatedMonthly = Math.max(recentCount, Math.round((channel.videoCount || 0) / 12));
-        currentValue = estimatedMonthly;
-        isAutoVerified = channel.recentVideos && channel.recentVideos.length > 0;
-        break;
       }
-
-      case 'avg_views':
-        currentValue = channel.averageRecentViews || (channel.totalViews && channel.videoCount ? Math.round(channel.totalViews / channel.videoCount) : 0);
-        break;
 
       case 'community_compliance':
         currentValue = channel.manualOverrides?.communityCompliant ? 1 : 0;
@@ -124,50 +237,50 @@ export function evaluateRequirements(
     };
   });
 
-  // Second pass: apply either-or resolution, status messages, deficit & estimates
-  const evaluatedRequirements: EvaluatedRequirement[] = preliminaryEvaluations.map(item => {
+  const evaluatedRequirements: EvaluatedRequirement[] = preliminaryEvaluations.map((item) => {
     const { req, currentValue, isAutoVerified } = item;
     let isMet = item.isMet;
     let isEitherOrMet = false;
 
     if (req.eitherOrGroupId && groupMetMap[req.eitherOrGroupId]) {
       isEitherOrMet = true;
-      isMet = true; // satisfied because the alternative requirement in the group was met!
+      isMet = true;
     }
 
-    const percentage = req.targetValue > 0 
-      ? Math.min(100, Math.round(((Number(currentValue) || 0) / req.targetValue) * 100))
-      : 100;
+    const percentage =
+      req.targetValue > 0
+        ? Math.min(100, Math.round(((Number(currentValue) || 0) / req.targetValue) * 100))
+        : 100;
 
     let deficitText: string | undefined;
     let estimateText: string | undefined;
     let statusMessage = '';
 
     if (isMet) {
-      statusMessage = isEitherOrMet && !item.isMet
-        ? `✓ Requisito atendido pela opção alternativa (${req.eitherOrLabel})`
-        : '✓ Requisito atingido';
+      statusMessage =
+        isEitherOrMet && !item.isMet
+          ? `Requisito atendido pela opção alternativa (${req.eitherOrLabel})`
+          : 'Requisito atingido';
     } else {
       if (!isAutoVerified && currentValue === 0 && (req.metricType === 'community_compliance' || req.metricType === 'program_terms')) {
-        statusMessage = 'Não foi possível verificar este requisito automaticamente.';
+        statusMessage = 'Confirmação manual necessária.';
         deficitText = 'Requer confirmação direta do criador';
       } else {
         const remaining = Math.max(0, req.targetValue - Number(currentValue));
         deficitText = `Faltam ${remaining.toLocaleString('pt-BR')} ${req.unit}`;
         statusMessage = `Faltam ${remaining.toLocaleString('pt-BR')} para cumprir este requisito`;
-        
-        // Detailed estimation
-        estimateText = `🚀 Você está a ${remaining.toLocaleString('pt-BR')} ${req.unit} de atingir esse requisito.`;
 
-        // Historical / growth pace estimate if available
+        estimateText = `Você está a ${remaining.toLocaleString('pt-BR')} ${req.unit} de atingir esse requisito.`;
+
         if (req.metricType === 'subscribers') {
-          const monthlyGrowth = channel.estimatedMonthlyGrowth && channel.estimatedMonthlyGrowth > 0 
-            ? channel.estimatedMonthlyGrowth 
-            : 120; // sensible illustrative benchmark
+          const monthlyGrowth =
+            channel.estimatedMonthlyGrowth && channel.estimatedMonthlyGrowth > 0
+              ? channel.estimatedMonthlyGrowth
+              : 120;
           const monthsNeeded = Math.ceil(remaining / monthlyGrowth);
-          estimateText += `\n📈 Seu canal está com ritmo estimado de ~${monthlyGrowth.toLocaleString('pt-BR')} novos inscritos por mês. Mantendo esse ritmo, você pode atingir este requisito em aproximadamente ${monthsNeeded} ${monthsNeeded === 1 ? 'mês' : 'meses'}.`;
+          estimateText += `\nRitmo estimado de ~${monthlyGrowth.toLocaleString('pt-BR')} novos inscritos/mês: aproximadamente ${monthsNeeded} ${monthsNeeded === 1 ? 'mês' : 'meses'} para alcançar a meta.`;
         } else if (req.metricType === 'monthly_frequency') {
-          estimateText += `\n📅 Publicar regularmente acelera a análise de consistência pela equipe Afterverse.`;
+          estimateText += '\nPublicar com constância nos últimos 30 dias acelera a aprovação no programa.';
         }
       }
     }
@@ -186,25 +299,22 @@ export function evaluateRequirements(
     };
   });
 
-  // Calculate overall progress percentage
   const totalScore = evaluatedRequirements.reduce((acc, curr) => acc + curr.percentage, 0);
-  const overallPercentage = evaluatedRequirements.length > 0 
-    ? Math.round(totalScore / evaluatedRequirements.length) 
-    : 0;
+  const overallPercentage =
+    evaluatedRequirements.length > 0 ? Math.round(totalScore / evaluatedRequirements.length) : 0;
 
-  const metList = evaluatedRequirements.filter(r => r.isMet);
+  const metList = evaluatedRequirements.filter((r) => r.isMet);
   const pendingList = evaluatedRequirements
-    .filter(r => !r.isMet)
+    .filter((r) => !r.isMet)
     .sort((a, b) => {
-      // Prioritize mandatory requirements first, then lowest percentage to reach
       if (a.requirement.isRequired && !b.requirement.isRequired) return -1;
       if (!a.requirement.isRequired && b.requirement.isRequired) return 1;
       return a.percentage - b.percentage;
     });
 
   const isAllRequiredMet = evaluatedRequirements
-    .filter(r => r.requirement.isRequired)
-    .every(r => r.isMet);
+    .filter((r) => r.requirement.isRequired)
+    .every((r) => r.isMet);
 
   return {
     channel,
@@ -248,12 +358,11 @@ export function getChannelTierProgressions(
     { id: 'rising_star', level: 2, name: 'Rising Star' }
   ];
 
-  const evaluations: { tier: typeof tiers[0]; summary: AnalysisSummary }[] = tiers.map(t => ({
+  const evaluations: { tier: (typeof tiers)[0]; summary: AnalysisSummary }[] = tiers.map((t) => ({
     tier: t,
     summary: evaluateRequirements(requirements, channel, format, t.id)
   }));
 
-  // Determine highest tier unlocked
   let currentTier: ProgramTier | 'aspirant' = 'aspirant';
   for (const item of evaluations) {
     if (item.summary.isAllRequiredMet) {
@@ -263,18 +372,16 @@ export function getChannelTierProgressions(
     }
   }
 
-  // Next tier to climb is the first one where isAllRequiredMet is false
-  const nextTierItem = evaluations.find(item => !item.summary.isAllRequiredMet);
+  const nextTierItem = evaluations.find((item) => !item.summary.isAllRequiredMet);
   const nextTier: ProgramTier | null = nextTierItem ? nextTierItem.tier.id : null;
 
-  const progressions: TierProgressionStatus[] = evaluations.map((item, idx) => {
+  const progressions: TierProgressionStatus[] = evaluations.map((item) => {
     const isUnlocked = item.summary.isAllRequiredMet;
     const isCurrent = currentTier === item.tier.id;
     const isNextToClimb = nextTier === item.tier.id;
 
-    // Find subscribers requirement
-    const subReq = item.summary.evaluatedRequirements.find(r => r.requirement.metricType === 'subscribers');
-    const subCurrent = typeof subReq?.currentValue === 'number' ? subReq.currentValue : (channel.subscriberCount || 0);
+    const subReq = item.summary.evaluatedRequirements.find((r) => r.requirement.metricType === 'subscribers');
+    const subCurrent = typeof subReq?.currentValue === 'number' ? subReq.currentValue : channel.subscriberCount || 0;
     const subTarget = subReq?.targetValue || 1000;
     const subscribersNeeded = Math.max(0, subTarget - subCurrent);
 

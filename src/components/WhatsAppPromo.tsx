@@ -10,6 +10,7 @@ interface WhatsAppPromoProps {
 export default function WhatsAppPromo({ channelUrl, onAddXP }: WhatsAppPromoProps) {
   const [likes, setLikes] = useState(384);
   const [hasLiked, setHasLiked] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [xpClaimed, setXpClaimed] = useState(() => {
     try {
       return localStorage.getItem('pkxd_whatsapp_xp_claimed') === 'true';
@@ -34,22 +35,28 @@ export default function WhatsAppPromo({ channelUrl, onAddXP }: WhatsAppPromoProp
 
   const handleJoinClick = () => {
     playLevelUpSound();
-    
-    // Award 250 XP if not already claimed
+
     if (!xpClaimed && onAddXP) {
-      onAddXP(250, 'Comunidade WhatsApp 🟢');
+      onAddXP(250, 'Comunidade WhatsApp');
       setXpClaimed(true);
       try {
         localStorage.setItem('pkxd_whatsapp_xp_claimed', 'true');
       } catch {}
     }
+  };
 
-    // Also redirect
-    window.open(channelUrl, '_blank', 'noreferrer');
+  const handleCopyChannelLink = () => {
+    try {
+      navigator.clipboard.writeText(channelUrl);
+      playSuccessSound();
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    } catch (e) {
+      setCopiedLink(false);
+    }
   };
 
   function playLevelUpSound() {
-    // Just reuse or call local Audio
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const now = audioCtx.currentTime;
@@ -71,56 +78,57 @@ export default function WhatsAppPromo({ channelUrl, onAddXP }: WhatsAppPromoProp
   return (
     <div 
       id="whatsapp-promo-container"
-      className="bg-[#1D1638]/72 backdrop-blur-xl p-6 sm:p-8 rounded-[20px] border border-white/[0.09] shadow-[0_8px_32px_rgba(0,0,0,0.38)] text-[#F8F7FF] overflow-hidden relative"
+      className="bg-emerald-50/90 backdrop-blur-md p-6 sm:p-8 rounded-[34px] border-2 border-white/85 text-slate-900 overflow-hidden relative shadow-md"
     >
-      <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+      <div className="flex flex-col md:flex-row items-center gap-8">
         
-        {/* Left Side: Mockup WhatsApp Message Feed */}
+        {/* Left Side: Clean WhatsApp Channel Preview */}
         <div className="w-full md:w-5/12 flex-shrink-0">
-          <div className="bg-[#0B0817]/80 backdrop-blur-md rounded-[14px] border border-white/[0.08] overflow-hidden shadow-xl relative select-none">
+          <div className="bg-white rounded-2xl border-2 border-emerald-200 overflow-hidden shadow-sm select-none">
             {/* Header / Chat Name */}
-            <div className="bg-[#15102A]/90 p-3.5 flex items-center gap-3 border-b border-white/[0.08]">
-              <div className="w-9 h-9 rounded-[10px] bg-gradient-to-tr from-[#7C3AED] via-[#9B5CFF] to-[#22D3EE] flex items-center justify-center font-bold font-sans text-sm text-white shadow-md">
+            <div className="bg-emerald-600 p-3.5 flex items-center gap-3 text-white">
+              <div className="w-9 h-9 rounded-xl bg-white text-emerald-700 flex items-center justify-center font-display font-bold text-sm shadow-xs">
                 PC
               </div>
               <div>
-                <h4 className="font-sans font-bold text-sm text-[#F8F7FF] flex items-center gap-1.5">
+                <h4 className="font-sans font-bold text-sm text-white flex items-center gap-1.5">
                   PKXD Central
-                  <span className="bg-[#25D366] text-[9px] font-black tracking-wider text-black px-1.5 py-0.5 rounded-full flex items-center">
+                  <span className="bg-white text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">
                     ✓
                   </span>
                 </h4>
-                <p className="font-mono text-[10px] text-[#25D366] font-semibold">Canal Oficial • Online</p>
+                <p className="font-sans text-[11px] text-emerald-100 font-semibold">Canal Oficial · Online</p>
               </div>
             </div>
 
             {/* Chat Body */}
-            <div className="p-4 space-y-4 max-h-[220px] overflow-y-auto bg-[#0B0817]/80">
+            <div className="p-4 space-y-3.5 max-h-[230px] overflow-y-auto bg-slate-50">
               
-               {/* Message bubble 1 */}
-               <div className="bg-[#15102A]/85 text-[#B8B2CC] p-3 rounded-[14px] rounded-tl-sm max-w-[85%] text-xs shadow-md border-l-2 border-[#22D3EE] backdrop-blur-sm">
-                <span className="text-[#22D3EE] font-bold text-[10px] block mb-1">📢 COMUNIDADE PKXD CENTRAL</span>
-                Fala galera de PK XD! 🕹️ Aqui postamos com total exclusividade os spoilers das novas atualizações e códigos ativos!
-                <span className="text-[9px] text-[#716A83] text-right block mt-1.5">17:28</span>
+              {/* Message bubble 1 */}
+              <div className="bg-white text-slate-700 p-3 rounded-2xl rounded-tl-sm max-w-[90%] text-xs border border-slate-200 shadow-xs text-left">
+                <span className="text-emerald-700 font-bold text-[10px] block mb-1 uppercase">Comunidade PKXD Central</span>
+                Aqui postamos com rapidez os spoilers das novas atualizações, eventos da comunidade e códigos ativos!
+                <span className="text-[10px] text-slate-400 text-right block mt-1.5">17:28</span>
               </div>
 
               {/* Message bubble 2 */}
-              <div className="bg-[#15102A]/85 text-[#B8B2CC] p-3 rounded-[14px] rounded-tl-sm max-w-[85%] text-xs shadow-md border-l-2 border-[#E83EBC] backdrop-blur-sm">
-                <span className="text-[#E83EBC] font-bold text-[10px] block mb-1">🚀 SPOILERS SEMANAIS</span>
-                Tem spoiler novo toda semana, SEGUNDA-FEIRA às 17:30h (NORMALMENTE)! Ative o sininho no canal para não perder nada! 🔮✨
+              <div className="bg-white text-slate-700 p-3 rounded-2xl rounded-tl-sm max-w-[90%] text-xs border border-slate-200 shadow-xs text-left">
+                <span className="text-violet-700 font-bold text-[10px] block mb-1 uppercase">Spoilers Semanais</span>
+                Toda segunda-feira às 17h30 tem radar novo no ar. Ative o sininho no canal para não perder nada!
                 
-                {/* Fake action/reaction bar in chat bubble */}
-                <div className="mt-3 pt-2 border-t border-white/[0.08] flex justify-between items-center">
+                {/* Action/reaction bar */}
+                <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center">
                   <button 
+                    type="button"
                     onClick={handleLike}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-[10px] text-[10px] font-bold transition-all ${
-                      hasLiked ? 'bg-[#3A1947] text-[#E83EBC] border border-[#E83EBC]/40' : 'bg-[#1D1638] text-[#B8B2CC]'
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      hasLiked ? 'bg-pink-50 text-pink-700 border border-pink-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-[#E83EBC] text-[#E83EBC]' : 'text-[#716A83]'}`} />
+                    <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-pink-500 text-pink-500' : 'text-slate-500'}`} />
                     <span>{likes} curtidas</span>
                   </button>
-                  <span className="text-[9px] text-[#716A83]">17:31</span>
+                  <span className="text-[10px] text-slate-400">17:31</span>
                 </div>
               </div>
 
@@ -131,72 +139,67 @@ export default function WhatsAppPromo({ channelUrl, onAddXP }: WhatsAppPromoProp
         {/* Right Side: Informative Title & Call To Action */}
         <div className="flex-1 space-y-5 text-center md:text-left">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#123225] border border-[#25D366]/40 text-[#25D366] font-mono text-[10px] font-bold rounded-full uppercase tracking-wider mb-2">
-              <Zap className="w-3.5 h-3.5" /> Canal Oficial do WhatsApp
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-emerald-200 text-emerald-700 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
+              <Zap className="w-3.5 h-3.5" /> Canal Oficial no WhatsApp
             </div>
             
-            <h3 className="font-sans font-black text-2xl sm:text-3xl lg:text-4xl leading-tight tracking-wide uppercase text-[#F8F7FF]">
-              SEJA O PRIMEIRO A SABER DE TUDO!
+            <h3 className="font-display font-bold text-2xl sm:text-3xl leading-tight text-slate-900">
+              Seja o primeiro a saber de tudo
             </h3>
             
-            <p className="font-sans text-sm sm:text-base text-[#B8B2CC] leading-relaxed max-w-xl mt-2">
-              Junte-se à nossa comunidade no WhatsApp! Receba diretamente as notícias do PK XD, alertas de códigos, novidades da administração e a contagem regressiva para os spoilers semanais sem complicação.
+            <p className="font-sans text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl mt-2">
+              Receba diretamente no WhatsApp as notícias da comunidade PK XD, alertas de códigos, convites de eventos e a contagem para os spoilers semanais.
             </p>
           </div>
 
           {/* Value Badges */}
           <div className="grid grid-cols-2 gap-3 max-w-md mx-auto md:mx-0">
             {[
-              { icon: Ticket, text: 'Códigos Exclusivos', color: 'text-[#F5C542] border-white/[0.08] bg-[#15102A]/75 backdrop-blur-md' },
-              { icon: ShieldCheck, text: 'Notícias Oficiais', color: 'text-[#22D3EE] border-white/[0.08] bg-[#15102A]/75 backdrop-blur-md' }
+              { icon: Ticket, text: 'Códigos Exclusivos', color: 'text-amber-700 border-amber-200 bg-white' },
+              { icon: ShieldCheck, text: 'Notícias Verificadas', color: 'text-sky-700 border-sky-200 bg-white' }
             ].map((feature, idx) => (
               <div 
                 key={idx}
-                className={`flex items-center gap-2 p-2.5 rounded-[12px] border ${feature.color} select-none`}
+                className={`flex items-center gap-2 p-3 rounded-xl border-2 ${feature.color} select-none`}
               >
                 <feature.icon className="w-4 h-4 flex-shrink-0" />
-                <span className="font-sans font-bold text-xs">{feature.text}</span>
+                <span className="font-sans font-bold text-xs text-slate-800">{feature.text}</span>
               </div>
             ))}
           </div>
 
           {/* Main Join CTA Button */}
-          <div className="pt-2 space-y-4">
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <div className="pt-1 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3 pt-1">
               <div className="relative w-full sm:w-auto">
-                <button
+                <a
+                  href={channelUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   onClick={handleJoinClick}
-                  className="w-full px-5 sm:px-7 py-3 sm:py-3.5 bg-[#123225] hover:bg-[#184232] text-[#25D366] border border-[#25D366] font-sans font-black text-xs sm:text-sm rounded-[14px] shadow-sm transition-all active:scale-95 cursor-pointer flex flex-wrap items-center justify-center gap-2 group text-center"
+                  className="w-full px-6 py-3 bg-[#16A34A] hover:bg-[#15803D] text-white font-sans font-bold text-sm rounded-2xl shadow-[0_4px_0_0_#166534] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2 group"
                 >
-                  <MessageSquare className="w-4 h-4 fill-[#25D366] flex-shrink-0" />
-                  <span className="break-words">ENTRAR NO CANAL AGORA</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform flex-shrink-0" />
-                </button>
-                {/* Floating Badge */}
-                <div className="absolute -top-2.5 left-1/2 transform -translate-x-1/2 bg-[#251B46] text-[#F5C542] border border-[#F5C542]/40 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
-                  {xpClaimed ? "✓ +250 XP Coletado" : "⚡ +250 XP Grátis!"}
+                  <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                  <span>Entrar no Canal</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform flex-shrink-0" />
+                </a>
+                <div className="mt-1.5 text-[11px] font-bold text-emerald-700 text-center sm:text-left">
+                  {xpClaimed ? '✓ +250 XP coletados' : 'Ganha +250 XP ao entrar'}
                 </div>
               </div>
 
               <button
-                onClick={() => {
-                  try {
-                    navigator.clipboard.writeText(channelUrl);
-                    playSuccessSound();
-                    alert("Link do Canal copiado com sucesso! Compartilhe com os seus amigos de PK XD! 🕹️");
-                  } catch (e) {
-                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent('Acesse o canal de Spoilers e Códigos Oficiais de PK XD: ' + channelUrl)}`, '_blank');
-                  }
-                }}
-                className="w-full sm:w-auto px-4 py-3 sm:py-3.5 bg-[#15102A]/80 hover:bg-[#251B46]/80 text-[#B8B2CC] hover:text-[#F8F7FF] font-sans font-bold text-xs sm:text-sm rounded-[14px] border border-white/10 backdrop-blur-md transition-all flex flex-wrap items-center justify-center gap-2 cursor-pointer text-center"
+                type="button"
+                onClick={handleCopyChannelLink}
+                className={`w-full sm:w-auto h-fit px-5 py-3 font-sans font-bold text-sm rounded-2xl border-2 transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  copiedLink
+                    ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                }`}
               >
-                <span>🔗 COMPARTILHAR CANAL</span>
+                <span>{copiedLink ? '✓ Link Copiado!' : 'Compartilhar Canal'}</span>
               </button>
             </div>
-
-            <p className="font-sans text-xs text-[#716A83]">
-              ⚡ <strong className="text-[#25D366]">Gostou da Central?</strong> Copie o link do canal ou use o botão para compartilhar os spoilers e códigos legítimos com todo o seu clã de amigos no WhatsApp!
-            </p>
           </div>
 
         </div>

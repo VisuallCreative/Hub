@@ -1,13 +1,13 @@
 {
-  "name": "PKXD Central - App Oficial da Comunidade",
+  "id": "/",
+  "name": "PKXD Central - Comunidade Oficial PK XD",
   "short_name": "PKXD Central",
-  "description": "Central PK XD - Eventos, Spoilers Semanais, Códigos, Artes, Passaporte e Comunidade Oficial!",
+  "description": "Eventos, festas, torneios, notícias, criadores e sistema de XP da comunidade PK XD!",
   "start_url": "/",
   "scope": "/",
-  "id": "/?source=pwa",
   "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#7c3aed",
+  "background_color": "#2D0859",
+  "theme_color": "#2D0859",
   "orientation": "portrait-primary",
   "categories": ["entertainment", "games", "social"],
   "icons": [
@@ -15,37 +15,42 @@
       "src": "/favicon.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/favicon.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "Passaporte PK XD",
-      "short_name": "Passaporte",
-      "description": "Acesse seu Passaporte, Medalhas e Selos",
-      "url": "/?tab=passaporte",
+      "name": "Central de Eventos",
+      "short_name": "Eventos",
+      "description": "Veja torneios, festas e confirme presença",
+      "url": "/eventos",
       "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
     },
     {
-      "name": "Agenda de Eventos",
+      "name": "Minha Agenda PKXD",
       "short_name": "Agenda",
-      "description": "Veja seus eventos salvos e torneios",
-      "url": "/?tab=eventos",
+      "description": "Acompanhe seus eventos confirmados",
+      "url": "/minha-agenda",
       "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
     },
     {
-      "name": "Spoilers & Vídeos",
-      "short_name": "Spoilers",
-      "description": "Confira os últimos spoilers e novidades",
-      "url": "/?tab=inicio",
+      "name": "Notícias PK XD",
+      "short_name": "Notícias",
+      "description": "Atualizações, spoilers e novidades da comunidade",
+      "url": "/noticias",
       "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
     }
   ]
 }
-

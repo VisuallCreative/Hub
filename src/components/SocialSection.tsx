@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Heart, MessageSquare, Send, User, Award, Trash2, 
-  Instagram, Sparkles, Clock, AlertTriangle, Smile, Shield 
+import {
+  Heart, MessageSquare, Send, User, Award, Trash2,
+  Instagram, Sparkles, Clock, AlertTriangle, Smile, Shield, X, CheckCircle2
 } from 'lucide-react';
-import { 
-  collection, doc, setDoc, deleteDoc, onSnapshot, 
-  query, orderBy, limit, updateDoc, arrayUnion, arrayRemove 
+import {
+  collection, doc, setDoc, deleteDoc, onSnapshot,
+  query, orderBy, limit, updateDoc, arrayUnion, arrayRemove
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Post, AppComment } from '../types';
+import { Post } from '../types';
 import CommentsSection from './CommentsSection';
 
 interface SocialSectionProps {
@@ -25,7 +25,6 @@ export default function SocialSection({
   currentUser,
   isAdmin,
   onAddXP,
-  soundEnabled,
   triggerAudio,
   onLoginRedirect
 }: SocialSectionProps) {
@@ -33,7 +32,8 @@ export default function SocialSection({
   const [newPostContent, setNewPostContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
-  
+  const [confirmDeletePostId, setConfirmDeletePostId] = useState<string | null>(null);
+
   // Public Profile Modal State
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [selectedProfileData, setSelectedProfileData] = useState<any>(null);
@@ -44,7 +44,7 @@ export default function SocialSection({
 
   const showNotification = (msg: string) => {
     setNotif(msg);
-    setTimeout(() => setNotif(null), 3000);
+    setTimeout(() => setNotif(null), 3200);
   };
 
   // Real-time listen to community posts from Firestore
@@ -67,7 +67,7 @@ export default function SocialSection({
       });
       setPosts(postsData);
     }, (error) => {
-      console.error("Error loading posts:", error);
+      console.error('Error loading posts:', error);
     });
 
     return () => unsubscribe();
@@ -81,13 +81,11 @@ export default function SocialSection({
       return;
     }
 
-    // Get selected player stats from leaderboard
     const profileRef = doc(db, 'leaderboard', selectedProfileId);
     const unsubscribeProfile = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
         setSelectedProfileData({ id: docSnap.id, ...docSnap.data() });
       } else {
-        // Fallback info
         setSelectedProfileData({
           id: selectedProfileId,
           name: 'Fã Secreto',
@@ -99,7 +97,6 @@ export default function SocialSection({
       }
     });
 
-    // Get posts specifically by this user
     const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
     const unsubscribePosts = onSnapshot(q, (snapshot) => {
       const pPosts: Post[] = [];
@@ -127,12 +124,11 @@ export default function SocialSection({
     };
   }, [selectedProfileId]);
 
-  // Create a new post
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
       triggerAudio('tap');
-      showNotification("⚠️ Entre na sua conta para poder postar!");
+      showNotification('Entre na sua conta para poder postar!');
       return;
     }
 
@@ -140,7 +136,7 @@ export default function SocialSection({
     if (content.length === 0) return;
 
     if (content.length > 500) {
-      showNotification("⚠️ O post não pode passar de 500 caracteres!");
+      showNotification('O post não pode passar de 500 caracteres.');
       return;
     }
 
@@ -165,9 +161,8 @@ export default function SocialSection({
 
       setNewPostContent('');
       triggerAudio('success');
-      showNotification("🎉 Post compartilhado na Rede Social!");
+      showNotification('Post compartilhado no Mural da Comunidade!');
 
-      // Update Daily Mission status for posting
       try {
         const lastMissionsStr = localStorage.getItem('pkxd_daily_missions_state');
         if (lastMissionsStr) {
@@ -176,7 +171,7 @@ export default function SocialSection({
             if (m.type === 'post' && !m.completed) {
               m.completed = true;
               onAddXP(m.xpReward, `Missão Cumprida: ${m.title}! 🎯`);
-              showNotification(`⚡ Missão Completa: ${m.title}! +${m.xpReward} XP`);
+              showNotification(`Missão Completa: ${m.title}! +${m.xpReward} XP`);
             }
             return m;
           });
@@ -186,22 +181,19 @@ export default function SocialSection({
         console.warn(e);
       }
 
-      // Add small baseline XP for posting anyway
-      onAddXP(40, "Publicação de Post na Comunidade 💬");
-
+      onAddXP(40, 'Publicação de Post na Comunidade 💬');
     } catch (err: any) {
       console.error(err);
-      showNotification("❌ Erro ao postar: " + err.message);
+      showNotification('Erro ao postar: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Toggle Like Post
   const handleLikePost = async (post: Post) => {
     if (!currentUser) {
       triggerAudio('tap');
-      showNotification("⚠️ Entre na sua conta para curtir as postagens!");
+      showNotification('Entre na sua conta para curtir as postagens!');
       return;
     }
 
@@ -220,11 +212,9 @@ export default function SocialSection({
           likedBy: arrayUnion(currentUser.uid),
           likes: post.likes + 1
         });
-        
-        // Trigger audio success
+
         triggerAudio('success');
 
-        // Check Daily Mission for Liking
         try {
           const lastMissionsStr = localStorage.getItem('pkxd_daily_missions_state');
           if (lastMissionsStr) {
@@ -233,7 +223,7 @@ export default function SocialSection({
               if (m.type === 'like' && !m.completed) {
                 m.completed = true;
                 onAddXP(m.xpReward, `Missão Cumprida: ${m.title}! 🎯`);
-                showNotification(`⚡ Missão Completa: ${m.title}! +${m.xpReward} XP`);
+                showNotification(`Missão Completa: ${m.title}! +${m.xpReward} XP`);
               }
               return m;
             });
@@ -243,27 +233,24 @@ export default function SocialSection({
           console.warn(e);
         }
 
-        // Add 10 baseline XP for liking posts
-        onAddXP(10, "Apreciação de fã 💖");
+        onAddXP(10, 'Apreciação de fã 💖');
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Delete a post
   const handleDeletePost = async (postId: string) => {
-    if (!window.confirm("Deseja apagar permanentemente este post do mural público?")) return;
     triggerAudio('tap');
     try {
       await deleteDoc(doc(db, 'posts', postId));
-      showNotification("🗑️ Post removido com sucesso!");
+      setConfirmDeletePostId(null);
+      showNotification('Post removido com sucesso!');
     } catch (err: any) {
-      showNotification("❌ Erro ao remover post: " + err.message);
+      showNotification('Erro ao remover post: ' + err.message);
     }
   };
 
-  // Get generic avatar color or character based on user nickname
   const getAvatarFallback = (name: string) => {
     const chars = ['🤖', '🦄', '🐱', '🐶', '🦊', '🐻', '🐼', '🐯', '👽', '🦖', '🦁', '🦉'];
     const sum = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
@@ -271,53 +258,50 @@ export default function SocialSection({
   };
 
   return (
-    <div id="social-central-container" className="space-y-8">
+    <div id="social-central-container" className="space-y-6">
       {/* Toast Notification */}
       <AnimatePresence>
         {notif && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.9 }}
-            className="fixed top-24 right-6 z-50 bg-gradient-to-r from-purple-600 to-indigo-650 text-white font-black px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2 border border-purple-400 text-xs sm:text-sm font-sans"
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-24 right-6 z-50 bg-slate-900 text-white font-extrabold px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 border-2 border-[#6D28D9] text-xs sm:text-sm font-sans"
           >
-            <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
+            <CheckCircle2 className="w-4 h-4 text-[#FACC15]" />
             <span>{notif}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Redesigned Social Central Header */}
-      <div className="bg-gradient-to-br from-purple-950/40 via-zinc-900/40 to-black/30 border border-white/5 rounded-3xl p-6 sm:p-8 space-y-4 text-left relative overflow-hidden">
-        <div className="absolute top-0 right-1/4 w-40 h-40 bg-pink-500/10 blur-3xl rounded-full pointer-events-none" />
-        <div className="absolute bottom-0 left-10 w-40 h-40 bg-cyan-500/5 blur-3xl rounded-full pointer-events-none" />
-        
-        <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-xs uppercase tracking-widest font-mono">
-          <Shield className="w-4 h-4 text-cyan-400 fill-cyan-400/20" />
+      {/* Social Central Header */}
+      <div className="pkxd-glass rounded-3xl p-6 sm:p-8 space-y-3 text-left">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F3F0FF] border border-purple-200 text-[#6D28D9] font-extrabold text-xs uppercase tracking-wider">
+          <Shield className="w-3.5 h-3.5" />
           <span>PKXD Central • Rede Social</span>
         </div>
-        
-        <h3 className="font-sans font-black text-2xl sm:text-3xl text-white uppercase tracking-tight flex items-center gap-2 flex-wrap">
-          <span>👥 Mural da Comunidade PKXD Central</span>
-          <span className="text-xs bg-pink-500 text-white font-mono font-black px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse">
-            NOVA FASE 🌟
+
+        <h3 className="font-display font-bold text-2xl sm:text-3xl text-slate-900 flex items-center gap-2.5 flex-wrap">
+          <span>Mural da Comunidade PKXD Central</span>
+          <span className="text-xs bg-pink-100 text-pink-700 border border-pink-200 font-sans font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">
+            Ao Vivo
           </span>
         </h3>
-        
-        <p className="font-sans text-xs sm:text-sm text-gray-300 leading-relaxed max-w-4xl">
-          Seja bem-vindo ao fã-clube interativo oficial do PKXD Central! Escreva fofocas do jogo, comente sobre spoilers, faça novas amizades, curta teorias e compartilhe suas ideias com toda a comunidade conectada em tempo real!
+
+        <p className="font-sans text-sm text-slate-600 leading-relaxed max-w-4xl">
+          Compartilhe teorias, comente sobre atualizações, faça novas amizades no jogo e interaja com outros fãs da comunidade em tempo real.
         </p>
       </div>
 
       {/* Social Dashboard Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left 2 Columns: Posting area and feed */}
         <div className="lg:col-span-2 space-y-6">
           {/* Post Creation Box */}
-          <div className="bg-zinc-900/60 border border-white/5 rounded-3xl p-5 sm:p-6 text-left space-y-4">
-            <h4 className="font-sans font-black text-sm text-white uppercase tracking-wider flex items-center gap-2">
-              <Clock className="w-4 h-4 text-pink-400" />
-              <span>O que você está pensando agora?</span>
+          <div className="pkxd-glass rounded-3xl p-5 sm:p-6 text-left space-y-4">
+            <h4 className="font-display font-bold text-base text-slate-900 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-pink-600" />
+              <span>O que está acontecendo no seu universo?</span>
             </h4>
 
             {currentUser ? (
@@ -326,176 +310,202 @@ export default function SocialSection({
                   <textarea
                     value={newPostContent}
                     onChange={(e) => setNewPostContent(e.target.value)}
-                    placeholder="Compartilhe teorias, novidades ou mande um 'Oi' para a comunidade do PKXD Central! ✨"
+                    placeholder="Compartilhe teorias, novidades ou mande um oi para a comunidade PKXD Central..."
                     maxLength={500}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-2xl p-4 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 min-h-[110px] resize-none font-sans leading-relaxed"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6D28D9] min-h-[110px] resize-none font-sans leading-relaxed"
                   />
-                  <div className="absolute bottom-3 right-4 text-[10px] font-mono text-gray-500">
+                  <div className="absolute bottom-3 right-4 text-[11px] font-mono tabular-nums text-slate-400 font-bold">
                     {newPostContent.length}/500
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-2 text-xs text-gray-400 font-sans">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 font-sans">
                     <span className="text-lg">{getAvatarFallback(localStorage.getItem('pkxd_username_nickname') || 'Jogador_Convidado')}</span>
-                    <span>Postando como: <strong className="text-cyan-300 font-mono">{localStorage.getItem('pkxd_username_nickname') || 'Fã Secreto'}</strong></span>
+                    <span>
+                      Postando como:{' '}
+                      <strong className="text-[#6D28D9] font-extrabold">
+                        {localStorage.getItem('pkxd_username_nickname') || 'Fã Secreto'}
+                      </strong>
+                    </span>
                   </div>
 
                   <button
                     type="submit"
                     disabled={isSubmitting || newPostContent.trim().length === 0}
-                    className="px-5 py-3 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-650 hover:from-pink-400 hover:to-indigo-550 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/10 hover:shadow-purple-500/20"
+                    className="pkxd-btn-primary px-5 py-2.5 disabled:opacity-50 disabled:pointer-events-none text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>{isSubmitting ? 'Publicando...' : 'Postar no Mural 🚀'}</span>
+                    <span>{isSubmitting ? 'Publicando...' : 'Postar no Mural'}</span>
                   </button>
                 </div>
               </form>
             ) : (
-              <div className="p-6 rounded-2xl bg-zinc-950 border border-white/5 text-center space-y-4">
-                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans max-w-lg mx-auto">
-                  Você precisa estar conectado à sua conta de fã para poder criar publicações, dar like e interagir no chat social de PKXD Central!
+              <div className="p-6 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 text-center space-y-4">
+                <p className="text-sm text-slate-600 leading-relaxed font-sans max-w-lg mx-auto">
+                  Conecte sua conta de fã para publicar no mural, curtir ideias da galera e desbloquear insígnias sociais.
                 </p>
                 <button
                   onClick={() => {
                     triggerAudio('tap');
                     onLoginRedirect();
-                    // Scroll to connection area
                     setTimeout(() => {
                       document.getElementById('fan-level-dashboard')?.scrollIntoView({ behavior: 'smooth' });
                     }, 200);
                   }}
-                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-550 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md transition-all flex items-center justify-center gap-2 mx-auto"
+                  className="pkxd-btn-primary px-6 py-2.5 text-xs sm:text-sm inline-flex items-center justify-center gap-2 mx-auto cursor-pointer"
                 >
-                  <User className="w-3.5 h-3.5" />
-                  <span>Entrar / Criar Conta de Fã 🔓</span>
+                  <User className="w-4 h-4" />
+                  <span>Entrar / Criar Conta de Fã</span>
                 </button>
               </div>
             )}
           </div>
 
           {/* Social Feed Items */}
-          <div className="max-h-[580px] overflow-y-auto pr-1.5 sm:pr-2 space-y-4 scrollbar-thin scrollbar-thumb-purple-600/40 scrollbar-track-black/30">
-            <div className="space-y-4">
+          <div className="max-h-[620px] overflow-y-auto pr-1 sm:pr-2 space-y-4 custom-scrollbar">
             {posts.length === 0 ? (
-              <div className="bg-zinc-900/40 rounded-3xl border border-white/5 p-12 text-center space-y-2 select-none">
-                <Smile className="w-10 h-10 text-gray-600 mx-auto" />
-                <h4 className="font-sans font-black text-sm text-gray-400 uppercase">Ainda não há posts</h4>
-                <p className="font-sans text-xs text-gray-500 leading-relaxed max-w-sm mx-auto">
-                  Seja o primeiro a postar! Escreva algo legal e receba energia dos outros fãs de PKXD Central.
+              <div className="pkxd-glass rounded-3xl p-12 text-center space-y-2 select-none">
+                <Smile className="w-10 h-10 text-slate-400 mx-auto" />
+                <h4 className="font-display font-bold text-base text-slate-800">Ainda não há posts</h4>
+                <p className="font-sans text-xs sm:text-sm text-slate-500 leading-relaxed max-w-sm mx-auto">
+                  Seja o primeiro a publicar algo legal e ganhar XP interagindo com a comunidade.
                 </p>
               </div>
             ) : (
               posts.map((post) => {
                 const isMyPost = currentUser && post.authorId === currentUser.uid;
                 const isLikedByMe = currentUser && post.likedBy.includes(currentUser.uid);
-                
+                const isOfficialCreator =
+                  post.authorName.toLowerCase().includes('admin') ||
+                  post.authorId === 'admin_fallback' ||
+                  post.authorId === 'p6u6hBInG8fS6hPzC78p4KXD';
+                const confirmingDelete = confirmDeletePostId === post.id;
+
                 return (
                   <motion.div
                     key={post.id}
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-neutral-950/60 border border-purple-500/20 rounded-2xl p-4 sm:p-5 text-left space-y-4 hover:border-purple-500/40 hover:shadow-2xl transition-all relative overflow-hidden"
+                    className="pkxd-glass rounded-3xl p-5 sm:p-6 text-left space-y-4 hover:border-purple-300 transition-colors"
                   >
-                    {/* Author block - Instagram Style */}
+                    {/* Author block */}
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3">
-                        {/* Avatar with beautiful Instagram gradient ring */}
                         <button
                           onClick={() => {
                             triggerAudio('tap');
                             setSelectedProfileId(post.authorId || null);
                           }}
-                          className="w-12 h-12 rounded-full p-[2.5px] bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 hover:scale-105 active:scale-95 transition-all cursor-pointer relative"
+                          className="w-12 h-12 rounded-full p-[2.5px] bg-gradient-to-tr from-[#FACC15] via-pink-500 to-[#6D28D9] hover:scale-105 active:scale-95 transition-transform cursor-pointer relative shrink-0"
                         >
-                          <div className="w-full h-full bg-neutral-900 rounded-full flex items-center justify-center text-xl text-white shadow-inner">
+                          <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-xl shadow-inner">
                             <span className="select-none">{getAvatarFallback(post.authorName)}</span>
                           </div>
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-neutral-900 rounded-full" title="Online" />
+                          <span
+                            className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"
+                            title="Membro Ativo"
+                          />
                         </button>
 
                         <div className="space-y-0.5">
-                          <div className="flex items-center flex-wrap gap-1">
+                          <div className="flex items-center flex-wrap gap-1.5">
                             <button
                               onClick={() => {
                                 triggerAudio('tap');
                                 setSelectedProfileId(post.authorId || null);
                               }}
-                              className="font-sans text-sm font-bold text-white hover:text-purple-300 hover:underline text-left cursor-pointer transition-colors block"
+                              className="font-display text-sm sm:text-base font-bold text-slate-900 hover:text-[#6D28D9] hover:underline text-left cursor-pointer transition-colors"
                             >
                               {post.authorName}
                             </button>
-                            
-                            {/* Blue Verified Badge for Admin and VIP Creators */}
-                            {(post.authorName.toLowerCase().includes('admin') || post.authorId === 'admin_fallback' || post.authorId === 'p6u6hBInG8fS6hPzC78p4KXD') && (
-                              <span className="inline-flex items-center justify-center bg-sky-500 text-white rounded-full text-[7px] font-black w-3.5 h-3.5 select-none" title="Criador Oficial Verificado">
+
+                            {isOfficialCreator && (
+                              <span
+                                className="inline-flex items-center justify-center bg-[#0284C7] text-white rounded-full text-[9px] font-black w-4 h-4 select-none"
+                                title="Criador Oficial Verificado"
+                              >
                                 ✓
                               </span>
                             )}
                           </div>
-                          
-                          <div className="text-[10px] text-neutral-400 font-sans">
-                            <span>{post.createdAt && !isNaN(new Date(post.createdAt).getTime())
+
+                          <div className="text-[11px] text-slate-500 font-sans font-medium">
+                            {post.createdAt && !isNaN(new Date(post.createdAt).getTime())
                               ? `${new Date(post.createdAt).toLocaleDateString('pt-BR')} às ${new Date(post.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-                              : 'Sem Data'}</span>
+                              : 'Recente'}
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {/* Admin Badge */}
-                        {(post.authorName.toLowerCase().includes('admin') || post.authorId === 'admin_fallback' || post.authorId === 'p6u6hBInG8fS6hPzC78p4KXD') ? (
-                          <span className="text-[8px] font-black bg-purple-900 text-purple-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        {isOfficialCreator && (
+                          <span className="text-[10px] font-extrabold bg-[#F3F0FF] text-[#6D28D9] border border-purple-200 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                             CREATOR
                           </span>
-                        ) : null}
+                        )}
 
-                        {/* Trash delete button */}
                         {(isAdmin || isMyPost) && (
-                          <button
-                            onClick={() => handleDeletePost(post.id)}
-                            title="Excluir Post"
-                            className="p-1.5 text-neutral-400 hover:text-red-400 hover:bg-purple-950/40 rounded-lg transition-all cursor-pointer flex items-center justify-center"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          confirmingDelete ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleDeletePost(post.id)}
+                                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-extrabold rounded-lg cursor-pointer"
+                              >
+                                Confirmar
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeletePostId(null)}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                triggerAudio('tap');
+                                setConfirmDeletePostId(post.id);
+                              }}
+                              title="Excluir Post"
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
 
-                    {/* Content text - clean, high legibility */}
-                    <p className="font-sans text-sm text-neutral-250 leading-relaxed whitespace-pre-line pl-1 font-normal">
+                    {/* Content */}
+                    <p className="font-sans text-sm text-slate-800 leading-relaxed whitespace-pre-line">
                       {post.content}
                     </p>
 
-                    {/* Actions and triggers - Elegant Instagram Action Bar */}
-                    <div className="flex items-center gap-6 pt-3 border-t border-neutral-800 text-neutral-400 text-xs font-semibold">
-                      {/* Like button */}
+                    {/* Action Bar */}
+                    <div className="flex items-center gap-6 pt-3 border-t border-slate-100 text-xs sm:text-sm font-bold">
                       <button
                         onClick={() => handleLikePost(post)}
-                        className={`flex items-center gap-1.5 transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                          isLikedByMe 
-                            ? 'text-rose-400' 
-                            : 'text-neutral-400 hover:text-rose-400'
+                        className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
+                          isLikedByMe ? 'text-rose-600' : 'text-slate-500 hover:text-rose-600'
                         }`}
                       >
-                        <Heart className={`w-5 h-5 transition-transform ${isLikedByMe ? 'fill-rose-400 text-rose-400 scale-110' : ''}`} />
-                        <span>{post.likes === 1 ? "1 curtida" : `${post.likes} curtidas`}</span>
+                        <Heart className={`w-4.5 h-4.5 ${isLikedByMe ? 'fill-rose-500 text-rose-500' : ''}`} />
+                        <span>{post.likes === 1 ? '1 curtida' : `${post.likes} curtidas`}</span>
                       </button>
 
-                      {/* Comment foldout trigger */}
                       <button
                         onClick={() => {
                           triggerAudio('tap');
                           setActiveCommentsPostId(activeCommentsPostId === post.id ? null : post.id);
                         }}
-                        className={`flex items-center gap-1.5 transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                        className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
                           activeCommentsPostId === post.id
-                            ? 'text-purple-300'
-                            : 'text-neutral-400 hover:text-purple-300'
+                            ? 'text-[#6D28D9]'
+                            : 'text-slate-500 hover:text-[#6D28D9]'
                         }`}
                       >
-                        <MessageSquare className="w-5 h-5" />
+                        <MessageSquare className="w-4.5 h-4.5" />
                         <span>Comentários</span>
                       </button>
                     </div>
@@ -507,7 +517,7 @@ export default function SocialSection({
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
-                          className="overflow-hidden pt-4 mt-2 border-t border-neutral-800"
+                          className="overflow-hidden pt-2"
                         >
                           <CommentsSection
                             targetId={post.id}
@@ -523,71 +533,70 @@ export default function SocialSection({
                 );
               })
             )}
-            </div>
           </div>
         </div>
 
-        {/* Right Sidebar Column: Mini Info Cards */}
+        {/* Right Sidebar Column */}
         <div className="space-y-6 lg:sticky lg:top-24">
-          {/* Rules / Conduct Box */}
-          <div className="bg-zinc-900/60 border border-white/5 rounded-3xl p-5 text-left space-y-4">
-            <h4 className="font-sans font-black text-sm text-yellow-300 uppercase tracking-wider flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-300 animate-pulse" />
-              <span>Regras do Mural 🛡️</span>
+          {/* Rules Box */}
+          <div className="pkxd-glass rounded-3xl p-5 sm:p-6 text-left space-y-4">
+            <h4 className="font-display font-bold text-base text-slate-900 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              <span>Regras do Mural</span>
             </h4>
-            <ul className="list-disc pl-4 font-sans text-[11px] text-gray-300 space-y-2 leading-relaxed">
+            <ul className="list-disc pl-4 font-sans text-xs text-slate-600 space-y-2 leading-relaxed">
               <li>
-                <strong className="text-white">Respeito sempre:</strong> Ofensas, bullying ou provocações não serão tolerados.
+                <strong className="text-slate-900">Respeito sempre:</strong> Ofensas, bullying ou provocações não são tolerados.
               </li>
               <li>
-                <strong className="text-white">Sem Vazamentos / Spoilers Mentirosos:</strong> Somente divulgue informações confirmadas oficiais. Não poste links falsos ou vírus.
+                <strong className="text-slate-900">Sem Spoilers Falsos:</strong> Compartilhe apenas ideias, teorias e informações confiáveis.
               </li>
               <li>
-                <strong className="text-white">Evite Spam:</strong> Não envie o mesmo post repetidamente ou faça propagandas não autorizadas.
+                <strong className="text-slate-900">Evite Spam:</strong> Não envie o mesmo post repetidamente ou propagandas não autorizadas.
               </li>
               <li>
-                <strong className="text-white">Punição:</strong> O descumprimento das regras resultará em remoção permanente do post e exclusão do ranking.
+                <strong className="text-slate-900">Moderação Ativa:</strong> Publicações fora das regras são removidas pela equipe.
               </li>
             </ul>
           </div>
 
-          {/* Connected Members Activity Feed widget */}
-          <div className="bg-zinc-900/60 border border-white/5 rounded-3xl p-5 text-left space-y-4">
-            <h4 className="font-sans font-black text-sm text-cyan-400 uppercase tracking-wider flex items-center gap-2">
-              <Award className="w-4 h-4 text-cyan-400" />
-              <span>Insígnias Sociais 🏆</span>
+          {/* Social Badges Widget */}
+          <div className="pkxd-glass rounded-3xl p-5 sm:p-6 text-left space-y-4">
+            <h4 className="font-display font-bold text-base text-slate-900 flex items-center gap-2">
+              <Award className="w-4 h-4 text-[#0284C7]" />
+              <span>Insígnias Sociais</span>
             </h4>
-            <p className="text-[11px] text-gray-400 leading-normal font-sans">
-              Interaja no Mural e suba de nível para desbloquear insígnias exclusivas que serão exibidas em seu perfil público!
+            <p className="text-xs text-slate-600 leading-relaxed font-sans">
+              Interaja no Mural e suba de nível para desbloquear insígnias exclusivas exibidas no seu perfil público.
             </p>
 
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/25 border border-white/5">
+            <div className="space-y-2.5 pt-1">
+              <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#FFFBEB] border border-amber-200">
                 <span className="text-xl">🌟</span>
                 <div>
-                  <h5 className="text-[10.5px] font-bold text-yellow-300 leading-tight">Fã Conectado</h5>
-                  <p className="text-[9.5px] text-gray-400">Logou com conta registrada no site.</p>
+                  <h5 className="text-xs font-extrabold text-amber-900 leading-tight">Fã Conectado</h5>
+                  <p className="text-[11px] text-amber-800/80">Logou com conta registrada no site.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/25 border border-white/5">
+              <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#F3F0FF] border border-purple-200">
                 <span className="text-xl">🔮</span>
                 <div>
-                  <h5 className="text-[10.5px] font-bold text-pink-400 leading-tight">Veterano da Central</h5>
-                  <p className="text-[9.5px] text-gray-400">Alcançou o Nível de Fã 5+.</p>
+                  <h5 className="text-xs font-extrabold text-purple-900 leading-tight">Veterano da Central</h5>
+                  <p className="text-[11px] text-purple-800/80">Alcançou o Nível de Fã 5+.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/25 border border-white/5">
+              <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#EFF8FF] border border-sky-200">
                 <span className="text-xl">🚀</span>
                 <div>
-                  <h5 className="text-[10.5px] font-bold text-cyan-400 leading-tight">Mestre dos Spoilers</h5>
-                  <p className="text-[9.5px] text-gray-400">Alcançou o Nível de Fã 10+.</p>
+                  <h5 className="text-xs font-extrabold text-sky-900 leading-tight">Mestre dos Spoilers</h5>
+                  <p className="text-[11px] text-sky-800/80">Alcançou o Nível de Fã 10+.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/25 border border-white/5">
+              <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-orange-50 border border-orange-200">
                 <span className="text-xl">🔥</span>
                 <div>
-                  <h5 className="text-[10.5px] font-bold text-orange-400 leading-tight">Estrela Cósmica</h5>
-                  <p className="text-[9.5px] text-gray-400">Alcançou 10+ Fogos conquistados.</p>
+                  <h5 className="text-xs font-extrabold text-orange-900 leading-tight">Estrela Cósmica</h5>
+                  <p className="text-[11px] text-orange-800/80">Alcançou 10+ Fogos conquistados.</p>
                 </div>
               </div>
             </div>
@@ -598,132 +607,154 @@ export default function SocialSection({
       {/* FULLSCREEN PUBLIC PROFILE MODAL */}
       <AnimatePresence>
         {selectedProfileId && selectedProfileData && (
-          <div 
+          <div
             onClick={() => setSelectedProfileId(null)}
-            className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in cursor-zoom-out"
+            className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
           >
-            <div 
+            <div
               onClick={(e) => e.stopPropagation()}
-              className="bg-zinc-900 border-2 border-purple-500/50 rounded-3xl p-6 sm:p-8 w-full max-w-xl relative shadow-[0_0_40px_rgba(139,92,246,0.3)] my-auto text-left cursor-default overflow-hidden"
+              className="pkxd-glass-modal rounded-3xl p-6 sm:p-8 w-full max-w-xl relative my-auto text-left overflow-hidden"
             >
-              {/* Cosmic profile top glow */}
-              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-400" />
-              
+              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-[#6D28D9] via-[#E83EBC] to-[#0284C7]" />
+
               <button
                 onClick={() => setSelectedProfileId(null)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-all text-xl cursor-pointer"
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                 title="Fechar Perfil"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
 
               {/* Profile Card Header */}
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 pt-4">
-                {/* Huge animated avatar */}
-                <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-orange-500 via-purple-600 to-cyan-400 p-1 flex items-center justify-center shadow-lg relative select-none text-4xl">
-                  <div className="w-full h-full bg-zinc-950 rounded-full flex items-center justify-center">
-                    {getAvatarFallback(selectedProfileData.name)}
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 pt-3">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-[#FACC15] via-pink-500 to-[#6D28D9] p-1 flex items-center justify-center shadow-md relative select-none text-4xl shrink-0">
+                  <div className="w-full h-full bg-white rounded-full flex items-center justify-center">
+                    {getAvatarFallback(selectedProfileData.name || 'Fã')}
                   </div>
                 </div>
 
                 <div className="space-y-2 text-center sm:text-left flex-1">
-                  <h3 className="font-mono text-xl sm:text-2xl font-black text-white flex items-center gap-2 justify-center sm:justify-start">
+                  <h3 className="font-display text-2xl font-bold text-slate-900 flex items-center gap-2 justify-center sm:justify-start flex-wrap">
                     <span>{selectedProfileData.name}</span>
-                    {selectedProfileData.level >= 10 && <span className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">Mestre</span>}
+                    {selectedProfileData.level >= 10 && (
+                      <span className="text-xs bg-sky-100 text-sky-800 px-2.5 py-0.5 rounded-full border border-sky-200 font-sans font-extrabold">
+                        Mestre
+                      </span>
+                    )}
                   </h3>
-                  
-                  <div className="flex items-center justify-center sm:justify-start gap-4 flex-wrap">
-                    <span className="text-[11px] font-bold text-orange-400 font-mono bg-orange-950/40 border border-orange-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1">
+
+                  <div className="flex items-center justify-center sm:justify-start gap-2.5 flex-wrap">
+                    <span className="text-xs font-extrabold text-orange-800 font-mono tabular-nums bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">
                       🔥 {selectedProfileData.flames || 1} FOGOS
                     </span>
-                    <span className="text-[11px] font-bold text-yellow-300 font-mono bg-yellow-950/40 border border-yellow-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                    <span className="text-xs font-extrabold text-amber-900 font-mono tabular-nums bg-[#FFFBEB] border border-amber-300 px-3 py-1 rounded-full">
                       ⭐ NÍVEL {selectedProfileData.level || 1}
                     </span>
                   </div>
 
                   {selectedProfileData.instagram && selectedProfileData.instagramPublic !== false && (
                     <a
-                      href={selectedProfileData.instagram.startsWith('http') ? selectedProfileData.instagram : `https://instagram.com/${selectedProfileData.instagram.replace('@', '')}`}
+                      href={
+                        selectedProfileData.instagram.startsWith('http')
+                          ? selectedProfileData.instagram
+                          : `https://instagram.com/${selectedProfileData.instagram.replace('@', '')}`
+                      }
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-pink-400 hover:text-pink-300 hover:underline font-mono"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-600 hover:underline font-mono"
                     >
                       <Instagram className="w-3.5 h-3.5" />
-                      <span>{selectedProfileData.instagram.startsWith('@') ? selectedProfileData.instagram : `@${selectedProfileData.instagram.split('/').pop()}`}</span>
+                      <span>
+                        {selectedProfileData.instagram.startsWith('@')
+                          ? selectedProfileData.instagram
+                          : `@${selectedProfileData.instagram.split('/').pop()}`}
+                      </span>
                     </a>
                   )}
                 </div>
               </div>
 
               {/* Bio Block */}
-              <div className="mt-6 p-4 rounded-2xl bg-zinc-950 border border-white/5 space-y-1.5">
-                <h4 className="text-[10.5px] text-gray-400 uppercase tracking-widest font-bold">Biografia do Fã</h4>
-                <p className="font-sans text-xs text-gray-200 leading-relaxed italic">
-                  {selectedProfileData.bio || '“Sou um fã apaixonado por PK XD e sempre acompanho as teorias e códigos oficiais da Central!”'}
+              <div className="mt-5 p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-1">
+                <h4 className="text-[11px] text-slate-500 uppercase tracking-wider font-extrabold">Biografia do Fã</h4>
+                <p className="font-sans text-xs sm:text-sm text-slate-700 leading-relaxed italic">
+                  {selectedProfileData.bio || '“Sou um fã apaixonado por PK XD e acompanho todas as novidades da PKXD Central!”'}
                 </p>
               </div>
 
               {/* Earned Badges block */}
-              <div className="mt-6 space-y-3">
-                <h4 className="text-[10.5px] text-gray-400 uppercase tracking-widest font-bold">Conquistas & Badges</h4>
+              <div className="mt-5 space-y-2.5">
+                <h4 className="text-[11px] text-slate-500 uppercase tracking-wider font-extrabold">Conquistas & Badges</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className={`p-3 rounded-xl border flex items-center gap-2.5 bg-black/20 ${selectedProfileData.id.startsWith('u_') ? 'border-zinc-800 opacity-40' : 'border-yellow-500/30'}`}>
+                  <div className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 bg-slate-50 ${selectedProfileData.id.startsWith('u_') ? 'border-slate-200 opacity-50' : 'border-amber-300 bg-[#FFFBEB]'}`}>
                     <span className="text-2xl">🌟</span>
                     <div>
-                      <h5 className="text-[10px] font-black text-white leading-none">FÃ REGISTRADO</h5>
-                      <span className="text-[8px] text-gray-400 uppercase">{selectedProfileData.id.startsWith('u_') ? 'Bloqueado' : 'Desbloqueado'}</span>
+                      <h5 className="text-[11px] font-extrabold text-slate-900 leading-tight">FÃ REGISTRADO</h5>
+                      <span className="text-[10px] text-slate-500 font-semibold">
+                        {selectedProfileData.id.startsWith('u_') ? 'Bloqueado' : 'Desbloqueado'}
+                      </span>
                     </div>
                   </div>
 
-                  <div className={`p-3 rounded-xl border flex items-center gap-2.5 bg-black/20 ${selectedProfileData.level < 5 ? 'border-zinc-800 opacity-40' : 'border-pink-500/30'}`}>
+                  <div className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 bg-slate-50 ${selectedProfileData.level < 5 ? 'border-slate-200 opacity-50' : 'border-purple-300 bg-[#F3F0FF]'}`}>
                     <span className="text-2xl">🔮</span>
                     <div>
-                      <h5 className="text-[10px] font-black text-white leading-none">FÃ VETERANO</h5>
-                      <span className="text-[8px] text-gray-400 uppercase">{selectedProfileData.level < 5 ? 'Nível 5+' : 'Desbloqueado'}</span>
+                      <h5 className="text-[11px] font-extrabold text-slate-900 leading-tight">FÃ VETERANO</h5>
+                      <span className="text-[10px] text-slate-500 font-semibold">
+                        {selectedProfileData.level < 5 ? 'Nível 5+' : 'Desbloqueado'}
+                      </span>
                     </div>
                   </div>
 
-                  <div className={`p-3 rounded-xl border flex items-center gap-2.5 bg-black/20 ${selectedProfileData.level < 10 ? 'border-zinc-800 opacity-40' : 'border-cyan-500/30'}`}>
+                  <div className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 bg-slate-50 ${selectedProfileData.level < 10 ? 'border-slate-200 opacity-50' : 'border-sky-300 bg-[#EFF8FF]'}`}>
                     <span className="text-2xl">🚀</span>
                     <div>
-                      <h5 className="text-[10px] font-black text-white leading-none">MESTRE SPOILER</h5>
-                      <span className="text-[8px] text-gray-400 uppercase">{selectedProfileData.level < 10 ? 'Nível 10+' : 'Desbloqueado'}</span>
+                      <h5 className="text-[11px] font-extrabold text-slate-900 leading-tight">MESTRE SPOILER</h5>
+                      <span className="text-[10px] text-slate-500 font-semibold">
+                        {selectedProfileData.level < 10 ? 'Nível 10+' : 'Desbloqueado'}
+                      </span>
                     </div>
                   </div>
 
-                  <div className={`p-3 rounded-xl border flex items-center gap-2.5 bg-black/20 ${selectedProfileData.flames < 10 ? 'border-zinc-800 opacity-40' : 'border-orange-500/30'}`}>
+                  <div className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 bg-slate-50 ${selectedProfileData.flames < 10 ? 'border-slate-200 opacity-50' : 'border-orange-300 bg-orange-50'}`}>
                     <span className="text-2xl">🔥</span>
                     <div>
-                      <h5 className="text-[10px] font-black text-white leading-none">ESTRELA DE FOGO</h5>
-                      <span className="text-[8px] text-gray-400 uppercase">{selectedProfileData.flames < 10 ? '10+ Fogos' : 'Desbloqueado'}</span>
+                      <h5 className="text-[11px] font-extrabold text-slate-900 leading-tight">ESTRELA DE FOGO</h5>
+                      <span className="text-[10px] text-slate-500 font-semibold">
+                        {selectedProfileData.flames < 10 ? '10+ Fogos' : 'Desbloqueado'}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Recent posts by user */}
-              <div className="mt-6 space-y-3">
-                <h4 className="text-[10.5px] text-gray-400 uppercase tracking-widest font-bold">Publicações Recentes ({profilePosts.length})</h4>
-                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1.5 custom-scrollbar">
+              <div className="mt-5 space-y-2.5">
+                <h4 className="text-[11px] text-slate-500 uppercase tracking-wider font-extrabold">
+                  Publicações Recentes ({profilePosts.length})
+                </h4>
+                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
                   {profilePosts.length === 0 ? (
-                    <p className="text-[11px] text-gray-500 font-sans italic">Nenhum post publicado recentemente no mural.</p>
+                    <p className="text-xs text-slate-500 font-sans italic">Nenhum post publicado recentemente no mural.</p>
                   ) : (
                     profilePosts.map((pp) => (
-                      <div key={pp.id} className="p-3 bg-zinc-950/75 border border-white/5 rounded-xl space-y-1">
-                        <p className="text-xs text-gray-200 line-clamp-2 leading-relaxed">{pp.content}</p>
-                        <span className="block text-[9px] text-gray-500 font-mono">{pp.createdAt && !isNaN(new Date(pp.createdAt).getTime())
-                          ? new Date(pp.createdAt).toLocaleDateString('pt-BR')
-                          : 'Sem Data'}</span>
+                      <div key={pp.id} className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                        <p className="text-xs text-slate-800 line-clamp-2 leading-relaxed">{pp.content}</p>
+                        <span className="block text-[10px] text-slate-500 font-mono">
+                          {pp.createdAt && !isNaN(new Date(pp.createdAt).getTime())
+                            ? new Date(pp.createdAt).toLocaleDateString('pt-BR')
+                            : 'Recente'}
+                        </span>
                       </div>
                     ))
                   )}
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-white/5">
+              <div className="mt-6 pt-4 border-t border-slate-100">
                 <button
                   onClick={() => setSelectedProfileId(null)}
-                  className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer text-center"
+                  className="pkxd-btn-outline w-full py-2.5 text-xs font-extrabold cursor-pointer text-center"
                 >
                   Fechar Perfil
                 </button>

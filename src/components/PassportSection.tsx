@@ -1,46 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import confetti from 'canvas-confetti';
-import html2canvas from 'html2canvas';
-import { 
-  PKXDPassport, 
-  PassportBadge, 
-  PassportStamp, 
-  PassportFriend, 
-  CommunityEvent 
+import {
+  PKXDPassport,
+  PassportBadge,
+  PassportStamp,
+  PassportFriend,
+  CommunityEvent
 } from '../types';
-import { 
-  User, 
-  QrCode, 
-  Award, 
-  BookmarkCheck, 
-  Users, 
-  Calendar, 
-  Share2, 
-  Edit3, 
-  Sparkles, 
-  Copy, 
-  Check, 
-  Gamepad2, 
-  Trophy, 
-  Plus, 
-  Trash2, 
-  X, 
-  CheckCircle2, 
-  Flame, 
-  UploadCloud, 
-  ShieldCheck, 
+import {
+  User,
+  QrCode,
+  Award,
+  BookmarkCheck,
+  Users,
+  Calendar,
+  Share2,
+  Edit3,
+  Sparkles,
+  Copy,
+  Check,
+  Trophy,
+  Plus,
+  Trash2,
+  X,
+  CheckCircle2,
+  Flame,
+  UploadCloud,
+  ShieldCheck,
   Star,
   Search,
-  Filter,
   Gift,
   KeyRound,
-  Coins,
   Download,
-  Camera,
   Loader2,
   Palette,
-  CheckCircle
+  Info,
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -153,7 +151,7 @@ export const DEFAULT_OFFICIAL_AVAILABLE_STAMPS: PassportStamp[] = [
     location: 'Central Plaza',
     date: '2026',
     icon: '🌟',
-    color: '#8b5cf6',
+    color: '#7C3AED',
     description: 'Carimbado para celebrar sua chegada ao novo portal PK XD Central.',
     xpReward: 50,
     isAvailable: true
@@ -165,7 +163,7 @@ export const DEFAULT_OFFICIAL_AVAILABLE_STAMPS: PassportStamp[] = [
     location: 'Ilha dos Criadores',
     date: '2026',
     icon: '🧭',
-    color: '#06b6d4',
+    color: '#0284C7',
     description: 'Resgatado por grandes desbravadores de novidades e eventos da Ilha PK XD.',
     xpReward: 75,
     isAvailable: true
@@ -177,7 +175,7 @@ export const DEFAULT_OFFICIAL_AVAILABLE_STAMPS: PassportStamp[] = [
     location: 'Praça das Estrelas',
     date: '2026',
     icon: '🎉',
-    color: '#ec4899',
+    color: '#DB2777',
     description: 'Selo oficial comemorativo do festival de dança e celebração dos criadores!',
     xpReward: 100,
     isAvailable: true
@@ -189,7 +187,7 @@ export const DEFAULT_OFFICIAL_AVAILABLE_STAMPS: PassportStamp[] = [
     location: 'Cofre Secreto',
     date: '2026',
     icon: '👑',
-    color: '#eab308',
+    color: '#D97706',
     description: 'Selo ultra raro desbloqueado com o código secreto CENTRALVIP ou 1000GEMAS.',
     secretCode: 'CENTRALVIP',
     xpReward: 200,
@@ -202,7 +200,7 @@ export const DEFAULT_OFFICIAL_AVAILABLE_STAMPS: PassportStamp[] = [
     location: 'Torre de Transmissão',
     date: '2026',
     icon: '🔮',
-    color: '#a855f7',
+    color: '#6D28D9',
     description: 'Selo misterioso resgatado através do código SPOILERMASTER ou WELCOME.',
     secretCode: 'SPOILERMASTER',
     xpReward: 150,
@@ -248,10 +246,6 @@ export const PRESET_AVATARS = [
   'https://api.dicebear.com/7.x/bottts/svg?seed=PKXD_Neon&backgroundColor=c1f2d5'
 ];
 
-/**
- * Compresses an uploaded image file using HTML5 canvas to prevent huge base64 strings
- * that exceed localStorage quota or Firestore document size limits.
- */
 export async function compressPassportImage(file: File, maxWidth = 256, maxHeight = 256, quality = 0.85): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -300,9 +294,6 @@ export async function compressPassportImage(file: File, maxWidth = 256, maxHeigh
   });
 }
 
-/**
- * Compact URL payload encoder for immediate zero-network card sharing
- */
 export function encodePassportPayload(p: PKXDPassport): string {
   try {
     const minimal = {
@@ -325,9 +316,6 @@ export function encodePassportPayload(p: PKXDPassport): string {
   }
 }
 
-/**
- * Decodes a compact URL payload
- */
 export function decodePassportPayload(encoded: string): PKXDPassport | null {
   try {
     const raw = decodeURIComponent(encoded);
@@ -363,11 +351,14 @@ export function decodePassportPayload(encoded: string): PKXDPassport | null {
 }
 
 /**
- * Builds the compact, clean official share URL for PKXD ID
+ * Gera link curto e limpo oficial para compartilhar PKXD ID
  */
 export function getPassportShareUrl(p: PKXDPassport): string {
-  const cleanTag = encodeURIComponent(p.playerTag || 'Explorador');
-  return `https://pkxdcentral.site/?id=${cleanTag}`;
+  const cleanTag = encodeURIComponent((p.playerTag || 'Explorador').trim());
+  const origin = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'https://pkxdcentral.site';
+  return `${origin}/?id=${cleanTag}`;
 }
 
 export default function PassportSection({
@@ -379,29 +370,50 @@ export default function PassportSection({
   triggerAudio,
   events = []
 }: PassportSectionProps) {
-  // Shared Passport state from URL parameter if any
   const [viewingSharedPassport, setViewingSharedPassport] = useState<PKXDPassport | null>(null);
 
-  // User's effective level and XP synchronized directly with account
   const effectiveLevel = viewingSharedPassport ? Number(viewingSharedPassport.level || 1) : Math.max(1, fanLevel || 1);
   const effectiveXP = viewingSharedPassport ? Number(viewingSharedPassport.xp || 0) : Math.max(0, fanXP || 0);
-  const totalLifetimeXP = viewingSharedPassport ? (viewingSharedPassport.totalXp || ((effectiveLevel - 1) * 100 + effectiveXP)) : (((effectiveLevel - 1) * 100) + effectiveXP);
-  const currentLevelProgress = Math.min(100, Math.max(0, effectiveXP % 100));
+  const totalLifetimeXP = viewingSharedPassport
+    ? ((effectiveLevel - 1) * 100 + effectiveXP)
+    : ((effectiveLevel - 1) * 100 + effectiveXP);
 
-  // Active tab inside Passport
   const [activeTab, setActiveTab] = useState<'card' | 'badges' | 'stamps' | 'friends' | 'events'>('card');
-  
+
+  // Inline feedback & confirmations (zero alert/confirm popups)
+  const [feedbackBanner, setFeedbackBanner] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmRemoveFriendId, setConfirmRemoveFriendId] = useState<string | null>(null);
+  const [confirmDeleteStampId, setConfirmDeleteStampId] = useState<string | null>(null);
+  const [confirmDeleteHistoryId, setConfirmDeleteHistoryId] = useState<string | null>(null);
+  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
+
+  // Beginner quick-start guide visibility
+  const [showOnboardingHint, setShowOnboardingHint] = useState(() => {
+    try {
+      return localStorage.getItem('pkxd_passport_hint_dismissed') !== '1';
+    } catch {
+      return true;
+    }
+  });
+
+  const showBanner = (text: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setFeedbackBanner({ text, type });
+    setTimeout(() => {
+      setFeedbackBanner(prev => (prev?.text === text ? null : prev));
+    }, 4500);
+  };
+
   // Card ref for high-resolution PNG downloads
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDownloadingCard, setIsDownloadingCard] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
-  // Filter for Badges
   const [badgeFilter, setBadgeFilter] = useState<'all' | 'unlocked' | 'locked'>('all');
   const [friendSearch, setFriendSearch] = useState('');
 
   // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalTab, setEditModalTab] = useState<'identity' | 'universe' | 'style'>('identity');
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isAddStampModalOpen, setIsAddStampModalOpen] = useState(false);
@@ -416,8 +428,7 @@ export default function PassportSection({
     imageUrl: '',
     filename: ''
   });
-  
-  // Notifications & Copy state
+
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedTag, setCopiedTag] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
@@ -428,7 +439,7 @@ export default function PassportSection({
   const [newFriendGame, setNewFriendGame] = useState('Crazy Run');
   const [friendError, setFriendError] = useState('');
 
-  // Stamps System: Available official stamps for redemption
+  // Stamps System
   const [availableStamps, setAvailableStamps] = useState<PassportStamp[]>(() => {
     const saved = localStorage.getItem('pkxd_available_stamps');
     if (saved) {
@@ -440,7 +451,6 @@ export default function PassportSection({
     return DEFAULT_OFFICIAL_AVAILABLE_STAMPS;
   });
 
-  // Secret code input form for stamp redemption
   const [secretStampCode, setSecretStampCode] = useState('');
   const [codeRedeemMsg, setCodeRedeemMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -450,42 +460,37 @@ export default function PassportSection({
   const [newStampLocation, setNewStampLocation] = useState('Central Plaza');
   const [newStampDate, setNewStampDate] = useState('2026');
   const [newStampIcon, setNewStampIcon] = useState('🏆');
-  const [newStampColor, setNewStampColor] = useState('#8b5cf6');
+  const [newStampColor, setNewStampColor] = useState('#7C3AED');
   const [newStampSecretCode, setNewStampSecretCode] = useState('');
   const [newStampXpReward, setNewStampXpReward] = useState(50);
 
   // Loaded passport data
   const [passport, setPassport] = useState<PKXDPassport>(() => {
-    const userAccountName = currentUser?.displayName || 
-      (currentUser?.email ? currentUser.email.split('@')[0] : '') || 
-      localStorage.getItem('pkxd_nickname') || 
-      localStorage.getItem('pkxd_username_nickname') || 
+    const userAccountName = currentUser?.displayName ||
+      (currentUser?.email ? currentUser.email.split('@')[0] : '') ||
+      localStorage.getItem('pkxd_nickname') ||
+      localStorage.getItem('pkxd_username_nickname') ||
       '';
 
     const saved = localStorage.getItem('pkxd_passport_data');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // If current user has a real account name and the saved tag is JOGADOR or generic, replace with the account name
         const isGenericTag = !parsed.playerTag || parsed.playerTag === 'JOGADOR' || parsed.playerTag === 'JOGADOR#000' || parsed.playerTag === 'GUEST';
         const isGenericNick = !parsed.nickname || parsed.nickname === 'Explorador' || parsed.nickname === 'Fã Secreto' || parsed.nickname === 'JOGADOR';
 
         const effectiveTag = (isGenericTag && userAccountName) ? userAccountName : (parsed.playerTag || userAccountName || 'Explorador');
         const effectiveNick = (isGenericNick && userAccountName) ? userAccountName : (parsed.nickname || userAccountName || 'Explorador');
 
-        // If current user has a photoURL and the saved one is stock or missing, use currentUser.photoURL!
         const effectiveAvatar = currentUser?.photoURL || (parsed.avatarUrl && !parsed.avatarUrl.includes('images.unsplash.com') ? parsed.avatarUrl : PRESET_AVATARS[0]);
-        // Clean out default mock stamps if any were saved
-        const effectiveStamps = (parsed.stamps || []).filter((s: PassportStamp) => 
+        const effectiveStamps = (parsed.stamps || []).filter((s: PassportStamp) =>
           s.id !== 'stamp_central_launch' && s.id !== 'stamp_summer_fest' && s.id !== 'stamp_crazy_run'
         );
-        // Ensure badges match latest text/descriptions
         const effectiveBadges = DEFAULT_BADGES.map(defB => {
           const existing = (parsed.badges || []).find((b: PassportBadge) => b.id === defB.id);
           return existing ? { ...defB, unlocked: existing.unlocked, unlockedAt: existing.unlockedAt } : defB;
         });
 
-        // Clean out old mock event history
         const effectiveEventHistory = (parsed.eventHistory || []).filter((h: any) =>
           h.id !== 'ev_1' && h.id !== 'ev_2' &&
           h.id !== 'event_crazy_run_mega' && h.id !== 'event_festa_desfile' &&
@@ -493,8 +498,7 @@ export default function PassportSection({
           !h.eventName?.includes('Grande Desfile')
         );
 
-        // Clean out mock friends
-        const effectiveFriends = (parsed.friends || []).filter((f: any) => 
+        const effectiveFriends = (parsed.friends || []).filter((f: any) =>
           f.id !== 'friend_1' && f.id !== 'friend_2' &&
           f.playerTag !== 'LunaStar' && f.playerTag !== 'GabePKXD'
         );
@@ -507,6 +511,7 @@ export default function PassportSection({
           avatarUrl: effectiveAvatar,
           level: effectiveLevel,
           xp: effectiveXP,
+          isPublic: parsed.isPublic !== false,
           badges: effectiveBadges,
           stamps: effectiveStamps,
           friends: effectiveFriends,
@@ -541,6 +546,7 @@ export default function PassportSection({
       favoriteMinigame: 'Crazy Run',
       houseTheme: 'Mansão Gamer',
       cardTheme: 'neon-purple',
+      isPublic: true,
       badges: DEFAULT_BADGES,
       stamps: DEFAULT_STAMPS,
       friends: [],
@@ -551,7 +557,6 @@ export default function PassportSection({
 
   // Form edit states
   const [editNick, setEditNick] = useState(passport.nickname);
-  const [editTag, setEditTag] = useState(passport.playerTag);
   const [editTagNumber, setEditTagNumber] = useState(() => {
     if (passport.playerTag && passport.playerTag.includes('#')) {
       return passport.playerTag.split('#')[1] || '';
@@ -572,13 +577,16 @@ export default function PassportSection({
   const [editFeaturedIcon, setEditFeaturedIcon] = useState(passport.featuredBadgeIcon || '⚡');
   const [editStatus, setEditStatus] = useState(passport.statusPhrase || '🎮 Explorando a Ilha');
   const [editPrefix, setEditPrefix] = useState(passport.nicknamePrefix || '');
+  const [editHonorBadgeId, setEditHonorBadgeId] = useState(passport.honorBadgeId || 'badge_pioneer');
+  const [editIsPublic, setEditIsPublic] = useState(passport.isPublic !== false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  const handleOpenEditModal = () => {
+  const handleOpenEditModal = (initialTab: 'identity' | 'universe' | 'style' = 'identity') => {
     setEditNick(passport.nickname);
-    setEditTag(passport.playerTag);
     if (passport.playerTag && passport.playerTag.includes('#')) {
       setEditTagNumber(passport.playerTag.split('#')[1] || '');
+    } else {
+      setEditTagNumber('000');
     }
     setEditBio(passport.bio);
     setEditTitle(passport.title);
@@ -594,6 +602,9 @@ export default function PassportSection({
     setEditFeaturedIcon(passport.featuredBadgeIcon || '⚡');
     setEditStatus(passport.statusPhrase || '🎮 Explorando a Ilha');
     setEditPrefix(passport.nicknamePrefix || '');
+    setEditHonorBadgeId(passport.honorBadgeId || 'badge_pioneer');
+    setEditIsPublic(passport.isPublic !== false);
+    setEditModalTab(initialTab);
     setIsEditModalOpen(true);
   };
 
@@ -607,7 +618,6 @@ export default function PassportSection({
 
         if (!sharedTag && !cardPayload) return;
 
-        // 1. If payload was encoded directly in URL, decode immediately with zero latency!
         let initialDecoded: PKXDPassport | null = null;
         if (cardPayload) {
           initialDecoded = decodePassportPayload(cardPayload);
@@ -618,13 +628,11 @@ export default function PassportSection({
           const currentMyTag = passport.playerTag?.toLowerCase().trim();
           const targetTag = rawTag.toLowerCase().trim();
 
-          // If the link is for a friend or card payload exists, activate shared view
           if (initialDecoded || (targetTag && targetTag !== currentMyTag)) {
             if (initialDecoded) {
               setViewingSharedPassport(initialDecoded);
             }
 
-            // 2. Also query Firestore for the latest public document to get any live sync
             if (db) {
               const cleanKey = encodeURIComponent(targetTag.replace(/[.#$/[\]]/g, '_'));
               const publicDocRef = doc(db, 'pkxd_public_passports', cleanKey);
@@ -647,7 +655,7 @@ export default function PassportSection({
     handleCheckSharedUrl();
   }, [passport.playerTag]);
 
-  // Sync profile photo and account name whenever currentUser changes (only if not already customized)
+  // Sync profile photo and account name whenever currentUser changes
   useEffect(() => {
     if (currentUser) {
       const accountName = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : '');
@@ -677,13 +685,12 @@ export default function PassportSection({
       });
 
       if (accountName) {
-        setEditTag(prevTag => (!prevTag || prevTag === 'JOGADOR' || prevTag === 'JOGADOR#000' || prevTag === 'GUEST') ? accountName : prevTag);
         setEditNick(prevNick => (!prevNick || prevNick === 'Explorador' || prevNick === 'Fã Secreto' || prevNick === 'JOGADOR') ? accountName : prevNick);
       }
     }
   }, [currentUser?.uid, currentUser?.displayName, currentUser?.email]);
 
-  // Sync Level & XP on props change (ensures strict synchronization with account)
+  // Sync Level & XP on props change
   useEffect(() => {
     if (!viewingSharedPassport) {
       setPassport(prev => {
@@ -730,22 +737,22 @@ export default function PassportSection({
             !h.eventName?.includes('Mega Torneio') &&
             !h.eventName?.includes('Grande Desfile')
           );
-          const cleanedFriends = (data.friends || []).filter((f: any) => 
+          const cleanedFriends = (data.friends || []).filter((f: any) =>
             f.id !== 'friend_1' && f.id !== 'friend_2' &&
             f.playerTag !== 'LunaStar' && f.playerTag !== 'GabePKXD'
           );
 
           setPassport(prev => {
-            const merged = { 
-              ...prev, 
+            const merged = {
+              ...prev,
               ...data,
               playerTag: finalTag,
               nickname: finalNick,
               avatarUrl: data.avatarUrl || currentUser?.photoURL || prev.avatarUrl,
               friends: cleanedFriends,
               eventHistory: cleanedHistory,
-              level: effectiveLevel, 
-              xp: effectiveXP 
+              level: effectiveLevel,
+              xp: effectiveXP
             };
             try {
               localStorage.setItem('pkxd_passport_data', JSON.stringify(merged));
@@ -762,9 +769,10 @@ export default function PassportSection({
     loadRemotePassport();
   }, [currentUser?.uid, currentUser?.displayName, currentUser?.email]);
 
-  // Generate QR Code with full self-contained share URL
+  // Generate QR Code with short share URL
   useEffect(() => {
-    const passportUrl = getPassportShareUrl(passport);
+    const target = viewingSharedPassport || passport;
+    const passportUrl = getPassportShareUrl(target);
     QRCode.toDataURL(passportUrl, {
       width: 280,
       margin: 1.5,
@@ -775,9 +783,9 @@ export default function PassportSection({
     })
       .then(url => setQrCodeDataUrl(url))
       .catch(err => console.error('Erro gerando QR Code:', err));
-  }, [passport.playerTag, passport.nickname, passport.cardTheme, passport.level, passport.favoriteMinigame, passport.avatarUrl, passport.bio]);
+  }, [passport, viewingSharedPassport]);
 
-  // Save passport helper (LocalStorage + Firestore public index + Firestore user)
+  // Save passport helper
   const savePassport = async (newPassport: PKXDPassport) => {
     setPassport(newPassport);
     try {
@@ -791,15 +799,12 @@ export default function PassportSection({
     if (db) {
       try {
         const cleanKey = encodeURIComponent((newPassport.playerTag || 'player').trim().toLowerCase().replace(/[.#$/[\]]/g, '_'));
-        
-        // Save to public passports collection so anyone opening the link can view it
         await setDoc(doc(db, 'pkxd_public_passports', cleanKey), {
           ...newPassport,
           cleanKey,
           lastSavedAt: Date.now()
         }, { merge: true });
 
-        // If user is authenticated, also sync to user_passports / pkxd_passports
         if (currentUser?.uid && currentUser.uid !== 'guest_user') {
           await setDoc(doc(db, 'pkxd_passports', currentUser.uid), newPassport, { merge: true });
         }
@@ -834,6 +839,8 @@ export default function PassportSection({
       featuredBadgeIcon: editFeaturedIcon,
       statusPhrase: editStatus.trim(),
       nicknamePrefix: editPrefix.trim(),
+      honorBadgeId: editHonorBadgeId,
+      isPublic: editIsPublic,
       updatedAt: Date.now()
     };
 
@@ -845,9 +852,9 @@ export default function PassportSection({
       localStorage.setItem('pkxd_username_nickname', formattedTag);
     } catch (err) {}
 
-    // Clear shared viewer if user edited their own card
     setViewingSharedPassport(null);
     setIsEditModalOpen(false);
+    showBanner('Seu PKXD ID foi atualizado e salvo com sucesso!', 'success');
 
     confetti({
       particleCount: 50,
@@ -859,12 +866,12 @@ export default function PassportSection({
     if (onAddXP) onAddXP(15, 'Atualizou identificação e perfil do Passaporte');
   };
 
-  // Avatar upload with auto-compression (prevents huge base64 strings and memory bugs)
+  // Avatar upload with auto-compression
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 12 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 12MB.');
+      showBanner('A imagem deve ter no máximo 12MB.', 'error');
       return;
     }
 
@@ -872,9 +879,10 @@ export default function PassportSection({
     try {
       const compressed = await compressPassportImage(file, 256, 256, 0.85);
       setEditAvatar(compressed);
+      showBanner('Foto carregada! Clique em "Salvar Alterações" para aplicar.', 'info');
     } catch (err) {
       console.error('Erro comprimindo imagem:', err);
-      alert('Não foi possível processar esta foto. Tente outra imagem.');
+      showBanner('Não foi possível processar esta foto. Tente outra imagem.', 'error');
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -883,7 +891,7 @@ export default function PassportSection({
   // Handle Add Friend from shared link
   const handleAddFriendFromShared = (shared: PKXDPassport) => {
     if (passport.friends.some(f => f.playerTag.toLowerCase() === shared.playerTag.toLowerCase())) {
-      alert('Este amigo já está na sua lista do Passaporte!');
+      showBanner('Este amigo já está na sua lista do Passaporte!', 'info');
       return;
     }
 
@@ -921,7 +929,7 @@ export default function PassportSection({
 
     if (onAddXP) onAddXP(20, `Adicionou ${shared.nickname} aos amigos!`);
     if (triggerAudio) triggerAudio('levelUp');
-    alert(`🎉 ${shared.nickname} foi adicionado à sua lista de amigos do Passaporte! (+20 XP)`);
+    showBanner(`${shared.nickname} foi adicionado à sua lista de amigos do Passaporte! (+20 XP)`, 'success');
   };
 
   // Handle Add Friend manual form
@@ -969,6 +977,7 @@ export default function PassportSection({
     setNewFriendNick('');
     setFriendError('');
     setIsAddFriendModalOpen(false);
+    showBanner(`${newFriend.nickname} adicionado à sua lista de amigos! (+15 XP)`, 'success');
 
     confetti({
       particleCount: 40,
@@ -980,19 +989,17 @@ export default function PassportSection({
     if (triggerAudio) triggerAudio('levelUp');
   };
 
-  // Remove friend
   const handleRemoveFriend = (friendId: string) => {
     const updatedFriends = (passport.friends || []).filter(f => f.id !== friendId);
-    const updated = {
+    savePassport({
       ...passport,
       friends: updatedFriends,
       updatedAt: Date.now()
-    };
-    savePassport(updated);
+    });
+    setConfirmRemoveFriendId(null);
     if (triggerAudio) triggerAudio('tap');
   };
 
-  // Handle Claim Stamp by player
   const handleClaimStamp = (stamp: PassportStamp) => {
     if (passport.stamps.some(s => s.id === stamp.id || s.title.toLowerCase() === stamp.title.toLowerCase())) {
       setCodeRedeemMsg({ text: `Você já possui o selo "${stamp.title}" carimbado no passaporte!`, type: 'error' });
@@ -1006,13 +1013,11 @@ export default function PassportSection({
     };
 
     const updatedStamps = [claimedStamp, ...(passport.stamps || [])];
-    const updated: PKXDPassport = {
+    savePassport({
       ...passport,
       stamps: updatedStamps,
       updatedAt: Date.now()
-    };
-
-    savePassport(updated);
+    });
 
     confetti({
       particleCount: 60,
@@ -1024,20 +1029,17 @@ export default function PassportSection({
     const xpReward = stamp.xpReward || 50;
     if (onAddXP) onAddXP(xpReward, `Resgatou o Selo Oficial: ${stamp.title}`);
 
-    setCodeRedeemMsg({ text: `🎉 Parabéns! Selo "${stamp.title}" resgatado com sucesso! (+${xpReward} XP)`, type: 'success' });
+    setCodeRedeemMsg({ text: `Selo "${stamp.title}" resgatado com sucesso! (+${xpReward} XP)`, type: 'success' });
     setTimeout(() => setCodeRedeemMsg(null), 4000);
   };
 
-  // Handle Redeem Secret Promo / Event Code for Stamps
   const handleRedeemSecretStampCode = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = secretStampCode.trim().toUpperCase().replace(/\s+/g, '');
     if (!cleanCode) return;
 
-    // Check if matching any secret stamp in availableStamps or built-ins
     let matchedStamp = availableStamps.find(s => s.secretCode && s.secretCode.toUpperCase() === cleanCode);
 
-    // Fallback built-in codes
     if (!matchedStamp) {
       if (cleanCode === 'CENTRALVIP' || cleanCode === 'VIP2026') {
         matchedStamp = availableStamps.find(s => s.id === 'stamp_secret_vip') || {
@@ -1047,7 +1049,7 @@ export default function PassportSection({
           location: 'Cofre Secreto',
           date: '2026',
           icon: '👑',
-          color: '#eab308',
+          color: '#D97706',
           description: 'Selo ultra raro desbloqueado com o código secreto CENTRALVIP.',
           xpReward: 200,
           isAvailable: false
@@ -1060,7 +1062,7 @@ export default function PassportSection({
           location: 'Torre de Transmissão',
           date: '2026',
           icon: '🔮',
-          color: '#a855f7',
+          color: '#6D28D9',
           description: 'Selo misterioso resgatado através do código secreto de Spoilers.',
           xpReward: 150,
           isAvailable: false
@@ -1073,7 +1075,7 @@ export default function PassportSection({
           location: 'Central PK XD',
           date: '2026',
           icon: cleanCode === '1000GEMAS' ? '💎' : '🪙',
-          color: cleanCode === '1000GEMAS' ? '#06b6d4' : '#eab308',
+          color: cleanCode === '1000GEMAS' ? '#0284C7' : '#D97706',
           description: `Selo de honra resgatado pelo código promocional ${cleanCode}!`,
           xpReward: 100
         };
@@ -1081,13 +1083,12 @@ export default function PassportSection({
     }
 
     if (!matchedStamp) {
-      setCodeRedeemMsg({ text: '❌ Código de selo não encontrado ou inválido. Tente CENTRALVIP, SPOILERMASTER ou 1000GEMAS!', type: 'error' });
+      setCodeRedeemMsg({ text: 'Código de selo não encontrado ou inválido. Tente CENTRALVIP, SPOILERMASTER ou 1000GEMAS.', type: 'error' });
       if (triggerAudio) triggerAudio('tap');
       setTimeout(() => setCodeRedeemMsg(null), 4000);
       return;
     }
 
-    // Check if already claimed
     if (passport.stamps.some(s => s.id === matchedStamp!.id || s.title.toLowerCase() === matchedStamp!.title.toLowerCase())) {
       setCodeRedeemMsg({ text: `Você já possui o selo "${matchedStamp.title}" carimbado no seu passaporte!`, type: 'error' });
       if (triggerAudio) triggerAudio('tap');
@@ -1095,12 +1096,10 @@ export default function PassportSection({
       return;
     }
 
-    // Claim stamp
     handleClaimStamp(matchedStamp);
     setSecretStampCode('');
   };
 
-  // Handle Claim Badge
   const handleClaimBadge = (badge: PassportBadge) => {
     const updatedBadges = passport.badges.map(b => {
       if (b.id === badge.id) {
@@ -1109,13 +1108,11 @@ export default function PassportSection({
       return b;
     });
 
-    const updated: PKXDPassport = {
+    savePassport({
       ...passport,
       badges: updatedBadges,
       updatedAt: Date.now()
-    };
-
-    savePassport(updated);
+    });
 
     confetti({
       particleCount: 50,
@@ -1128,7 +1125,6 @@ export default function PassportSection({
     if (onAddXP) onAddXP(xpReward, `Resgatou a Medalha: ${badge.title}`);
   };
 
-  // Handle Create Stamp (Admin)
   const handleCreateStamp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStampTitle.trim()) return;
@@ -1140,14 +1136,13 @@ export default function PassportSection({
       location: newStampLocation.trim() || 'Central Plaza',
       date: newStampDate.trim() || '2026',
       icon: newStampIcon.trim() || '🏆',
-      color: newStampColor || '#8b5cf6',
+      color: newStampColor || '#7C3AED',
       secretCode: newStampSecretCode.trim().toUpperCase() || undefined,
       xpReward: Number(newStampXpReward) || 50,
       isAvailable: !newStampSecretCode.trim(),
       acquiredAt: Date.now()
     };
 
-    // Add to available stamps so all players can view and redeem
     const updatedAvailable = [newStamp, ...availableStamps.filter(s => s.id !== newStamp.id)];
     setAvailableStamps(updatedAvailable);
     try {
@@ -1160,24 +1155,23 @@ export default function PassportSection({
       } catch (err) {}
     }
 
-    // Also carimbar directly for admin who created it
     const updatedStamps = [newStamp, ...(passport.stamps || [])];
-    const updated: PKXDPassport = {
+    savePassport({
       ...passport,
       stamps: updatedStamps,
       updatedAt: Date.now()
-    };
+    });
 
-    savePassport(updated);
     setNewStampTitle('');
     setNewStampEvent('');
     setNewStampLocation('Central Plaza');
     setNewStampDate('2026');
     setNewStampIcon('🏆');
-    setNewStampColor('#8b5cf6');
+    setNewStampColor('#7C3AED');
     setNewStampSecretCode('');
     setNewStampXpReward(50);
     setIsAddStampModalOpen(false);
+    showBanner('Novo Selo Oficial emitido e publicado!', 'success');
 
     confetti({
       particleCount: 50,
@@ -1189,44 +1183,41 @@ export default function PassportSection({
     if (onAddXP) onAddXP(25, 'Criou e publicou um novo Selo Oficial no Passaporte');
   };
 
-  // Handle Delete Stamp (Admin)
-  const handleDeleteStamp = (stampId: string, _stampTitle?: string) => {
+  const handleDeleteStamp = (stampId: string) => {
     const updatedStamps = (passport.stamps || []).filter(s => s.id !== stampId);
-    const updated: PKXDPassport = {
+    savePassport({
       ...passport,
       stamps: updatedStamps,
       updatedAt: Date.now()
-    };
-    savePassport(updated);
+    });
+    setConfirmDeleteStampId(null);
     if (triggerAudio) triggerAudio('tap');
   };
 
-  // Handle Delete Event History Item
-  const handleDeleteEventHistory = (histId: string, _histName?: string) => {
+  const handleDeleteEventHistory = (histId: string) => {
     const updatedHistory = (passport.eventHistory || []).filter(h => h.id !== histId);
-    const updated: PKXDPassport = {
+    savePassport({
       ...passport,
       eventHistory: updatedHistory,
       updatedAt: Date.now()
-    };
-    savePassport(updated);
+    });
+    setConfirmDeleteHistoryId(null);
     if (triggerAudio) triggerAudio('tap');
   };
 
-  // Handle Clear All Event History
   const handleClearEventHistory = () => {
-    const updated: PKXDPassport = {
+    savePassport({
       ...passport,
       eventHistory: [],
       updatedAt: Date.now()
-    };
-    savePassport(updated);
+    });
+    setConfirmClearHistory(false);
     if (triggerAudio) triggerAudio('tap');
   };
 
-  // Copy Profile Link with full self-contained share URL
   const handleCopyLink = () => {
-    const passportUrl = getPassportShareUrl(passport);
+    const target = viewingSharedPassport || passport;
+    const passportUrl = getPassportShareUrl(target);
     navigator.clipboard.writeText(passportUrl).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
@@ -1234,7 +1225,6 @@ export default function PassportSection({
     });
   };
 
-  // Copy Player Tag
   const handleCopyTag = () => {
     const targetTag = viewingSharedPassport ? viewingSharedPassport.playerTag : passport.playerTag;
     navigator.clipboard.writeText(targetTag).then(() => {
@@ -1244,15 +1234,14 @@ export default function PassportSection({
     });
   };
 
-  // Get theme card gradients and styling attributes
+  // Visual theme styles strictly applied INSIDE #pkxd-passport-card preview
   const getThemeGradients = (theme: PKXDPassport['cardTheme']) => {
     switch (theme) {
       case 'cyber-blue':
         return {
-          bg: 'from-cyan-950 via-slate-900 to-blue-950 border-cyan-400/80 shadow-[0_12px_45px_rgba(6,182,212,0.35)]',
+          bg: 'from-cyan-950 via-slate-900 to-blue-950 border-cyan-400/80 shadow-[0_12px_35px_rgba(6,182,212,0.28)]',
           chip: 'from-cyan-300 via-teal-400 to-blue-600 border-cyan-200 text-cyan-950',
           accentText: 'text-cyan-300',
-          badgeBorder: 'border-cyan-500/40 bg-cyan-950/60',
           levelBar: 'from-cyan-400 via-blue-400 to-indigo-400',
           glow1: 'bg-cyan-500/20',
           glow2: 'bg-blue-500/20',
@@ -1260,10 +1249,9 @@ export default function PassportSection({
         };
       case 'golden-vip':
         return {
-          bg: 'from-amber-950 via-zinc-950 to-yellow-950 border-yellow-400/90 shadow-[0_12px_45px_rgba(234,179,8,0.35)]',
+          bg: 'from-amber-950 via-zinc-950 to-yellow-950 border-yellow-400/90 shadow-[0_12px_35px_rgba(234,179,8,0.28)]',
           chip: 'from-yellow-200 via-amber-400 to-yellow-600 border-yellow-100 text-amber-950',
           accentText: 'text-yellow-300',
-          badgeBorder: 'border-yellow-500/40 bg-amber-950/60',
           levelBar: 'from-yellow-300 via-amber-400 to-orange-400',
           glow1: 'bg-yellow-500/20',
           glow2: 'bg-amber-500/20',
@@ -1271,10 +1259,9 @@ export default function PassportSection({
         };
       case 'sunset-pink':
         return {
-          bg: 'from-pink-950 via-purple-950 to-rose-950 border-pink-400/80 shadow-[0_12px_45px_rgba(236,72,153,0.35)]',
+          bg: 'from-pink-950 via-purple-950 to-rose-950 border-pink-400/80 shadow-[0_12px_35px_rgba(236,72,153,0.28)]',
           chip: 'from-pink-300 via-rose-400 to-purple-600 border-pink-200 text-purple-950',
           accentText: 'text-pink-300',
-          badgeBorder: 'border-pink-500/40 bg-pink-950/60',
           levelBar: 'from-pink-400 via-rose-400 to-purple-400',
           glow1: 'bg-pink-500/20',
           glow2: 'bg-rose-500/20',
@@ -1282,10 +1269,9 @@ export default function PassportSection({
         };
       case 'emerald-gamer':
         return {
-          bg: 'from-emerald-950 via-slate-950 to-teal-950 border-emerald-400/80 shadow-[0_12px_45px_rgba(16,185,129,0.35)]',
+          bg: 'from-emerald-950 via-slate-950 to-teal-950 border-emerald-400/80 shadow-[0_12px_35px_rgba(16,185,129,0.28)]',
           chip: 'from-emerald-300 via-teal-400 to-green-600 border-emerald-200 text-emerald-950',
           accentText: 'text-emerald-300',
-          badgeBorder: 'border-emerald-500/40 bg-emerald-950/60',
           levelBar: 'from-emerald-400 via-teal-300 to-cyan-400',
           glow1: 'bg-emerald-500/20',
           glow2: 'bg-teal-500/20',
@@ -1293,10 +1279,9 @@ export default function PassportSection({
         };
       case 'volcano-red':
         return {
-          bg: 'from-red-950 via-zinc-950 to-orange-950 border-orange-500/80 shadow-[0_12px_45px_rgba(249,115,22,0.35)]',
+          bg: 'from-red-950 via-zinc-950 to-orange-950 border-orange-500/80 shadow-[0_12px_35px_rgba(249,115,22,0.28)]',
           chip: 'from-orange-300 via-amber-400 to-red-600 border-orange-200 text-orange-950',
           accentText: 'text-orange-300',
-          badgeBorder: 'border-orange-500/40 bg-red-950/60',
           levelBar: 'from-orange-400 via-red-500 to-amber-300',
           glow1: 'bg-orange-500/20',
           glow2: 'bg-red-500/20',
@@ -1304,10 +1289,9 @@ export default function PassportSection({
         };
       case 'frost-diamond':
         return {
-          bg: 'from-sky-950 via-slate-950 to-blue-950 border-sky-300/90 shadow-[0_12px_45px_rgba(56,189,248,0.35)]',
+          bg: 'from-sky-950 via-slate-950 to-blue-950 border-sky-300/90 shadow-[0_12px_35px_rgba(56,189,248,0.28)]',
           chip: 'from-sky-200 via-blue-300 to-indigo-500 border-white text-blue-950',
           accentText: 'text-sky-300',
-          badgeBorder: 'border-sky-500/40 bg-sky-950/60',
           levelBar: 'from-sky-300 via-blue-400 to-teal-300',
           glow1: 'bg-sky-500/20',
           glow2: 'bg-blue-500/20',
@@ -1315,10 +1299,9 @@ export default function PassportSection({
         };
       case 'galaxy-space':
         return {
-          bg: 'from-fuchsia-950 via-purple-950 to-zinc-950 border-fuchsia-400/80 shadow-[0_12px_45px_rgba(217,70,239,0.35)]',
+          bg: 'from-fuchsia-950 via-purple-950 to-zinc-950 border-fuchsia-400/80 shadow-[0_12px_35px_rgba(217,70,239,0.28)]',
           chip: 'from-fuchsia-300 via-purple-400 to-indigo-600 border-fuchsia-200 text-purple-950',
           accentText: 'text-fuchsia-300',
-          badgeBorder: 'border-fuchsia-500/40 bg-purple-950/60',
           levelBar: 'from-fuchsia-400 via-purple-500 to-indigo-400',
           glow1: 'bg-fuchsia-500/20',
           glow2: 'bg-purple-500/20',
@@ -1326,10 +1309,9 @@ export default function PassportSection({
         };
       case 'candy-pop':
         return {
-          bg: 'from-pink-950 via-sky-950 to-indigo-950 border-pink-400/80 shadow-[0_12px_45px_rgba(244,114,182,0.35)]',
+          bg: 'from-pink-950 via-sky-950 to-indigo-950 border-pink-400/80 shadow-[0_12px_35px_rgba(244,114,182,0.28)]',
           chip: 'from-pink-200 via-sky-300 to-indigo-400 border-pink-200 text-pink-950',
           accentText: 'text-pink-300',
-          badgeBorder: 'border-pink-500/40 bg-sky-950/60',
           levelBar: 'from-pink-400 via-sky-300 to-emerald-300',
           glow1: 'bg-pink-500/20',
           glow2: 'bg-sky-500/20',
@@ -1337,10 +1319,9 @@ export default function PassportSection({
         };
       case 'retro-arcade':
         return {
-          bg: 'from-purple-950 via-zinc-950 to-emerald-950 border-green-400/80 shadow-[0_12px_45px_rgba(74,222,128,0.35)]',
+          bg: 'from-purple-950 via-zinc-950 to-emerald-950 border-green-400/80 shadow-[0_12px_35px_rgba(74,222,128,0.28)]',
           chip: 'from-green-300 via-emerald-400 to-purple-600 border-green-200 text-green-950',
           accentText: 'text-green-300',
-          badgeBorder: 'border-green-500/40 bg-zinc-950/60',
           levelBar: 'from-purple-500 via-pink-500 to-green-400',
           glow1: 'bg-green-500/20',
           glow2: 'bg-purple-500/20',
@@ -1348,10 +1329,9 @@ export default function PassportSection({
         };
       case 'aurora-nordic':
         return {
-          bg: 'from-teal-950 via-slate-950 to-cyan-950 border-teal-300/80 shadow-[0_12px_45px_rgba(45,212,191,0.35)]',
+          bg: 'from-teal-950 via-slate-950 to-cyan-950 border-teal-300/80 shadow-[0_12px_35px_rgba(45,212,191,0.28)]',
           chip: 'from-teal-200 via-cyan-300 to-sky-500 border-teal-100 text-teal-950',
           accentText: 'text-teal-300',
-          badgeBorder: 'border-teal-500/40 bg-teal-950/60',
           levelBar: 'from-teal-300 via-cyan-400 to-blue-400',
           glow1: 'bg-teal-500/20',
           glow2: 'bg-cyan-500/20',
@@ -1359,10 +1339,9 @@ export default function PassportSection({
         };
       case 'lava-core':
         return {
-          bg: 'from-stone-950 via-orange-950 to-red-950 border-orange-500/90 shadow-[0_12px_45px_rgba(249,115,22,0.35)]',
+          bg: 'from-stone-950 via-orange-950 to-red-950 border-orange-500/90 shadow-[0_12px_35px_rgba(249,115,22,0.28)]',
           chip: 'from-orange-300 via-amber-400 to-red-600 border-orange-200 text-orange-950',
           accentText: 'text-orange-400',
-          badgeBorder: 'border-orange-500/40 bg-red-950/60',
           levelBar: 'from-amber-400 via-orange-500 to-red-600',
           glow1: 'bg-orange-500/20',
           glow2: 'bg-red-500/20',
@@ -1371,10 +1350,9 @@ export default function PassportSection({
       case 'neon-purple':
       default:
         return {
-          bg: 'from-purple-950 via-indigo-950 to-zinc-950 border-purple-400/80 shadow-[0_12px_45px_rgba(168,85,247,0.35)]',
+          bg: 'from-purple-950 via-indigo-950 to-zinc-950 border-purple-400/80 shadow-[0_12px_35px_rgba(168,85,247,0.28)]',
           chip: 'from-yellow-300 via-amber-400 to-yellow-600 border-yellow-200 text-purple-950',
           accentText: 'text-purple-300',
-          badgeBorder: 'border-purple-500/40 bg-purple-950/60',
           levelBar: 'from-yellow-300 via-pink-400 to-cyan-300',
           glow1: 'bg-purple-500/20',
           glow2: 'bg-pink-500/20',
@@ -1383,7 +1361,7 @@ export default function PassportSection({
     }
   };
 
-  // Download Card as High Quality PNG Image with multi-layer export & preview modal
+  // Download Card as High Quality PNG Image
   const handleDownloadCard = async (targetNickname?: string, targetTag?: string) => {
     setIsDownloadingCard(true);
     try {
@@ -1394,16 +1372,17 @@ export default function PassportSection({
       const filename = `PKXD_ID_${cleanNick}_${cleanTag}.png`;
 
       const result = await exportPKXDCardImage(cardRef.current, targetPassport);
+      const imageUrl = result.objectUrl || result.dataUrl;
 
-      if (result.success && result.objectUrl) {
+      if (result.success && imageUrl) {
         setPreviewModalData({
           isOpen: true,
-          imageUrl: result.objectUrl,
+          imageUrl,
           blob: result.blob,
           filename
         });
         confetti({
-          particleCount: 80,
+          particleCount: 70,
           spread: 70,
           origin: { y: 0.6 }
         });
@@ -1416,7 +1395,6 @@ export default function PassportSection({
       }
     } catch (err) {
       console.warn('Erro ao processar imagem do cartão PKXD ID:', err);
-      // Fallback: directly render native 2D canvas
       try {
         const targetPassport = viewingSharedPassport || passport;
         const { renderNativeCanvasCard } = await import('../utils/pkxdCardExporter');
@@ -1435,62 +1413,60 @@ export default function PassportSection({
             });
             setDownloadSuccess(true);
             setTimeout(() => setDownloadSuccess(false), 4000);
+          } else {
+            showBanner('Não foi possível gerar a imagem no momento. Tente novamente!', 'error');
           }
         }, 'image/png');
       } catch (fallbackErr) {
         console.error('Fallback canvas generation also failed:', fallbackErr);
-        alert('Não foi possível gerar a imagem no momento. Tente novamente!');
+        showBanner('Não foi possível gerar a imagem no momento. Tente novamente!', 'error');
       }
     } finally {
       setIsDownloadingCard(false);
     }
   };
 
-  // Filtered badges
   const filteredBadges = passport.badges.filter(b => {
     if (badgeFilter === 'unlocked') return b.unlocked;
     if (badgeFilter === 'locked') return !b.unlocked;
     return true;
   });
 
-  // Filtered friends
-  const filteredFriends = passport.friends.filter(f => 
+  const filteredFriends = passport.friends.filter(f =>
     f.nickname.toLowerCase().includes(friendSearch.toLowerCase()) ||
     f.playerTag.toLowerCase().includes(friendSearch.toLowerCase())
   );
 
+  const unlockedBadgesCount = passport.badges.filter(b => b.unlocked).length;
+
   return (
     <div className="space-y-6 text-left animate-fade-in" id="passport-root-container">
-      {/* Top Banner & Header */}
-      <div className="bg-gradient-to-r from-purple-950 via-zinc-900 to-indigo-950 border-2 border-purple-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-56 h-56 bg-purple-500/15 rounded-full filter blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/4 w-40 h-40 bg-pink-500/10 rounded-full filter blur-2xl pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      {/* Header Clean PKXD Central 2.0 */}
+      <div className="pkxd-glass rounded-3xl p-6 sm:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 px-3.5 py-1 rounded-full text-pink-300 font-mono text-[10px] font-black uppercase tracking-widest">
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin-slow" />
-              Identidade Digital da Comunidade
-            </div>
-            <h2 className="font-sans font-black text-2xl sm:text-4xl text-white uppercase tracking-tight leading-tight">
-              PKXD <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-400">ID</span> 🪪
+            <span className="inline-flex items-center gap-1.5 bg-[#F3F0FF] border border-purple-200 px-3 py-1 rounded-full text-[#6D28D9] font-sans text-xs font-extrabold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5" />
+              Passaporte Digital Oficial
+            </span>
+            <h2 className="font-display font-bold text-2xl sm:text-4xl text-slate-900 tracking-tight">
+              PKXD <span className="text-[#6D28D9]">ID</span>
             </h2>
-            <p className="font-sans text-xs sm:text-sm text-gray-300 max-w-xl leading-relaxed">
-              Sua identidade digital oficial na Ilha PK XD! Colecione medalhas, carimbos de temporadas, conecte amigos, suba de nível com suas atividades e compartilhe seu QR Code exclusivo!
+            <p className="font-sans text-sm text-slate-600 max-w-xl leading-relaxed">
+              Personalize seu cartão de cidadão da Ilha, baixe em imagem HD e compartilhe seu link curto ou QR Code com amigos!
             </p>
           </div>
 
-          {/* Quick Action Controls */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
             <button
               onClick={() => {
                 if (triggerAudio) triggerAudio('tap');
-                handleOpenEditModal();
+                handleOpenEditModal('identity');
               }}
-              className="px-4 py-2.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400/30 hover:border-purple-400 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 shadow-md"
+              className="pkxd-btn-outline px-4 py-2.5 text-xs flex items-center gap-2 cursor-pointer"
             >
-              <Edit3 className="w-4 h-4 text-purple-300" />
-              <span>Editar Perfil</span>
+              <Edit3 className="w-4 h-4 text-[#6D28D9]" />
+              <span>Editar Cartão</span>
             </button>
 
             <button
@@ -1498,29 +1474,87 @@ export default function PassportSection({
                 if (triggerAudio) triggerAudio('tap');
                 setIsShareModalOpen(true);
               }}
-              className="px-4 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:brightness-110 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 shadow-lg"
+              className="pkxd-btn-primary px-4 py-2.5 text-xs flex items-center gap-2 cursor-pointer"
             >
               <QrCode className="w-4 h-4" />
-              <span>QR Code & Link</span>
+              <span>QR Code & Link Curto</span>
             </button>
           </div>
         </div>
+
+        {/* Guia rápido amigável no primeiro acesso */}
+        {showOnboardingHint && (
+          <div className="mt-5 pt-4 border-t-2 border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 text-xs font-sans text-slate-600">
+              <span className="inline-flex items-center gap-1.5 font-extrabold text-[#0284C7] bg-[#EFF8FF] border border-sky-200 px-2.5 py-1 rounded-xl">
+                <Info className="w-3.5 h-3.5" /> Como usar em 3 passos:
+              </span>
+              <span><strong className="text-slate-900">1.</strong> Edite seu nick e tema</span>
+              <span className="text-slate-300">•</span>
+              <span><strong className="text-slate-900">2.</strong> Baixe em PNG HD</span>
+              <span className="text-slate-300">•</span>
+              <span><strong className="text-slate-900">3.</strong> Compartilhe o link curto</span>
+            </div>
+            <button
+              onClick={() => {
+                setShowOnboardingHint(false);
+                try {
+                  localStorage.setItem('pkxd_passport_hint_dismissed', '1');
+                } catch {}
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer self-end sm:self-center"
+            >
+              Entendi ✓
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Modern Horizontal Tabs Navigation with smooth pill design */}
-      <div className="bg-zinc-900/90 p-1.5 sm:p-2 rounded-2xl border border-white/10 flex items-center gap-1.5 overflow-x-auto scrollbar-none shadow-lg">
+      {/* Inline Notification Banner */}
+      {feedbackBanner && (
+        <div
+          className={`p-3.5 rounded-2xl border-2 text-xs sm:text-sm font-sans font-bold flex items-center justify-between gap-3 ${
+            feedbackBanner.type === 'success'
+              ? 'bg-[#ECFDF5] border-emerald-200 text-emerald-800'
+              : feedbackBanner.type === 'error'
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-[#EFF8FF] border-sky-200 text-sky-900'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {feedbackBanner.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : feedbackBanner.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            ) : (
+              <Info className="w-4 h-4 text-[#0284C7] shrink-0" />
+            )}
+            <span>{feedbackBanner.text}</span>
+          </div>
+          <button
+            onClick={() => setFeedbackBanner(null)}
+            className="text-current opacity-70 hover:opacity-100 cursor-pointer"
+            title="Fechar aviso"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Horizontal Navigation Tabs */}
+      <div className="pkxd-glass p-1.5 sm:p-2 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-none">
         <button
           onClick={() => {
             if (triggerAudio) triggerAudio('tap');
             setActiveTab('card');
           }}
-          className={`flex-1 min-w-[100px] py-2.5 px-3 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 min-w-[100px] py-2.5 px-3 rounded-xl font-sans font-extrabold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'card'
-              ? 'bg-purple-600 text-white shadow-md border border-purple-400/50 scale-[1.02]'
-              : 'text-gray-400 hover:text-white hover:bg-zinc-800'
+              ? 'bg-[#6D28D9] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <User className="w-4 h-4 text-purple-300" />
+          <User className="w-4 h-4" />
           <span>Cartão ID</span>
         </button>
 
@@ -1529,14 +1563,14 @@ export default function PassportSection({
             if (triggerAudio) triggerAudio('tap');
             setActiveTab('badges');
           }}
-          className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 min-w-[115px] py-2.5 px-3 rounded-xl font-sans font-extrabold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'badges'
-              ? 'bg-purple-600 text-white shadow-md border border-purple-400/50 scale-[1.02]'
-              : 'text-gray-400 hover:text-white hover:bg-zinc-800'
+              ? 'bg-[#6D28D9] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <Award className="w-4 h-4 text-yellow-300" />
-          <span>Medalhas ({passport.badges.filter(b => b.unlocked).length}/{passport.badges.length})</span>
+          <Award className={`w-4 h-4 ${activeTab === 'badges' ? 'text-amber-300' : 'text-amber-500'}`} />
+          <span>Medalhas ({unlockedBadgesCount}/{passport.badges.length})</span>
         </button>
 
         <button
@@ -1544,13 +1578,13 @@ export default function PassportSection({
             if (triggerAudio) triggerAudio('tap');
             setActiveTab('stamps');
           }}
-          className={`flex-1 min-w-[95px] py-2.5 px-3 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 min-w-[95px] py-2.5 px-3 rounded-xl font-sans font-extrabold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'stamps'
-              ? 'bg-purple-600 text-white shadow-md border border-purple-400/50 scale-[1.02]'
-              : 'text-gray-400 hover:text-white hover:bg-zinc-800'
+              ? 'bg-[#6D28D9] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <BookmarkCheck className="w-4 h-4 text-cyan-300" />
+          <BookmarkCheck className={`w-4 h-4 ${activeTab === 'stamps' ? 'text-sky-200' : 'text-[#0284C7]'}`} />
           <span>Selos ({passport.stamps.length})</span>
         </button>
 
@@ -1559,13 +1593,13 @@ export default function PassportSection({
             if (triggerAudio) triggerAudio('tap');
             setActiveTab('friends');
           }}
-          className={`flex-1 min-w-[100px] py-2.5 px-3 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 min-w-[100px] py-2.5 px-3 rounded-xl font-sans font-extrabold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'friends'
-              ? 'bg-purple-600 text-white shadow-md border border-purple-400/50 scale-[1.02]'
-              : 'text-gray-400 hover:text-white hover:bg-zinc-800'
+              ? 'bg-[#6D28D9] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <Users className="w-4 h-4 text-pink-300" />
+          <Users className={`w-4 h-4 ${activeTab === 'friends' ? 'text-pink-200' : 'text-pink-600'}`} />
           <span>Amigos ({passport.friends.length})</span>
         </button>
 
@@ -1574,19 +1608,19 @@ export default function PassportSection({
             if (triggerAudio) triggerAudio('tap');
             setActiveTab('events');
           }}
-          className={`flex-1 min-w-[95px] py-2.5 px-3 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 min-w-[95px] py-2.5 px-3 rounded-xl font-sans font-extrabold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'events'
-              ? 'bg-purple-600 text-white shadow-md border border-purple-400/50 scale-[1.02]'
-              : 'text-gray-400 hover:text-white hover:bg-zinc-800'
+              ? 'bg-[#6D28D9] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <Calendar className="w-4 h-4 text-emerald-300" />
+          <Calendar className={`w-4 h-4 ${activeTab === 'events' ? 'text-emerald-200' : 'text-emerald-600'}`} />
           <span>Eventos</span>
         </button>
       </div>
 
       {/* ========================================================= */}
-      {/* TAB 1: VISUAL PKXD ID CARD (PREMIUM HOLOGRAPHIC CITIZEN CARD) */}
+      {/* TAB 1: CARTÃO ID */}
       {/* ========================================================= */}
       {activeTab === 'card' && (() => {
         const displayPassport = viewingSharedPassport || {
@@ -1597,22 +1631,22 @@ export default function PassportSection({
         const isViewingOther = !!viewingSharedPassport;
         const cardLevel = viewingSharedPassport ? Number(viewingSharedPassport.level || 1) : effectiveLevel;
         const cardXP = viewingSharedPassport ? Number(viewingSharedPassport.xp || 0) : effectiveXP;
-        const cardTotalXP = viewingSharedPassport ? (viewingSharedPassport.totalXp || ((cardLevel - 1) * 100 + cardXP)) : totalLifetimeXP;
+        const cardTotalXP = viewingSharedPassport
+          ? ((cardLevel - 1) * 100 + cardXP)
+          : totalLifetimeXP;
         const themeStyle = getThemeGradients(displayPassport.cardTheme);
-        const unlockedBadgesCount = (displayPassport.badges || []).filter(b => b.unlocked).length;
-        const totalBadgesCount = (displayPassport.badges || []).length;
-        const stampsCount = (displayPassport.stamps || []).length;
+        const honorBadge = (displayPassport.badges || []).find(b => b.id === displayPassport.honorBadgeId && b.unlocked);
 
         return (
           <div className="space-y-6 animate-fade-in">
-            {/* Banner when viewing a friend's shared passport */}
+            {/* Shared passport banner */}
             {isViewingOther && (
-              <div className="bg-gradient-to-r from-purple-900/95 via-pink-900/90 to-indigo-900/95 border-2 border-pink-500/70 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="bg-[#F3F0FF] border-2 border-purple-300 rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5 w-full sm:w-auto">
-                  <div className="w-13 h-13 rounded-2xl overflow-hidden border-2 border-yellow-300 shadow-md bg-black/60 flex-shrink-0">
-                    <img 
-                      src={displayPassport.avatarUrl || PRESET_AVATARS[0]} 
-                      alt={displayPassport.nickname} 
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-[#6D28D9] shadow-sm bg-white flex-shrink-0">
+                    <img
+                      src={displayPassport.avatarUrl || PRESET_AVATARS[0]}
+                      alt={displayPassport.nickname}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       onError={(e) => { (e.target as any).src = PRESET_AVATARS[0]; }}
@@ -1620,13 +1654,14 @@ export default function PassportSection({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-mono uppercase bg-yellow-400 text-black font-black px-2.5 py-0.5 rounded-full shadow-sm">
+                      <span className="text-[10px] font-mono uppercase bg-[#FACC15] text-slate-900 font-black px-2.5 py-0.5 rounded-full">
                         PKXD ID Compartilhado
                       </span>
-                      <span className="text-xs text-pink-300 font-bold">Nível {cardLevel}</span>
+                      <span className="text-xs text-[#6D28D9] font-extrabold">Nível {cardLevel}</span>
                     </div>
-                    <h3 className="font-sans font-black text-base sm:text-lg text-white truncate">
-                      {displayPassport.nickname} <span className="text-xs font-mono text-cyan-300 font-normal">({displayPassport.playerTag})</span>
+                    <h3 className="font-display font-bold text-base sm:text-lg text-slate-900 truncate mt-0.5">
+                      {displayPassport.nickname}{' '}
+                      <span className="text-xs font-mono text-[#0284C7] font-bold">({displayPassport.playerTag})</span>
                     </h3>
                   </div>
                 </div>
@@ -1634,7 +1669,7 @@ export default function PassportSection({
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto flex-shrink-0">
                   <button
                     onClick={() => handleAddFriendFromShared(displayPassport)}
-                    className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:brightness-110 active:scale-95 text-white font-sans font-black text-xs uppercase rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="pkxd-btn-primary flex-1 sm:flex-none px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Users className="w-4 h-4" />
                     <span>Adicionar Amigo (+20 XP)</span>
@@ -1644,6 +1679,7 @@ export default function PassportSection({
                     onClick={() => {
                       setViewingSharedPassport(null);
                       const url = new URL(window.location.href);
+                      url.searchParams.delete('id');
                       url.searchParams.delete('passaporte');
                       url.searchParams.delete('card');
                       url.searchParams.delete('data');
@@ -1651,9 +1687,9 @@ export default function PassportSection({
                       url.searchParams.delete('p');
                       window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
                     }}
-                    className="flex-1 sm:flex-none px-3.5 py-2.5 bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-neutral-200 font-sans font-bold text-xs uppercase rounded-xl transition-all border border-white/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="pkxd-btn-outline flex-1 sm:flex-none px-3.5 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <BookmarkCheck className="w-4 h-4 text-cyan-300" />
+                    <BookmarkCheck className="w-4 h-4 text-[#0284C7]" />
                     <span>Ver Meu PKXD ID</span>
                   </button>
                 </div>
@@ -1661,55 +1697,48 @@ export default function PassportSection({
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Main Card and Card Action Controls */}
+              {/* Card Preview + Quick Customization Controls */}
               <div className="lg:col-span-7 space-y-4">
-                
-                {/* 🌟 HOLOGRAPHIC PKXD ID CARD ELEMENT (CAPTURE TARGET) 🌟 */}
-                <div 
-                  ref={cardRef} 
-                  id="pkxd-passport-card" 
-                  className={`bg-gradient-to-br ${themeStyle.bg} border-2 rounded-3xl p-5 sm:p-7 text-white shadow-2xl relative overflow-hidden transition-all duration-300 select-none`}
+                {/* CARTÃO OFICIAL (ÁREA DE CAPTURA PNG) */}
+                <div
+                  ref={cardRef}
+                  id="pkxd-passport-card"
+                  className={`bg-gradient-to-br ${themeStyle.bg} border-2 rounded-3xl p-5 sm:p-7 text-white shadow-xl relative overflow-hidden transition-all duration-300 select-none`}
                 >
-                  {/* Ambient Glows */}
                   <div className={`absolute -top-12 -right-12 w-52 h-52 ${themeStyle.glow1} rounded-full filter blur-2xl pointer-events-none`} />
                   <div className={`absolute -bottom-12 -left-12 w-52 h-52 ${themeStyle.glow2} rounded-full filter blur-2xl pointer-events-none`} />
-                  
-                  {/* Subtle Holographic Linear Overlay */}
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
-                  {/* Top Bar: Holographic Header & Chip & Level Pill */}
+                  {/* Top Bar */}
                   <div className="flex items-center justify-between border-b border-white/15 pb-4 mb-4 relative z-10">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/25 shadow-inner flex-shrink-0">
-                        <ShieldCheck className="w-5 h-5 text-yellow-300 drop-shadow" />
+                      <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center border border-white/25 flex-shrink-0">
+                        <ShieldCheck className="w-5 h-5 text-yellow-300" />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-sans font-black text-xs sm:text-sm tracking-wider uppercase text-white drop-shadow">
+                          <span className="font-display font-bold text-sm sm:text-base tracking-wide uppercase text-white">
                             PKXD ID
                           </span>
-                          <span className="bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 text-[8px] font-mono font-black px-1.5 py-0.2 rounded">
+                          <span className="bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 text-[9px] font-mono font-black px-1.5 py-0.5 rounded">
                             CITIZEN
                           </span>
                         </div>
-                        <p className="font-mono text-[9px] text-white/70 uppercase tracking-widest">
+                        <p className="font-mono text-[9px] text-white/75 uppercase tracking-widest">
                           DOCUMENTO OFICIAL DA COMUNIDADE
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Realistic Gold Microchip */}
+                      {/* Security Microchip */}
                       <div className={`hidden sm:flex w-9 h-7 rounded-md bg-gradient-to-br ${themeStyle.chip} border shadow-md relative overflow-hidden items-center justify-center`}>
-                        <div className="absolute inset-0 border border-black/20 rounded-[2px]" />
                         <div className="w-full h-[1px] bg-black/25" />
                         <div className="h-full w-[1px] bg-black/25 absolute" />
                         <div className="w-3.5 h-2.5 rounded-sm border border-black/30 bg-white/20" />
                       </div>
 
-                      {/* Level Pill */}
-                      <div className="px-3 py-1 bg-black/50 backdrop-blur-md border border-white/20 rounded-full font-mono font-extrabold text-xs text-yellow-300 flex items-center gap-1 shadow-sm">
-                        <Flame className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400 animate-pulse" />
+                      <div className="px-3 py-1 bg-black/50 border border-white/20 rounded-full font-mono font-extrabold text-xs text-yellow-300 flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
                         <span>NÍVEL {cardLevel}</span>
                       </div>
                     </div>
@@ -1717,24 +1746,24 @@ export default function PassportSection({
 
                   {/* Card Main Profile Cluster */}
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 relative z-10">
-                    {/* Avatar with Glow, Frame & Ring */}
-                    <div className="relative group flex-shrink-0">
+                    {/* Avatar with Frame */}
+                    <div className="relative flex-shrink-0">
                       <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shadow-xl bg-black/70 p-1 transition-all ${
                         displayPassport.avatarFrame === 'neon-glow'
-                          ? 'border-2 border-pink-400 ring-4 ring-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.6)]'
+                          ? 'border-2 border-pink-400 ring-4 ring-pink-500/50'
                           : displayPassport.avatarFrame === 'vip-gold'
-                          ? 'border-2 border-yellow-300 ring-4 ring-amber-400/60 shadow-[0_0_25px_rgba(234,179,8,0.7)]'
+                          ? 'border-2 border-yellow-300 ring-4 ring-amber-400/60'
                           : displayPassport.avatarFrame === 'cyber-tech'
-                          ? 'border-2 border-cyan-400 ring-2 ring-cyan-400/70 shadow-[0_0_20px_rgba(6,182,212,0.6)] rounded-tl-none rounded-br-none'
+                          ? 'border-2 border-cyan-400 ring-2 ring-cyan-400/70'
                           : displayPassport.avatarFrame === 'fire-magic'
-                          ? 'border-2 border-orange-400 ring-4 ring-red-500/60 shadow-[0_0_25px_rgba(239,68,68,0.7)]'
+                          ? 'border-2 border-orange-400 ring-4 ring-red-500/60'
                           : displayPassport.avatarFrame === 'galaxy-star'
-                          ? 'border-2 border-fuchsia-400 ring-4 ring-purple-500/60 shadow-[0_0_25px_rgba(168,85,247,0.7)]'
+                          ? 'border-2 border-fuchsia-400 ring-4 ring-purple-500/60'
                           : `border-2 ${themeStyle.ringColor}`
                       }`}>
-                        <img 
-                          src={displayPassport.avatarUrl || PRESET_AVATARS[0]} 
-                          alt={displayPassport.nickname} 
+                        <img
+                          src={displayPassport.avatarUrl || PRESET_AVATARS[0]}
+                          alt={displayPassport.nickname}
                           className="w-full h-full object-cover rounded-xl"
                           referrerPolicy="no-referrer"
                           crossOrigin="anonymous"
@@ -1749,16 +1778,16 @@ export default function PassportSection({
                       </div>
                     </div>
 
-                    {/* Identity Info, Tag & Bio */}
+                    {/* Identity Info */}
                     <div className="flex-1 text-center sm:text-left space-y-2 w-full min-w-0">
                       <div>
                         <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                           {displayPassport.nicknamePrefix && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-black uppercase bg-gradient-to-r from-yellow-400 to-amber-500 text-black shadow-sm tracking-wider">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-black uppercase bg-gradient-to-r from-yellow-400 to-amber-500 text-black tracking-wider">
                               {displayPassport.nicknamePrefix}
                             </span>
                           )}
-                          <h4 className={`font-sans font-black text-xl sm:text-2xl tracking-tight uppercase drop-shadow truncate max-w-[240px] flex items-center gap-1.5 ${
+                          <h4 className={`font-sans font-black text-xl sm:text-2xl tracking-tight uppercase truncate max-w-[240px] flex items-center gap-1.5 ${
                             displayPassport.nameColor === 'gold' ? 'text-[#F5C542]' :
                             displayPassport.nameColor === 'cyan' ? 'text-[#22D3EE]' :
                             displayPassport.nameColor === 'purple' ? 'text-[#C084FC]' :
@@ -1768,57 +1797,62 @@ export default function PassportSection({
                           }`}>
                             <span>{displayPassport.nickname}</span>
                             {displayPassport.featuredBadgeIcon && (
-                              <span className="text-base select-none inline-block transform hover:scale-125 transition-transform" title="Símbolo de Destaque">
+                              <span className="text-base select-none" title="Símbolo de Destaque">
                                 {displayPassport.featuredBadgeIcon}
                               </span>
                             )}
                           </h4>
-                          <div
+                          <button
+                            type="button"
                             onClick={handleCopyTag}
-                            className="px-2 py-0.5 bg-black/40 hover:bg-black/60 border border-white/20 rounded-md font-mono text-xs font-bold text-cyan-300 inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-sm"
+                            className="px-2 py-0.5 bg-black/45 hover:bg-black/65 border border-white/25 rounded-md font-mono text-xs font-bold text-cyan-300 inline-flex items-center gap-1 cursor-pointer transition-colors"
                             title="Clique para copiar a Tag"
                           >
                             <span>{displayPassport.playerTag}</span>
                             {copiedTag ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </div>
+                          </button>
                         </div>
-                        
-                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-0.5">
+
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1">
                           <p className={`font-sans font-extrabold text-xs ${themeStyle.accentText} uppercase tracking-wide flex items-center gap-1`}>
-                            <Sparkles className="w-3.5 h-3.5 fill-current" />
+                            <Sparkles className="w-3.5 h-3.5" />
                             <span>{displayPassport.title || 'Explorador da Ilha'}</span>
                           </p>
 
+                          {honorBadge && (
+                            <span className="text-[10px] font-sans font-bold text-amber-200 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/35">
+                              {honorBadge.icon} {honorBadge.title}
+                            </span>
+                          )}
+
                           {displayPassport.statusPhrase && (
-                            <span className="text-[10px] font-mono text-cyan-200 bg-black/40 px-2 py-0.5 rounded-full border border-white/10 inline-flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                            <span className="text-[10px] font-mono text-cyan-200 bg-black/45 px-2 py-0.5 rounded-full border border-white/15 inline-flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                               <span className="truncate">{displayPassport.statusPhrase}</span>
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Bio Quote */}
-                      <p className="font-sans text-xs text-white/90 leading-relaxed italic bg-black/35 p-2.5 rounded-xl border border-white/10 shadow-inner">
-                        "{displayPassport.bio || 'Explorador dedicado da Ilha PK XD!'}"
+                      <p className="font-sans text-xs text-white/90 leading-relaxed italic bg-black/35 p-2.5 rounded-xl border border-white/10">
+                        &ldquo;{displayPassport.bio || 'Explorador dedicado da Ilha PK XD!'}&rdquo;
                       </p>
 
-                      {/* Level Progress Bar */}
                       <div className="space-y-1 pt-0.5">
                         <div className="flex justify-between items-center text-[10px] font-mono text-white/90">
                           <span className="flex items-center gap-1 font-bold text-yellow-300">
                             <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                             <span>Progresso XP</span>
                           </span>
-                          <span className="font-bold font-mono">
+                          <span className="font-bold font-mono tabular-nums">
                             <span className="text-yellow-300">{cardXP % 100}</span>
                             <span className="text-white/60">/100 XP</span>
-                            <span className="text-cyan-300 ml-1.5 font-normal">({cardTotalXP} XP Total)</span>
+                            <span className="text-cyan-300 ml-1.5 font-normal">({cardTotalXP} Total)</span>
                           </span>
                         </div>
-                        <div className="w-full h-2 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/20 shadow-inner">
-                          <div 
-                            className={`h-full bg-gradient-to-r ${themeStyle.levelBar} rounded-full transition-all duration-500 shadow-sm`}
+                        <div className="w-full h-2 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/20">
+                          <div
+                            className={`h-full bg-gradient-to-r ${themeStyle.levelBar} rounded-full transition-all duration-500`}
                             style={{ width: `${Math.min(100, Math.max(0, cardXP % 100))}%` }}
                           />
                         </div>
@@ -1828,41 +1862,40 @@ export default function PassportSection({
 
                   {/* 4 Feature Specification Chips */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3.5 border-t border-white/15 text-xs font-sans relative z-10">
-                    <div className="bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
-                      <span className="text-[9px] uppercase font-mono font-bold text-white/60 block">🎮 Jogo Favorito</span>
+                    <div className="bg-black/40 p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
+                      <span className="text-[9px] uppercase font-mono font-bold text-white/65 block">🎮 Jogo Favorito</span>
                       <strong className="text-white text-[11px] truncate flex items-center justify-center sm:justify-start gap-1">
                         <span>{getMinigameIcon(displayPassport.favoriteMinigame)}</span>
                         <span className="truncate">{displayPassport.favoriteMinigame}</span>
                       </strong>
                     </div>
 
-                    <div className="bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
-                      <span className="text-[9px] uppercase font-mono font-bold text-white/60 block">🐾 Pet Favorito</span>
+                    <div className="bg-black/40 p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
+                      <span className="text-[9px] uppercase font-mono font-bold text-white/65 block">🐾 Pet Favorito</span>
                       <strong className="text-white text-[11px] truncate block">
                         {displayPassport.favoritePet || 'Unicórnio Mágico'}
                       </strong>
                     </div>
 
-                    <div className="bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
-                      <span className="text-[9px] uppercase font-mono font-bold text-white/60 block">🚀 Veículo</span>
+                    <div className="bg-black/40 p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
+                      <span className="text-[9px] uppercase font-mono font-bold text-white/65 block">🚀 Veículo</span>
                       <strong className="text-cyan-300 text-[11px] font-mono font-bold truncate block">
                         {displayPassport.favoriteVehicle || 'Hoverboard Neon'}
                       </strong>
                     </div>
 
-                    <div className="bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
-                      <span className="text-[9px] uppercase font-mono font-bold text-white/60 block">💼 Papel na Ilha</span>
+                    <div className="bg-black/40 p-2 rounded-xl border border-white/10 space-y-0.5 text-center sm:text-left">
+                      <span className="text-[9px] uppercase font-mono font-bold text-white/65 block">🏠 Casa</span>
                       <strong className="text-yellow-300 text-[11px] font-mono font-bold truncate block">
-                        {displayPassport.islandJob || 'Entregador de Pizza'}
+                        {displayPassport.houseTheme || 'Mansão Gamer'}
                       </strong>
                     </div>
                   </div>
 
-                  {/* Barcode & Security Watermark Footer */}
-                  <div className="mt-3.5 pt-2.5 border-t border-white/10 flex items-center justify-between font-mono text-[8px] sm:text-[9px] text-white/50 relative z-10">
+                  {/* Barcode & Watermark Footer */}
+                  <div className="mt-3.5 pt-2.5 border-t border-white/10 flex items-center justify-between font-mono text-[8px] sm:text-[9px] text-white/60 relative z-10">
                     <div className="flex items-center gap-2">
-                      {/* Barcode graphic lines */}
-                      <div className="flex items-center gap-[2px] h-4 bg-white/80 p-0.5 rounded-[2px]">
+                      <div className="flex items-center gap-[2px] h-4 bg-white/85 p-0.5 rounded-[2px]">
                         <div className="w-[2px] h-full bg-black" />
                         <div className="w-[1px] h-full bg-black" />
                         <div className="w-[3px] h-full bg-black" />
@@ -1876,28 +1909,27 @@ export default function PassportSection({
                     </div>
 
                     <span className="uppercase tracking-widest text-right">
-                      VERIFICADO • CENTRAL PKXD
+                      VERIFICADO • PKXD CENTRAL
                     </span>
                   </div>
                 </div>
 
-                {/* 🚀 ACTION TOOLBAR: DOWNLOAD, EDIT, SHARE & THEME PICKER 🚀 */}
-                <div className="bg-zinc-900/90 border border-purple-500/30 rounded-3xl p-4 sm:p-5 space-y-4 shadow-xl">
-                  {/* Big Primary Action: Download Button */}
+                {/* Toolbar embaixo do Cartão (Glass UI) */}
+                <div className="pkxd-glass rounded-3xl p-4 sm:p-5 space-y-4">
                   <div className="flex flex-col sm:flex-row gap-2.5">
                     <button
                       onClick={() => handleDownloadCard(displayPassport.nickname, displayPassport.playerTag)}
                       disabled={isDownloadingCard}
-                      className="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:brightness-110 active:scale-[0.98] text-zinc-950 font-sans font-black text-sm uppercase tracking-wider rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="pkxd-btn-primary flex-1 py-3 px-4 text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {isDownloadingCard ? (
                         <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin" />
                           <span>Gerando Imagem HD...</span>
                         </>
                       ) : (
                         <>
-                          <Download className="w-5 h-5 text-zinc-950" />
+                          <Download className="w-4 h-4" />
                           <span>Baixar Cartão PKXD ID (PNG HD)</span>
                         </>
                       )}
@@ -1907,65 +1939,64 @@ export default function PassportSection({
                       <button
                         onClick={() => {
                           if (triggerAudio) triggerAudio('tap');
-                          handleOpenEditModal();
+                          handleOpenEditModal('identity');
                         }}
-                        className="py-3 px-4 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400/40 text-purple-200 font-sans font-black text-xs uppercase tracking-wider rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                        className="pkxd-btn-outline py-3 px-5 text-xs flex items-center justify-center gap-2 cursor-pointer"
                       >
-                        <Edit3 className="w-4 h-4 text-pink-300" />
-                        <span>Editar</span>
+                        <Edit3 className="w-4 h-4 text-[#6D28D9]" />
+                        <span>Mais Opções de Editar</span>
                       </button>
                     )}
                   </div>
 
                   {downloadSuccess && (
-                    <div className="p-3 bg-emerald-950/70 border border-emerald-400/50 rounded-xl text-emerald-300 text-xs font-sans font-bold flex items-center gap-2 animate-bounce">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                      <span>Seu cartão PKXD ID foi baixado em alta definição com sucesso! 📸✨</span>
+                    <div className="p-3 bg-[#ECFDF5] border-2 border-emerald-200 rounded-2xl text-emerald-800 text-xs font-sans font-bold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>Imagem gerada! Use os botões da janela para salvar na galeria ou copiar.</span>
                     </div>
                   )}
 
                   {/* Instant Card Theme Picker */}
                   {!isViewingOther && (
-                    <div className="space-y-2 pt-2 border-t border-white/10">
+                    <div className="space-y-2.5 pt-3 border-t-2 border-slate-100">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-sans font-black uppercase text-gray-300 flex items-center gap-1.5">
-                          <Palette className="w-4 h-4 text-pink-400" />
-                          <span>Mudar Tema do Cartão:</span>
+                        <span className="font-sans font-extrabold uppercase text-slate-700 flex items-center gap-1.5">
+                          <Palette className="w-4 h-4 text-[#6D28D9]" />
+                          <span>Tema do Cartão (12 estilos no editor):</span>
                         </span>
-                        <span className="font-mono text-[10px] text-purple-300 uppercase font-bold">
-                          {passport.cardTheme || 'neon-purple'}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal('style')}
+                          className="text-xs font-extrabold text-[#6D28D9] hover:underline cursor-pointer"
+                        >
+                          Ver todos →
+                        </button>
                       </div>
 
-                      <div className="grid grid-cols-3 sm:grid-cols-7 gap-1.5">
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                         {[
-                          { id: 'neon-purple', label: 'Cosmic', bg: 'from-purple-600 to-indigo-900' },
-                          { id: 'cyber-blue', label: 'Cyber', bg: 'from-cyan-500 to-blue-900' },
-                          { id: 'golden-vip', label: 'VIP Gold', bg: 'from-yellow-400 to-amber-900' },
-                          { id: 'sunset-pink', label: 'Sunset', bg: 'from-pink-500 to-rose-900' },
-                          { id: 'emerald-gamer', label: 'Matrix', bg: 'from-emerald-400 to-teal-900' },
-                          { id: 'volcano-red', label: 'Magma', bg: 'from-orange-500 to-red-900' },
-                          { id: 'frost-diamond', label: 'Frost', bg: 'from-sky-300 to-blue-800' }
+                          { id: 'neon-purple', label: 'Cosmic', bg: 'from-purple-600 to-indigo-800' },
+                          { id: 'cyber-blue', label: 'Cyber', bg: 'from-cyan-500 to-blue-700' },
+                          { id: 'golden-vip', label: 'VIP Gold', bg: 'from-yellow-400 to-amber-700' },
+                          { id: 'sunset-pink', label: 'Sunset', bg: 'from-pink-500 to-rose-700' },
+                          { id: 'emerald-gamer', label: 'Matrix', bg: 'from-emerald-400 to-teal-700' },
+                          { id: 'frost-diamond', label: 'Frost', bg: 'from-sky-400 to-blue-700' }
                         ].map(t => (
                           <button
                             key={t.id}
                             onClick={() => {
-                              const updated = { ...passport, cardTheme: t.id as any };
-                              setPassport(updated);
-                              localStorage.setItem('pkxd_passport_data', JSON.stringify(updated));
-                              if (currentUser?.uid) {
-                                setDoc(doc(db, 'passports', currentUser.uid), updated, { merge: true }).catch(() => {});
-                              }
+                              const updated: PKXDPassport = { ...passport, cardTheme: t.id as any, updatedAt: Date.now() };
+                              savePassport(updated);
                               if (triggerAudio) triggerAudio('tap');
                             }}
-                            className={`p-1.5 rounded-xl border text-center transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                            className={`p-2 rounded-xl border-2 text-center transition-all flex flex-col items-center gap-1 cursor-pointer ${
                               passport.cardTheme === t.id
-                                ? 'border-yellow-400 bg-yellow-400/20 scale-105 shadow-md ring-2 ring-yellow-400/40'
-                                : 'border-white/10 hover:border-white/30 bg-black/40'
+                                ? 'border-[#6D28D9] bg-[#F3F0FF] shadow-sm'
+                                : 'border-slate-200 hover:border-slate-300 bg-slate-50'
                             }`}
                           >
-                            <div className={`w-full h-4 rounded-md bg-gradient-to-r ${t.bg} shadow-inner`} />
-                            <span className="text-[9px] font-sans font-bold text-white truncate max-w-full">
+                            <div className={`w-full h-4 rounded-md bg-gradient-to-r ${t.bg}`} />
+                            <span className="text-[10px] font-sans font-extrabold text-slate-800 truncate max-w-full">
                               {t.label}
                             </span>
                           </button>
@@ -1976,57 +2007,67 @@ export default function PassportSection({
                 </div>
               </div>
 
-              {/* Side Info: QR Code + Quick Stats & Badges Highlight */}
+              {/* Side Info: QR Code + Short Link + Badges Highlight */}
               <div className="lg:col-span-5 space-y-5">
-                {/* QR Code Card */}
-                <div className="bg-zinc-900/90 border border-purple-500/30 rounded-3xl p-5 sm:p-6 text-center space-y-4 shadow-xl relative overflow-hidden">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div className="flex items-center gap-2 text-purple-300 font-black text-xs uppercase tracking-wider">
+                <div className="pkxd-glass rounded-3xl p-5 sm:p-6 text-center space-y-4">
+                  <div className="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                    <div className="flex items-center gap-2 text-[#6D28D9] font-extrabold text-xs uppercase tracking-wider">
                       <QrCode className="w-4 h-4" />
-                      <span>QR Code do PKXD ID</span>
+                      <span>QR Code & Link Curto</span>
                     </div>
-                    <span className="text-[9px] font-mono text-gray-400">Escaneie para abrir perfil</span>
+                    <span className="text-[11px] font-sans font-semibold text-slate-500">Escaneie para abrir</span>
                   </div>
 
                   {qrCodeDataUrl ? (
-                    <div className="w-44 h-44 mx-auto bg-white p-2.5 rounded-2xl shadow-xl border-2 border-purple-500/30 hover:scale-105 transition-transform duration-300 flex items-center justify-center">
+                    <div className="w-44 h-44 mx-auto bg-white p-2.5 rounded-2xl shadow-sm border-2 border-slate-200 flex items-center justify-center">
                       <img src={qrCodeDataUrl} alt="Passport QR Code" className="w-full h-full object-contain" />
                     </div>
                   ) : (
-                    <div className="w-44 h-44 mx-auto bg-neutral-800 rounded-2xl flex items-center justify-center text-xs text-gray-400 animate-pulse">
-                      Gerando QR Code...
+                    <div className="w-44 h-44 mx-auto bg-slate-100 rounded-2xl flex items-center justify-center text-xs text-slate-500 gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#6D28D9]" />
+                      <span>Gerando QR...</span>
                     </div>
                   )}
+
+                  {/* Short link preview */}
+                  <div className="bg-[#F8FAFC] border-2 border-slate-200 rounded-xl px-3 py-2 text-left">
+                    <span className="text-[10px] font-sans font-extrabold uppercase text-slate-500 block">
+                      Link Curto:
+                    </span>
+                    <span className="font-mono text-xs text-[#0284C7] font-bold truncate block">
+                      {getPassportShareUrl(displayPassport)}
+                    </span>
+                  </div>
 
                   <div className="flex gap-2">
                     <button
                       onClick={handleCopyLink}
-                      className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
+                      className="pkxd-btn-primary flex-1 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedLink ? 'Link Copiado!' : 'Copiar Link'}</span>
+                      {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedLink ? 'Link Copiado!' : 'Copiar Link Curto'}</span>
                     </button>
 
                     <button
                       onClick={() => setIsShareModalOpen(true)}
-                      className="py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-purple-300 border border-purple-500/30 font-bold text-xs uppercase rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
-                      title="Compartilhar"
+                      className="pkxd-btn-outline py-2.5 px-4 text-xs flex items-center justify-center gap-1 cursor-pointer"
+                      title="Mais opções de compartilhamento"
                     >
-                      <Share2 className="w-3.5 h-3.5" />
+                      <Share2 className="w-4 h-4 text-[#6D28D9]" />
                     </button>
                   </div>
                 </div>
 
                 {/* Quick Badges Highlights */}
-                <div className="bg-zinc-900/70 border border-white/10 rounded-3xl p-5 space-y-3">
+                <div className="pkxd-glass rounded-3xl p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-sans font-black text-xs text-white uppercase tracking-wider flex items-center gap-1.5">
-                      <Trophy className="w-4 h-4 text-yellow-400" />
+                    <h4 className="font-display font-bold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                      <Trophy className="w-4 h-4 text-amber-500" />
                       <span>Destaques de Medalhas</span>
                     </h4>
                     <button
                       onClick={() => setActiveTab('badges')}
-                      className="text-[10px] font-mono text-pink-400 hover:text-pink-300 hover:underline cursor-pointer uppercase"
+                      className="text-xs font-extrabold text-[#6D28D9] hover:underline cursor-pointer"
                     >
                       Ver Todas →
                     </button>
@@ -2034,18 +2075,19 @@ export default function PassportSection({
 
                   <div className="grid grid-cols-4 gap-2">
                     {displayPassport.badges.slice(0, 4).map((badge) => (
-                      <div
+                      <button
                         key={badge.id}
+                        type="button"
                         onClick={() => setSelectedBadge(badge)}
-                        className={`p-2.5 rounded-2xl border flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-105 ${
+                        className={`p-2.5 rounded-2xl border-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-105 ${
                           badge.unlocked
-                            ? 'bg-purple-950/40 border-purple-500/40 shadow-sm'
-                            : 'bg-black/40 border-white/5 opacity-40 grayscale'
+                            ? 'bg-[#F3F0FF] border-purple-200'
+                            : 'bg-slate-50 border-slate-200 opacity-50 grayscale'
                         }`}
                       >
                         <span className="text-2xl mb-1">{badge.icon}</span>
-                        <span className="text-[9px] font-bold text-white truncate max-w-full">{badge.title}</span>
-                      </div>
+                        <span className="text-[10px] font-bold text-slate-800 truncate max-w-full">{badge.title}</span>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -2056,46 +2098,45 @@ export default function PassportSection({
       })()}
 
       {/* ========================================================= */}
-      {/* TAB 2: MEDALHAS & CONQUISTAS (BADGES) */}
+      {/* TAB 2: MEDALHAS & CONQUISTAS */}
       {/* ========================================================= */}
       {activeTab === 'badges' && (
         <div className="space-y-4 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/60 p-4 rounded-2xl border border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pkxd-glass p-5 rounded-3xl">
             <div>
-              <h3 className="font-sans font-black text-base text-white uppercase tracking-wider flex items-center gap-2">
-                <Award className="w-5 h-5 text-yellow-400" />
-                Mural de Medalhas & Conquistas
+              <h3 className="font-display font-bold text-lg text-slate-900 flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-500" />
+                <span>Mural de Medalhas & Conquistas</span>
               </h3>
-              <p className="text-xs text-gray-400">
-                Ganhe XP, participe de enquetes, adicione amigos e explore a Central para desbloquear todas as medalhas!
+              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                Ganhe XP, participe de enquetes e adicione amigos para desbloquear todas as medalhas!
               </p>
             </div>
 
-            {/* Filter pills */}
-            <div className="flex items-center gap-1.5 self-start sm:self-center bg-black/40 p-1 rounded-xl border border-white/10">
+            <div className="flex items-center gap-1.5 self-start sm:self-center bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 onClick={() => setBadgeFilter('all')}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                  badgeFilter === 'all' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors cursor-pointer ${
+                  badgeFilter === 'all' ? 'bg-[#6D28D9] text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Todas ({passport.badges.length})
               </button>
               <button
                 onClick={() => setBadgeFilter('unlocked')}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                  badgeFilter === 'unlocked' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors cursor-pointer ${
+                  badgeFilter === 'unlocked' ? 'bg-[#6D28D9] text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Desbloqueadas ({passport.badges.filter(b => b.unlocked).length})
+                Livres ({unlockedBadgesCount})
               </button>
               <button
                 onClick={() => setBadgeFilter('locked')}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                  badgeFilter === 'locked' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors cursor-pointer ${
+                  badgeFilter === 'locked' ? 'bg-[#6D28D9] text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Bloqueadas ({passport.badges.filter(b => !b.unlocked).length})
+                Faltam ({passport.badges.length - unlockedBadgesCount})
               </button>
             </div>
           </div>
@@ -2105,53 +2146,53 @@ export default function PassportSection({
               <div
                 key={badge.id}
                 onClick={() => setSelectedBadge(badge)}
-                className={`p-5 rounded-2xl border-2 transition-all flex items-start gap-4 cursor-pointer relative overflow-hidden ${
+                className={`p-5 rounded-3xl border-2 transition-all flex items-start gap-4 cursor-pointer ${
                   badge.unlocked
-                    ? 'bg-zinc-900/90 border-purple-500/40 hover:border-purple-400 shadow-lg hover:shadow-purple-500/10'
-                    : 'bg-zinc-950/60 border-white/5 opacity-55 hover:opacity-75'
+                    ? 'pkxd-glass border-purple-200/80 hover:border-[#6D28D9]'
+                    : 'pkxd-glass-soft opacity-75 hover:opacity-100'
                 }`}
               >
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 border ${
-                  badge.unlocked 
-                    ? 'bg-gradient-to-br from-purple-800 to-indigo-900 border-purple-400/40 shadow-inner' 
-                    : 'bg-zinc-900 border-white/10 grayscale'
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 border-2 ${
+                  badge.unlocked
+                    ? 'bg-[#F3F0FF] border-purple-200'
+                    : 'bg-slate-200 border-slate-300 grayscale'
                 }`}>
                   {badge.icon}
                 </div>
 
                 <div className="space-y-1 flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-sans font-black text-sm text-white uppercase truncate">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-display font-bold text-sm text-slate-900 truncate">
                       {badge.title}
                     </h4>
-                    <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full uppercase font-bold flex-shrink-0 ${
+                    <span className={`text-[10px] font-sans px-2 py-0.5 rounded-full uppercase font-extrabold flex-shrink-0 border ${
                       badge.rarity === 'Lendário'
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        ? 'bg-[#FFFBEB] text-amber-800 border-amber-300'
                         : badge.rarity === 'Épico'
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                          : badge.rarity === 'Raro'
-                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                            : 'bg-neutral-800 text-gray-400'
+                        ? 'bg-[#F3F0FF] text-[#6D28D9] border-purple-200'
+                        : badge.rarity === 'Raro'
+                        ? 'bg-[#EFF8FF] text-[#0284C7] border-sky-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}>
                       {badge.rarity || 'Comum'}
                     </span>
                   </div>
 
-                  <p className="text-xs text-gray-300 leading-relaxed line-clamp-2">
+                  <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
                     {badge.description}
                   </p>
 
-                  <div className="pt-2 flex items-center justify-between text-[10px] font-mono">
+                  <div className="pt-2 flex items-center justify-between text-xs font-sans">
                     {badge.unlocked ? (
-                      <span className="text-emerald-400 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Desbloqueada
+                      <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Desbloqueada
                       </span>
                     ) : (
-                      <span className="text-gray-500 font-bold">
+                      <span className="text-slate-500 font-bold">
                         🔒 Bloqueada
                       </span>
                     )}
-                    <span className="text-purple-300 hover:underline">Ver detalhes →</span>
+                    <span className="text-[#6D28D9] font-extrabold hover:underline">Detalhes →</span>
                   </div>
                 </div>
               </div>
@@ -2161,24 +2202,23 @@ export default function PassportSection({
       )}
 
       {/* ========================================================= */}
-      {/* TAB 3: SELOS ESPECIAIS & CARIMBOS (STAMPS REDEMPTION) */}
+      {/* TAB 3: SELOS & CARIMBOS */}
       {/* ========================================================= */}
       {activeTab === 'stamps' && (
         <div className="space-y-6 animate-fade-in">
-          {/* Header Banner */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/60 p-4 rounded-2xl border border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pkxd-glass p-5 rounded-3xl">
             <div>
-              <h3 className="font-sans font-black text-base text-white uppercase tracking-wider flex items-center gap-2">
-                <BookmarkCheck className="w-5 h-5 text-cyan-400" />
-                Caderno de Carimbos & Resgate de Selos
+              <h3 className="font-display font-bold text-lg text-slate-900 flex items-center gap-2">
+                <BookmarkCheck className="w-5 h-5 text-[#0284C7]" />
+                <span>Caderno de Selos & Carimbos</span>
               </h3>
-              <p className="text-xs text-gray-400">
-                Para colecionar os selos e carimbos da Ilha PK XD você precisa resgatá-los diretamente aqui ou via códigos secretos!
+              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                Resgate selos comemorativos gratuitos ou insira códigos secretos das lives e spoilers!
               </p>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-              <div className="px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/30 rounded-xl font-mono text-xs font-bold text-cyan-300">
+              <div className="px-3.5 py-2 bg-[#EFF8FF] border border-sky-200 rounded-xl font-mono text-xs font-extrabold text-[#0284C7] tabular-nums">
                 Meus Selos: {passport.stamps.length}
               </div>
 
@@ -2188,7 +2228,7 @@ export default function PassportSection({
                     if (triggerAudio) triggerAudio('tap');
                     setIsAddStampModalOpen(true);
                   }}
-                  className="px-4 py-2 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 shadow-md"
+                  className="pkxd-btn-cyan px-4 py-2 text-xs flex items-center gap-2 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Criar Selo Oficial (ADM)</span>
@@ -2197,58 +2237,63 @@ export default function PassportSection({
             </div>
           </div>
 
-          {/* Feedback Message */}
           {codeRedeemMsg && (
-            <div className={`p-4 rounded-2xl text-xs font-bold border transition-all flex items-center gap-2 animate-bounce ${
+            <div className={`p-4 rounded-2xl text-xs sm:text-sm font-bold border-2 flex items-center gap-2 ${
               codeRedeemMsg.type === 'success'
-                ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-200'
-                : 'bg-red-500/20 border-red-400/40 text-red-200'
+                ? 'bg-[#ECFDF5] border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
             }`}>
+              {codeRedeemMsg.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
               <span>{codeRedeemMsg.text}</span>
             </div>
           )}
 
-          {/* SECTION 1: RESGATAR SELO COM CÓDIGO SECRETO */}
-          <div className="bg-gradient-to-r from-purple-950/80 via-zinc-900/90 to-indigo-950/80 p-5 rounded-3xl border border-purple-500/30 shadow-xl space-y-3">
-            <div className="flex items-center gap-2 text-purple-300">
-              <KeyRound className="w-4 h-4 text-yellow-400" />
-              <h4 className="font-sans font-black text-sm text-white uppercase tracking-wide">
-                Resgatar Selo com Código Secreto ⚡
+          {/* Secret Code Redeem Box */}
+          <div className="bg-[#FFFBEB] p-5 sm:p-6 rounded-3xl border-2 border-amber-200 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 text-amber-800">
+              <KeyRound className="w-4 h-4 text-amber-600" />
+              <h4 className="font-display font-bold text-base text-slate-900">
+                Resgatar Selo com Código Secreto
               </h4>
             </div>
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Pegou um código exclusivo em vídeos, lives ou nos spoilers oficiais? Digite abaixo para carimbar o selo secreto no seu PKXD ID! (Dicas: <code className="text-yellow-300 bg-black/40 px-1 py-0.5 rounded font-mono">CENTRALVIP</code>, <code className="text-pink-300 bg-black/40 px-1 py-0.5 rounded font-mono">SPOILERMASTER</code>, <code className="text-cyan-300 bg-black/40 px-1 py-0.5 rounded font-mono">1000GEMAS</code> ou <code className="text-emerald-300 bg-black/40 px-1 py-0.5 rounded font-mono">WELCOME</code>).
+            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+              Dicas para testar agora:{' '}
+              <code className="text-[#6D28D9] bg-white px-1.5 py-0.5 rounded border border-amber-200 font-mono font-bold">CENTRALVIP</code>,{' '}
+              <code className="text-[#0284C7] bg-white px-1.5 py-0.5 rounded border border-amber-200 font-mono font-bold">SPOILERMASTER</code>,{' '}
+              <code className="text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-amber-200 font-mono font-bold">1000GEMAS</code> ou{' '}
+              <code className="text-amber-800 bg-white px-1.5 py-0.5 rounded border border-amber-200 font-mono font-bold">WELCOME</code>.
             </p>
 
-            <form onSubmit={handleRedeemSecretStampCode} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder="Digite o código secreto do selo (Ex: CENTRALVIP)"
-                  value={secretStampCode}
-                  onChange={(e) => setSecretStampCode(e.target.value.toUpperCase())}
-                  className="w-full bg-black/60 border border-purple-500/40 rounded-2xl px-4 py-3 text-xs font-mono text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 uppercase font-black"
-                />
-              </div>
-
+            <form onSubmit={handleRedeemSecretStampCode} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+              <input
+                type="text"
+                placeholder="Digite o código secreto do selo (Ex: CENTRALVIP)"
+                value={secretStampCode}
+                onChange={(e) => setSecretStampCode(e.target.value.toUpperCase())}
+                className="flex-1 bg-white border-2 border-amber-300 rounded-2xl px-4 py-3 text-xs sm:text-sm font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6D28D9] uppercase font-bold"
+              />
               <button
                 type="submit"
-                className="px-6 py-3 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-400 hover:brightness-110 text-purple-950 font-sans font-black text-xs uppercase tracking-wider rounded-2xl transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2 flex-shrink-0"
+                className="pkxd-btn-gold px-6 py-3 text-xs flex items-center justify-center gap-2 cursor-pointer flex-shrink-0"
               >
-                <Sparkles className="w-4 h-4 text-purple-950" />
-                <span>Resgatar Selo ⚡</span>
+                <Sparkles className="w-4 h-4" />
+                <span>Resgatar Selo</span>
               </button>
             </form>
           </div>
 
-          {/* SECTION 2: SELOS DISPONÍVEIS PARA RESGATE DA ILHA */}
+          {/* Available Stamps */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-sans font-black text-sm text-white uppercase tracking-wider flex items-center gap-2">
-                <Gift className="w-4 h-4 text-pink-400" />
-                Selos Disponíveis para Resgate ({availableStamps.filter(s => s.isAvailable !== false).length})
+              <h4 className="font-display font-bold text-base text-slate-900 flex items-center gap-2">
+                <Gift className="w-4 h-4 text-[#6D28D9]" />
+                <span>Selos Disponíveis ({availableStamps.filter(s => s.isAvailable !== false).length})</span>
               </h4>
-              <span className="text-[11px] text-gray-400 font-mono">Clique para carimbar</span>
+              <span className="text-xs text-slate-500 font-semibold">Clique para carimbar</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2258,79 +2303,76 @@ export default function PassportSection({
                 return (
                   <div
                     key={stamp.id}
-                    className={`bg-zinc-900/90 border-2 rounded-3xl p-5 shadow-xl transition-all flex flex-col justify-between relative overflow-hidden group ${
-                      isClaimed ? 'border-emerald-500/40 bg-zinc-950/70' : 'border-white/10 hover:border-pink-500/40'
+                    className={`pkxd-glass rounded-3xl p-5 transition-all flex flex-col justify-between relative ${
+                      isClaimed ? 'border-emerald-300 bg-[#ECFDF5]/60' : 'hover:border-[#6D28D9]'
                     }`}
                   >
-                    {/* Postal Border Tag */}
-                    <div className="absolute top-2 right-2 border border-dashed border-white/20 rounded-full px-2 py-0.5 text-[8px] font-mono text-white/50 uppercase tracking-widest">
-                      {isClaimed ? '✓ RESGATADO' : 'DISPONÍVEL'}
+                    <div className={`self-end mb-2 border border-dashed rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase ${
+                      isClaimed ? 'border-emerald-300 text-emerald-700 bg-[#ECFDF5]' : 'border-slate-300 text-slate-500 bg-slate-50'
+                    }`}>
+                      {isClaimed ? '✓ Resgatado' : 'Disponível'}
                     </div>
 
-                    <div className="flex items-start gap-4">
-                      <div 
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 shadow-lg border border-white/20 transform group-hover:scale-105 transition-transform"
-                        style={{ backgroundColor: stamp.color ? `${stamp.color}30` : 'rgba(139,92,246,0.3)' }}
+                    <div className="flex items-start gap-3.5">
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 border-2 border-slate-200"
+                        style={{ backgroundColor: stamp.color ? `${stamp.color}18` : '#F3F0FF' }}
                       >
                         {stamp.icon}
                       </div>
 
-                      <div className="space-y-1 flex-1 pr-4">
-                        <h5 className="font-sans font-black text-sm text-white uppercase leading-snug">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <h5 className="font-display font-bold text-sm text-slate-900 leading-snug">
                           {stamp.title}
                         </h5>
-                        <p className="text-xs text-pink-300 font-bold">
+                        <p className="text-xs text-[#6D28D9] font-extrabold">
                           {stamp.eventOrSeason}
                         </p>
-                        <p className="text-[11px] text-gray-400">
+                        <p className="text-xs text-slate-500">
                           📍 {stamp.location || 'Central PK XD'}
                         </p>
                       </div>
                     </div>
 
-                    <p className="text-xs text-gray-300 leading-relaxed py-2 mt-2 border-t border-white/5">
+                    <p className="text-xs text-slate-600 leading-relaxed py-3 mt-3 border-t border-slate-100">
                       {stamp.description || 'Selo oficial comemorativo da Ilha PK XD.'}
                     </p>
 
-                    <div className="pt-2">
-                      {isClaimed ? (
-                        <div className="w-full py-2 bg-emerald-500/15 border border-emerald-400/40 rounded-xl text-[11px] font-black uppercase text-emerald-300 flex items-center justify-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Carimbado no PKXD ID ✓</span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleClaimStamp(stamp)}
-                          className="w-full py-2.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white font-sans text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center gap-1.5"
-                        >
-                          <Gift className="w-3.5 h-3.5 text-yellow-300" />
-                          <span>Resgatar Selo (+{stamp.xpReward || 50} XP) 🎁</span>
-                        </button>
-                      )}
-                    </div>
+                    {isClaimed ? (
+                      <div className="w-full py-2.5 bg-[#ECFDF5] border border-emerald-200 rounded-xl text-xs font-extrabold uppercase text-emerald-700 flex items-center justify-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Carimbado no PKXD ID</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleClaimStamp(stamp)}
+                        className="pkxd-btn-primary w-full py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Gift className="w-3.5 h-3.5" />
+                        <span>Resgatar Selo (+{stamp.xpReward || 50} XP)</span>
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* SECTION 3: MEUS SELOS CARIMBADOS NO PASSAPORTE */}
-          <div className="space-y-3 pt-4 border-t border-white/10">
-            <div className="flex items-center justify-between">
-              <h4 className="font-sans font-black text-sm text-white uppercase tracking-wider flex items-center gap-2">
-                <BookmarkCheck className="w-4 h-4 text-cyan-400" />
-                Meus Selos Carimbados no PKXD ID ({passport.stamps.length})
-              </h4>
-            </div>
+          {/* Claimed Stamps */}
+          <div className="space-y-3 pt-4 border-t-2 border-slate-200">
+            <h4 className="font-display font-bold text-base text-slate-900 flex items-center gap-2">
+              <BookmarkCheck className="w-4 h-4 text-[#0284C7]" />
+              <span>Meus Selos Carimbados ({passport.stamps.length})</span>
+            </h4>
 
             {passport.stamps.length === 0 ? (
-              <div className="text-center py-10 bg-zinc-900/40 rounded-3xl border border-dashed border-white/10 space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto text-xl">
+              <div className="text-center py-10 pkxd-glass-soft rounded-3xl border-2 border-dashed border-slate-300/80 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#EFF8FF] border border-sky-200 text-[#0284C7] flex items-center justify-center mx-auto">
                   <BookmarkCheck className="w-6 h-6" />
                 </div>
-                <h5 className="font-sans font-black text-sm text-white uppercase">Você ainda não resgatou nenhum selo!</h5>
-                <p className="text-xs text-gray-400 max-w-md mx-auto">
-                  Clique no botão "Resgatar Selo" nos selos disponíveis acima ou insira um código secreto para carimbar seu PKXD ID!
+                <h5 className="font-display font-bold text-base text-slate-900">Você ainda não resgatou nenhum selo!</h5>
+                <p className="text-xs text-slate-600 max-w-md mx-auto">
+                  Clique em &ldquo;Resgatar Selo&rdquo; nos cards acima ou insira um código secreto para carimbar seu PKXD ID!
                 </p>
               </div>
             ) : (
@@ -2338,33 +2380,31 @@ export default function PassportSection({
                 {passport.stamps.map((stamp) => (
                   <div
                     key={stamp.id}
-                    className="bg-zinc-900/80 border-2 border-white/10 hover:border-cyan-400/50 rounded-3xl p-5 shadow-xl transition-all relative overflow-hidden group"
+                    className="pkxd-glass hover:border-[#0284C7] rounded-3xl p-5 transition-all relative"
                   >
-                    {/* Stamp Postal Border Effect */}
-                    <div className="absolute top-2 right-2 border-2 border-dashed border-white/20 rounded-full px-2 py-0.5 text-[8px] font-mono text-cyan-300 uppercase tracking-widest">
-                      CARIMBO OFICIAL
-                    </div>
-
-                    <div className="flex items-start gap-4">
-                      <div 
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 shadow-lg border border-white/20 transform group-hover:rotate-6 transition-transform"
-                        style={{ backgroundColor: stamp.color ? `${stamp.color}30` : 'rgba(139,92,246,0.3)' }}
+                    <div className="flex items-start gap-3.5">
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 border-2 border-slate-200"
+                        style={{ backgroundColor: stamp.color ? `${stamp.color}18` : '#EFF8FF' }}
                       >
                         {stamp.icon}
                       </div>
 
-                      <div className="space-y-1 flex-1 pr-4">
-                        <h4 className="font-sans font-black text-base text-white uppercase">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <span className="inline-block border border-dashed border-sky-300 bg-[#EFF8FF] rounded-full px-2 py-0.5 text-[9px] font-mono font-bold text-[#0284C7] uppercase">
+                          Carimbo Oficial
+                        </span>
+                        <h4 className="font-display font-bold text-base text-slate-900">
                           {stamp.title}
                         </h4>
-                        <p className="text-xs text-cyan-300 font-bold">
+                        <p className="text-xs text-[#6D28D9] font-extrabold">
                           {stamp.eventOrSeason}
                         </p>
-                        <p className="text-[11px] text-gray-400">
+                        <p className="text-xs text-slate-500">
                           📍 {stamp.location || 'Central PK XD'} • 📅 {stamp.date}
                         </p>
                         {stamp.acquiredAt && (
-                          <p className="text-[10px] text-emerald-400 font-mono">
+                          <p className="text-[11px] text-emerald-700 font-bold">
                             ✓ Resgatado em {new Date(stamp.acquiredAt).toLocaleDateString('pt-BR')}
                           </p>
                         )}
@@ -2372,13 +2412,32 @@ export default function PassportSection({
                     </div>
 
                     {isAdmin && (
-                      <button
-                        onClick={() => handleDeleteStamp(stamp.id, stamp.title)}
-                        className="absolute bottom-3 right-3 p-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 rounded-lg border border-red-500/30 transition-all cursor-pointer z-10"
-                        title="Excluir Selo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="mt-3 pt-2 border-t border-slate-100 flex justify-end">
+                        {confirmDeleteStampId === stamp.id ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleDeleteStamp(stamp.id)}
+                              className="px-2.5 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteStampId(null)}
+                              className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteStampId(stamp.id)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                            title="Excluir Selo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -2389,30 +2448,30 @@ export default function PassportSection({
       )}
 
       {/* ========================================================= */}
-      {/* TAB 4: AMIGOS DA ILHA (FRIENDS LIST) */}
+      {/* TAB 4: AMIGOS */}
       {/* ========================================================= */}
       {activeTab === 'friends' && (
         <div className="space-y-4 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/60 p-4 rounded-2xl border border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pkxd-glass p-5 rounded-3xl">
             <div>
-              <h3 className="font-sans font-black text-base text-white uppercase tracking-wider flex items-center gap-2">
-                <Users className="w-5 h-5 text-pink-400" />
-                Amigos Conectados no PKXD ID
+              <h3 className="font-display font-bold text-lg text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-pink-600" />
+                <span>Amigos Conectados no PKXD ID</span>
               </h3>
-              <p className="text-xs text-gray-400">
-                Adicione as Tags de PK XD dos seus amigos para acompanhar seus níveis e minigames favoritos!
+              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                Adicione as Tags de PK XD dos seus amigos para acompanhar seus minigames favoritos!
               </p>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Buscar amigo..."
                   value={friendSearch}
                   onChange={(e) => setFriendSearch(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-black/50 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-pink-500 w-36 sm:w-44"
+                  className="pl-8 pr-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#6D28D9] w-40 sm:w-48"
                 />
               </div>
 
@@ -2422,7 +2481,7 @@ export default function PassportSection({
                   setFriendError('');
                   setIsAddFriendModalOpen(true);
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 shadow-md"
+                className="pkxd-btn-primary px-4 py-2 text-xs flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Adicionar Amigo</span>
@@ -2431,13 +2490,13 @@ export default function PassportSection({
           </div>
 
           {filteredFriends.length === 0 ? (
-            <div className="text-center py-12 bg-zinc-900/40 rounded-3xl border border-dashed border-white/10 space-y-3">
-              <Users className="w-12 h-12 text-gray-500 mx-auto" />
-              <h4 className="font-sans font-bold text-white text-sm">
+            <div className="text-center py-12 pkxd-glass-soft rounded-3xl border-2 border-dashed border-slate-300/80 space-y-3">
+              <Users className="w-12 h-12 text-slate-400 mx-auto" />
+              <h4 className="font-display font-bold text-slate-900 text-base">
                 {passport.friends.length === 0 ? 'Nenhum amigo adicionado ainda' : 'Nenhum amigo encontrado na busca'}
               </h4>
-              <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                Clique no botão "Adicionar Amigo" acima e insira a Tag de PK XD dos seus colegas de jogo!
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                Clique em &ldquo;Adicionar Amigo&rdquo; ou abra o link curto de um amigo para conectá-lo ao seu passaporte!
               </p>
             </div>
           ) : (
@@ -2445,39 +2504,56 @@ export default function PassportSection({
               {filteredFriends.map((friend) => (
                 <div
                   key={friend.id}
-                  className="bg-zinc-900/80 border border-white/10 hover:border-pink-500/40 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-md transition-all group"
+                  className="pkxd-glass hover:border-[#6D28D9] rounded-2xl p-4 flex items-center justify-between gap-3 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-black/60 border border-white/20 flex-shrink-0">
-                      <img 
-                        src={friend.avatarUrl || PRESET_AVATARS[0]} 
-                        alt={friend.nickname} 
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 border-2 border-slate-200 flex-shrink-0">
+                      <img
+                        src={friend.avatarUrl || PRESET_AVATARS[0]}
+                        alt={friend.nickname}
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
                       />
                     </div>
 
                     <div className="min-w-0 space-y-0.5">
-                      <h4 className="font-sans font-black text-sm text-white truncate">
+                      <h4 className="font-display font-bold text-sm text-slate-900 truncate">
                         {friend.nickname}
                       </h4>
-                      <p className="font-mono text-xs text-cyan-300 font-bold">
+                      <p className="font-mono text-xs text-[#0284C7] font-bold">
                         {friend.playerTag}
                       </p>
-                      <p className="text-[10px] text-gray-400 truncate flex items-center gap-1">
+                      <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
                         <span>{getMinigameIcon(friend.favoriteMinigame || 'Crazy Run')}</span>
                         <span className="truncate">{friend.favoriteMinigame || 'Crazy Run'} • Nível {friend.level || 5}</span>
                       </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleRemoveFriend(friend.id)}
-                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer flex-shrink-0"
-                    title="Remover Amigo"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {confirmRemoveFriendId === friend.id ? (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => handleRemoveFriend(friend.id)}
+                        className="px-2 py-1 bg-rose-600 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                      >
+                        Remover
+                      </button>
+                      <button
+                        onClick={() => setConfirmRemoveFriendId(null)}
+                        className="px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-bold cursor-pointer"
+                      >
+                        Não
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmRemoveFriendId(friend.id)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                      title="Remover Amigo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -2490,36 +2566,55 @@ export default function PassportSection({
       {/* ========================================================= */}
       {activeTab === 'events' && (
         <div className="space-y-4 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/60 p-4 rounded-2xl border border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pkxd-glass p-5 rounded-3xl">
             <div>
-              <h3 className="font-sans font-black text-base text-white uppercase tracking-wider flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-emerald-400" />
-                Histórico de Participação em Eventos
+              <h3 className="font-display font-bold text-lg text-slate-900 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-emerald-600" />
+                <span>Histórico de Participação em Eventos</span>
               </h3>
-              <p className="text-xs text-gray-400">
-                Veja o histórico de eventos que você organizou ou confirmou presença na plataforma!
+              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                Acompanhe os eventos que você organizou ou confirmou presença na comunidade!
               </p>
             </div>
 
             {passport.eventHistory && passport.eventHistory.length > 0 && (
-              <button
-                onClick={handleClearEventHistory}
-                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto active:scale-95"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Limpar Histórico</span>
-              </button>
+              <div className="self-start sm:self-auto">
+                {confirmClearHistory ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleClearEventHistory}
+                      className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      Confirmar Limpeza
+                    </button>
+                    <button
+                      onClick={() => setConfirmClearHistory(false)}
+                      className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmClearHistory(true)}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-extrabold uppercase transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Limpar Histórico</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
           {(!passport.eventHistory || passport.eventHistory.length === 0) ? (
-            <div className="text-center py-12 bg-zinc-900/40 rounded-3xl border border-dashed border-white/10 space-y-3">
-              <Calendar className="w-12 h-12 text-gray-500 mx-auto" />
-              <h4 className="font-sans font-bold text-white text-sm">
+            <div className="text-center py-12 pkxd-glass-soft rounded-3xl border-2 border-dashed border-slate-300/80 space-y-3">
+              <Calendar className="w-12 h-12 text-slate-400 mx-auto" />
+              <h4 className="font-display font-bold text-slate-900 text-base">
                 Nenhum evento no seu histórico ainda
               </h4>
-              <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                Quando você confirmar presença em torneios, festas ou desafios na aba de Eventos, eles aparecerão registrados aqui no seu PKXD ID!
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                Quando você confirmar presença em torneios, festas ou desafios na aba Eventos, eles aparecerão registrados aqui!
               </p>
             </div>
           ) : (
@@ -2527,33 +2622,50 @@ export default function PassportSection({
               {passport.eventHistory.map((hist) => (
                 <div
                   key={hist.id}
-                  className="bg-zinc-900/80 border border-white/10 hover:border-emerald-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all group"
+                  className="pkxd-glass hover:border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#ECFDF5] border border-emerald-200 flex items-center justify-center text-emerald-600 flex-shrink-0">
                       <Trophy className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-sans font-bold text-sm text-white">
+                      <h4 className="font-display font-bold text-sm text-slate-900">
                         {hist.eventName}
                       </h4>
-                      <p className="text-xs text-gray-400">
-                        Função: <span className="text-emerald-400 font-bold uppercase">{hist.role}</span> • Categoria: {hist.category}
+                      <p className="text-xs text-slate-600">
+                        Função: <span className="text-emerald-700 font-extrabold uppercase">{hist.role}</span> • Categoria: {hist.category}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className="font-mono text-xs text-gray-400 bg-black/40 px-3 py-1 rounded-xl border border-white/5">
+                    <span className="font-mono text-xs text-slate-700 bg-slate-100 px-3 py-1 rounded-xl border border-slate-200">
                       📅 {hist.date}
                     </span>
-                    <button
-                      onClick={() => handleDeleteEventHistory(hist.id, hist.eventName)}
-                      className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
-                      title="Excluir do Histórico"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {confirmDeleteHistoryId === hist.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDeleteEventHistory(hist.id)}
+                          className="px-2 py-1 bg-rose-600 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                        >
+                          Excluir
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteHistoryId(null)}
+                          className="px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-bold cursor-pointer"
+                        >
+                          Não
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteHistoryId(hist.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Excluir do Histórico"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -2561,9 +2673,9 @@ export default function PassportSection({
           )}
 
           {events.length > 0 && (
-            <div className="p-4 bg-purple-950/20 border border-purple-500/20 rounded-2xl flex items-center justify-between">
-              <div className="text-xs text-gray-300">
-                <span>Há <strong>{events.length} eventos comunitários</strong> disponíveis na Central de Eventos!</span>
+            <div className="p-4 bg-[#F3F0FF] border-2 border-purple-200 rounded-2xl flex items-center justify-between">
+              <div className="text-xs sm:text-sm text-slate-800 font-semibold">
+                <span>Há <strong className="text-[#6D28D9]">{events.length} eventos comunitários</strong> abertos na aba de Eventos!</span>
               </div>
             </div>
           )}
@@ -2571,469 +2683,549 @@ export default function PassportSection({
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: EDITAR PERFIL DO PASSAPORTE */}
+      {/* MODAL: EDITAR PERFIL DO PASSAPORTE (EXPANDIDO EM 3 ABAS) */}
       {/* ========================================================= */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
-          <div className="bg-zinc-900 border-2 border-purple-500/50 rounded-3xl p-6 sm:p-8 w-full max-w-lg relative shadow-2xl space-y-5 my-8 text-left max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setIsEditModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="pkxd-glass-modal rounded-3xl p-5 sm:p-7 w-full max-w-xl relative space-y-5 my-8 text-left max-h-[92vh] overflow-y-auto"
+          >
             <button
               onClick={() => setIsEditModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer transition-colors"
+              className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-full cursor-pointer transition-colors"
+              title="Fechar"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 text-purple-400">
-              <Edit3 className="w-5 h-5" />
-              <h3 className="font-sans font-black text-lg text-white uppercase tracking-wider">
-                Editar PKXD ID ✏️
-              </h3>
+            <div className="flex items-center gap-2.5 pr-8">
+              <div className="w-10 h-10 rounded-2xl bg-[#F3F0FF] border border-purple-200 flex items-center justify-center text-[#6D28D9]">
+                <Edit3 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-xl text-slate-900">
+                  Personalizar PKXD ID
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Mais opções para deixar seu passaporte com a sua cara!
+                </p>
+              </div>
+            </div>
+
+            {/* 3 Clean Modal Sub-Tabs */}
+            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setEditModalTab('identity')}
+                className={`py-2 px-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                  editModalTab === 'identity' ? 'bg-white text-[#6D28D9] shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                1. Identidade
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditModalTab('universe')}
+                className={`py-2 px-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                  editModalTab === 'universe' ? 'bg-white text-[#6D28D9] shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                2. Universo PK XD
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditModalTab('style')}
+                className={`py-2 px-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                  editModalTab === 'style' ? 'bg-white text-[#6D28D9] shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                3. Visual & Foto
+              </button>
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold uppercase text-pink-400 flex items-center gap-1">
-                      <span>Nome no PK XD (Nick) *</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={16}
-                      placeholder="Ex: LUNA ou GABRIEL"
-                      value={editNick}
-                      onChange={(e) => setEditNick(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-                      className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-xs text-white font-mono font-bold uppercase focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold uppercase text-pink-400 flex items-center gap-1">
-                      <span>Número / Tag # *</span>
-                    </label>
-                    <div className="relative flex items-center">
-                      <span className="absolute left-3 font-mono font-black text-xs text-pink-400">#</span>
+              {editModalTab === 'identity' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">
+                        Nome no PK XD (Nick) *
+                      </label>
                       <input
                         type="text"
                         required
-                        maxLength={6}
-                        placeholder="Ex: 245 ou 000"
-                        value={editTagNumber}
-                        onChange={(e) => setEditTagNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                        className="w-full pl-7 pr-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-xs text-white font-mono font-bold focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                        maxLength={16}
+                        placeholder="Ex: LUNA ou GABRIEL"
+                        value={editNick}
+                        onChange={(e) => setEditNick(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold uppercase focus:outline-none focus:border-[#6D28D9]"
                       />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">
+                        Número / Tag # *
+                      </label>
+                      <div className="relative flex items-center">
+                        <span className="absolute left-3 font-mono font-black text-xs text-[#6D28D9]">#</span>
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          placeholder="Ex: 245 ou 000"
+                          value={editTagNumber}
+                          onChange={(e) => setEditTagNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full pl-7 pr-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-[#6D28D9]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live tag preview */}
+                  <div className="p-3 bg-[#F3F0FF] border border-purple-200 rounded-xl flex items-center justify-between text-xs">
+                    <span className="text-slate-700 font-bold">Sua Tag no PK XD:</span>
+                    <span className="font-mono font-black text-[#6D28D9] bg-white px-2.5 py-1 rounded-lg border border-purple-200">
+                      {editNick.trim() || 'SEUNICK'}#{editTagNumber.trim() || '000'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">Título de Cidadão</label>
+                      <select
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold cursor-pointer focus:outline-none focus:border-[#6D28D9]"
+                      >
+                        <option value="Explorador da Ilha">🌟 Explorador da Ilha</option>
+                        <option value="Caçador de Spoilers">🔮 Caçador de Spoilers</option>
+                        <option value="Mestre dos Mini-Games">🏆 Mestre dos Mini-Games</option>
+                        <option value="Lenda do PK XD">👑 Lenda do PK XD</option>
+                        <option value="Creator Estrela">⭐ Creator Estrela</option>
+                        <option value="Arquiteto de Casas">🏠 Arquiteto de Casas</option>
+                        <option value="Piloto do Crazy Run">⚡ Piloto do Crazy Run</option>
+                        <option value="Colecionador de Pets">🐾 Colecionador de Pets</option>
+                        {isAdmin && <option value="Lorde da Moderação">🛡️ Lorde da Moderação</option>}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">Prefixo do Nick</label>
+                      <select
+                        value={editPrefix}
+                        onChange={(e) => setEditPrefix(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold cursor-pointer focus:outline-none focus:border-[#6D28D9]"
+                      >
+                        <option value="">Nenhum</option>
+                        <option value="[PRO]">⭐ [PRO]</option>
+                        <option value="[VIP]">👑 [VIP]</option>
+                        <option value="[CREATOR]">🎬 [CREATOR]</option>
+                        <option value="[FÃ]">❤️ [FÃ]</option>
+                        <option value="[PKXD]">🎮 [PKXD]</option>
+                        <option value="[MOD]">🛡️ [MOD]</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-extrabold text-slate-700">Frase de Status / Atividade</label>
+                    <input
+                      type="text"
+                      maxLength={35}
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      placeholder="Ex: 🎮 Jogando Crazy Run"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-[#6D28D9]"
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {[
+                        '🎮 Jogando Crazy Run',
+                        '🍕 Entregador de Pizza',
+                        '💎 Caçando Gemas',
+                        '🎉 Em Festa com Amigos',
+                        '🔮 Aguardando Spoilers',
+                        '🏠 Decorando Minha Casa'
+                      ].map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => setEditStatus(st)}
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-[#F3F0FF] border border-slate-200 text-[11px] font-bold text-slate-700 cursor-pointer"
+                        >
+                          {st}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-extrabold text-slate-700">Bio do Perfil</label>
+                    <textarea
+                      rows={2}
+                      maxLength={140}
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      placeholder="Conte um pouco sobre suas aventuras no PK XD..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#6D28D9]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {editModalTab === 'universe' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">Minigame Favorito</label>
+                      <select
+                        value={editMinigame}
+                        onChange={(e) => setEditMinigame(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold cursor-pointer focus:outline-none focus:border-[#6D28D9]"
+                      >
+                        {PKXD_MINIGAMES.map((game) => (
+                          <option key={game.name} value={game.name}>
+                            {game.icon} {game.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">Medalha em Destaque no Cartão</label>
+                      <select
+                        value={editHonorBadgeId}
+                        onChange={(e) => setEditHonorBadgeId(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold cursor-pointer focus:outline-none focus:border-[#6D28D9]"
+                      >
+                        <option value="">Nenhuma medalha exibida</option>
+                        {passport.badges.filter(b => b.unlocked).map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.icon} {b.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">🐾 Pet / Companheiro</label>
+                      <input
+                        type="text"
+                        maxLength={24}
+                        value={editPet}
+                        onChange={(e) => setEditPet(e.target.value)}
+                        placeholder="Ex: Unicórnio Mágico"
+                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-[#6D28D9]"
+                      />
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {['🦄 Unicórnio', '🐉 Dragão', '🤖 Robô Bob', '🐱 Gatinho', '🐶 Poodle', '🦖 Dino'].map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setEditPet(p)}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-[#F3F0FF] border border-slate-200 text-[10px] font-bold text-slate-700 cursor-pointer"
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">🚀 Veículo Favorito</label>
+                      <input
+                        type="text"
+                        maxLength={24}
+                        value={editVehicle}
+                        onChange={(e) => setEditVehicle(e.target.value)}
+                        placeholder="Ex: Hoverboard Neon"
+                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-[#6D28D9]"
+                      />
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {['🛹 Hoverboard', '🏎️ Carro Gamer', '🐉 Dragão Alado', '🛵 Moto Neon', '🛸 Nave UFO', '🧹 Vassoura'].map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setEditVehicle(v)}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-[#EFF8FF] border border-slate-200 text-[10px] font-bold text-slate-700 cursor-pointer"
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">💼 Papel / Profissão na Ilha</label>
+                      <input
+                        type="text"
+                        maxLength={24}
+                        value={editJob}
+                        onChange={(e) => setEditJob(e.target.value)}
+                        placeholder="Ex: Entregador de Pizza"
+                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-[#6D28D9]"
+                      />
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {['🍕 Entregador', '🎧 DJ da Ilha', '🦺 Guia Turístico', '⚡ Atleta Crazy', '🔍 Detetive', '🍹 Mestre Suco'].map((j) => (
+                          <button
+                            key={j}
+                            type="button"
+                            onClick={() => setEditJob(j)}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-[#FFFBEB] border border-slate-200 text-[10px] font-bold text-slate-700 cursor-pointer"
+                          >
+                            {j}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-extrabold text-slate-700">🏠 Estilo da Casa / Mansão</label>
+                      <input
+                        type="text"
+                        maxLength={24}
+                        value={editHouse}
+                        onChange={(e) => setEditHouse(e.target.value)}
+                        placeholder="Ex: Mansão Gamer"
+                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-[#6D28D9]"
+                      />
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {['🏠 Mansão Gamer', '🏰 Castelo Real', '🚀 Nave Espacial', '⛵ Iate de Luxo', '🍄 Casa Cogumelo', '🌴 Casa da Árvore'].map((h) => (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => setEditHouse(h)}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-[#F3F0FF] border border-slate-200 text-[10px] font-bold text-slate-700 cursor-pointer"
+                          >
+                            {h}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Public visibility setting */}
+                  <div className="p-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      {editIsPublic ? (
+                        <Eye className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <EyeOff className="w-4 h-4 text-slate-500 shrink-0" />
+                      )}
+                      <div>
+                        <span className="text-xs font-extrabold text-slate-900 block">Perfil Compartilhável via Link</span>
+                        <span className="text-[11px] text-slate-500">Permite que amigos abram seu cartão pelo link curto ou QR Code</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditIsPublic(!editIsPublic)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border-2 cursor-pointer transition-colors ${
+                        editIsPublic
+                          ? 'bg-[#ECFDF5] border-emerald-300 text-emerald-800'
+                          : 'bg-slate-200 border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      {editIsPublic ? 'Ativado' : 'Privado'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {editModalTab === 'style' && (
+                <div className="space-y-4">
+                  {/* Avatar Options */}
+                  <div className="space-y-2.5 border-2 border-slate-200 bg-slate-50 p-4 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-extrabold text-slate-800">Foto do Avatar & Perfil</label>
+                      {currentUser?.photoURL && (
+                        <button
+                          type="button"
+                          onClick={() => setEditAvatar(currentUser.photoURL!)}
+                          className="text-xs font-bold text-[#0284C7] hover:underline cursor-pointer"
+                        >
+                          Usar Foto da Minha Conta
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-[#6D28D9] bg-white flex-shrink-0">
+                        <img
+                          src={editAvatar}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as any).src = PRESET_AVATARS[0];
+                          }}
+                        />
+                      </div>
+                      <label className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-purple-300 bg-[#F3F0FF] hover:bg-purple-100 py-2.5 px-3 rounded-xl text-xs font-extrabold text-[#6D28D9] cursor-pointer transition-colors">
+                        {isUploadingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                        <span>{isUploadingPhoto ? 'Processando...' : 'Enviar Foto da Galeria'}</span>
+                        <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+                      </label>
+                    </div>
+
+                    <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                      <span className="text-[11px] font-bold text-slate-600 uppercase">Ou escolha um avatar gamer:</span>
+                      <div className="flex items-center gap-2 overflow-x-auto py-1">
+                        {PRESET_AVATARS.map((avatarUrl, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setEditAvatar(avatarUrl)}
+                            className={`w-11 h-11 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all cursor-pointer ${
+                              editAvatar === avatarUrl ? 'border-[#6D28D9] ring-2 ring-purple-300 scale-105' : 'border-slate-200 opacity-75 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={avatarUrl} alt={`Avatar ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Name Color & Symbol */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl">
+                    <div className="space-y-2">
+                      <label className="text-xs font-extrabold text-slate-800 block">🎨 Cor do Seu Nome</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { id: 'white', label: 'Branco', dot: 'bg-slate-200 border border-slate-400' },
+                          { id: 'gold', label: 'Dourado', dot: 'bg-amber-400' },
+                          { id: 'cyan', label: 'Ciano', dot: 'bg-cyan-400' },
+                          { id: 'purple', label: 'Roxo', dot: 'bg-purple-500' },
+                          { id: 'pink', label: 'Rosa', dot: 'bg-pink-500' },
+                          { id: 'fire', label: 'Fogo', dot: 'bg-orange-500' }
+                        ].map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setEditNameColor(c.id as any)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer border-2 ${
+                              editNameColor === c.id
+                                ? 'bg-[#F3F0FF] border-[#6D28D9] text-[#6D28D9]'
+                                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            <span className={`w-2.5 h-2.5 rounded-full ${c.dot}`} />
+                            <span>{c.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-extrabold text-slate-800 block">✨ Símbolo ao lado do Nick</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['⚡', '👑', '💎', '🌟', '🔥', '🦄', '🚀', '🎮', '🍕', '🏆', '🐉', '🎧', '🌈', '✨'].map((icon) => (
+                          <button
+                            key={icon}
+                            type="button"
+                            onClick={() => setEditFeaturedIcon(icon)}
+                            className={`w-8 h-8 rounded-lg text-sm flex items-center justify-center transition-all cursor-pointer border-2 ${
+                              editFeaturedIcon === icon
+                                ? 'bg-[#6D28D9] border-[#6D28D9] text-white scale-105'
+                                : 'bg-white hover:bg-slate-100 border-slate-200'
+                            }`}
+                          >
+                            {icon}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Avatar Frame Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-800 block">🖼️ Moldura do Avatar</label>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      {[
+                        { id: 'classic', label: 'Clássica', border: 'border-slate-400' },
+                        { id: 'neon-glow', label: 'Pink Glow', border: 'border-pink-500' },
+                        { id: 'vip-gold', label: 'VIP Gold', border: 'border-amber-400' },
+                        { id: 'cyber-tech', label: 'Cyber Tech', border: 'border-cyan-500' },
+                        { id: 'fire-magic', label: 'Fogo', border: 'border-orange-500' },
+                        { id: 'galaxy-star', label: 'Galáxia', border: 'border-fuchsia-500' }
+                      ].map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setEditAvatarFrame(f.id as any)}
+                          className={`p-2 rounded-xl border-2 text-[10px] font-extrabold text-center transition-all cursor-pointer ${
+                            editAvatarFrame === f.id
+                              ? 'border-[#6D28D9] bg-[#F3F0FF] text-[#6D28D9]'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 mx-auto rounded-lg border-2 ${f.border} mb-1`} />
+                          <span className="truncate block">{f.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Card Theme Selection (12 Themes) */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-800 flex items-center justify-between">
+                      <span>🎨 Tema do Cartão (12 Estilos)</span>
+                    </label>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: 'neon-purple', label: 'Cosmic', color: 'bg-purple-600' },
+                        { id: 'cyber-blue', label: 'Cyber Blue', color: 'bg-cyan-600' },
+                        { id: 'golden-vip', label: 'Golden VIP', color: 'bg-yellow-500' },
+                        { id: 'sunset-pink', label: 'Sunset Pink', color: 'bg-pink-600' },
+                        { id: 'emerald-gamer', label: 'Emerald', color: 'bg-emerald-600' },
+                        { id: 'volcano-red', label: 'Magma Red', color: 'bg-red-600' },
+                        { id: 'frost-diamond', label: 'Frost Ice', color: 'bg-sky-500' },
+                        { id: 'galaxy-space', label: 'Galáxia', color: 'bg-fuchsia-600' },
+                        { id: 'candy-pop', label: 'Candy Pop', color: 'bg-rose-400' },
+                        { id: 'retro-arcade', label: 'Retro Arcade', color: 'bg-emerald-500' },
+                        { id: 'aurora-nordic', label: 'Aurora', color: 'bg-teal-500' },
+                        { id: 'lava-core', label: 'Lava Core', color: 'bg-orange-600' }
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setEditTheme(t.id as any)}
+                          className={`p-2 rounded-xl border-2 text-[11px] font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                            editTheme === t.id
+                              ? 'border-[#6D28D9] bg-[#F3F0FF] text-[#6D28D9] shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded-full ${t.color}`} />
+                          <span className="truncate max-w-full">{t.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
+              )}
 
-                {/* Live tag preview in Edit Modal */}
-                <div className="p-3 bg-purple-950/40 border border-purple-500/30 rounded-xl flex items-center justify-between text-xs">
-                  <span className="text-zinc-400 font-medium">🎮 Sua Tag Completa no PK XD:</span>
-                  <span className="font-mono font-black text-yellow-300 bg-black/60 px-2.5 py-1 rounded-lg border border-yellow-400/30 shadow-inner">
-                    {editNick.trim() || 'SEUNICK'}#{editTagNumber.trim() || '000'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-neutral-400">Título de Cidadão</label>
-                <select
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-800 border border-white/15 rounded-xl text-xs text-white font-bold cursor-pointer focus:outline-none focus:border-purple-500"
-                >
-                  <option value="Explorador da Ilha">🌟 Explorador da Ilha</option>
-                  <option value="Caçador de Spoilers">🔮 Caçador de Spoilers</option>
-                  <option value="Mestre dos Mini-Games">🏆 Mestre dos Mini-Games</option>
-                  <option value="Lenda do PK XD">👑 Lenda do PK XD</option>
-                  <option value="Creator Estrela">⭐ Creator Estrela</option>
-                  <option value="Arquiteto de Casas">🏠 Arquiteto de Casas</option>
-                  <option value="Piloto do Crazy Run">⚡ Piloto do Crazy Run</option>
-                  {isAdmin && <option value="Lorde da Moderação">🛡️ Lorde da Moderação</option>}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-neutral-400">Bio do Perfil</label>
-                <textarea
-                  rows={2}
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
-                  placeholder="Conte um pouco sobre suas aventuras no PK XD..."
-                  className="w-full px-3 py-2 bg-black/50 border border-white/15 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              {/* Nickname Prefix and Status Phrase */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-amber-300 flex items-center gap-1">
-                    <span>🏷️ Prefixo do Nick</span>
-                  </label>
-                  <select
-                    value={editPrefix}
-                    onChange={(e) => setEditPrefix(e.target.value)}
-                    className="w-full px-3 py-2 bg-neutral-800 border border-white/15 rounded-xl text-xs text-white font-bold cursor-pointer focus:outline-none focus:border-amber-400"
-                  >
-                    <option value="">Nenhum</option>
-                    <option value="[PRO]">⭐ [PRO]</option>
-                    <option value="[VIP]">👑 [VIP]</option>
-                    <option value="[CREATOR]">🎬 [CREATOR]</option>
-                    <option value="[FÃ]">❤️ [FÃ]</option>
-                    <option value="[PKXD]">🎮 [PKXD]</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-cyan-300 flex items-center gap-1">
-                    <span>💬 Frase de Status / Atividade</span>
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={35}
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    placeholder="Ex: 🎮 Jogando Crazy Run"
-                    className="w-full px-3 py-2 bg-black/50 border border-white/15 rounded-xl text-xs text-white font-medium focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-              </div>
-
-              {/* Quick Status presets */}
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {[
-                  '🎮 Jogando Crazy Run',
-                  '🍕 Entregador de Pizza',
-                  '💎 Caçando Gemas',
-                  '🎉 Em Festa com Amigos',
-                  '🔮 Aguardando Spoilers'
-                ].map((st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setEditStatus(st)}
-                    className="px-2 py-0.5 rounded-lg bg-black/40 hover:bg-black/70 border border-white/10 text-[10px] text-zinc-300 transition-colors cursor-pointer"
-                  >
-                    {st}
-                  </button>
-                ))}
-              </div>
-
-              {/* Pet / Companion and Minigame */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-pink-300 flex items-center gap-1">
-                    <span>🐾 Pet / Companheiro Favorito</span>
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={24}
-                    value={editPet}
-                    onChange={(e) => setEditPet(e.target.value)}
-                    placeholder="Ex: Unicórnio Mágico"
-                    className="w-full px-3 py-2 bg-black/50 border border-white/15 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-pink-400"
-                  />
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {['🦄 Unicórnio', '🐉 Dragão', '🤖 Robô Bob', '🐱 Gatinho', '🐶 Poddle', '🦖 Dino'].map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setEditPet(p)}
-                        className="px-1.5 py-0.5 rounded bg-black/30 hover:bg-black/60 border border-white/5 text-[9px] text-pink-200 cursor-pointer"
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-neutral-400">Minigame Favorito</label>
-                  <select
-                    value={editMinigame}
-                    onChange={(e) => setEditMinigame(e.target.value)}
-                    className="w-full px-3 py-2 bg-neutral-800 border border-white/15 rounded-xl text-xs text-white font-bold cursor-pointer focus:outline-none focus:border-purple-500"
-                  >
-                    {PKXD_MINIGAMES.map((game) => (
-                      <option key={game.name} value={game.name}>
-                        {game.icon} {game.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Vehicle & Job on the Island */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-cyan-300 flex items-center gap-1">
-                    <span>🚀 Veículo Favorito</span>
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={24}
-                    value={editVehicle}
-                    onChange={(e) => setEditVehicle(e.target.value)}
-                    placeholder="Ex: Hoverboard Neon"
-                    className="w-full px-3 py-2 bg-black/50 border border-white/15 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-cyan-400"
-                  />
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {['🛹 Hoverboard', '🏎️ Carro Gamer', '🐉 Dragão Alado', '🛵 Moto Neon', '🛸 Nave UFO', '🧹 Vassoura'].map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setEditVehicle(v)}
-                        className="px-1.5 py-0.5 rounded bg-black/30 hover:bg-black/60 border border-white/5 text-[9px] text-cyan-200 cursor-pointer"
-                      >
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold uppercase text-yellow-300 flex items-center gap-1">
-                    <span>💼 Papel / Profissão na Ilha</span>
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={24}
-                    value={editJob}
-                    onChange={(e) => setEditJob(e.target.value)}
-                    placeholder="Ex: Entregador de Pizza"
-                    className="w-full px-3 py-2 bg-black/50 border border-white/15 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-yellow-400"
-                  />
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {['🍕 Entregador', '🎧 DJ da Ilha', '🦺 Guia Turístico', '⚡ Atleta Crazy', '🔍 Detetive', '🍹 Mestre Suco'].map((j) => (
-                      <button
-                        key={j}
-                        type="button"
-                        onClick={() => setEditJob(j)}
-                        className="px-1.5 py-0.5 rounded bg-black/30 hover:bg-black/60 border border-white/5 text-[9px] text-yellow-200 cursor-pointer"
-                      >
-                        {j}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* House Style */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-purple-300 flex items-center gap-1">
-                  <span>🏠 Estilo da Sua Casa / Mansão</span>
-                </label>
-                <input
-                  type="text"
-                  maxLength={24}
-                  value={editHouse}
-                  onChange={(e) => setEditHouse(e.target.value)}
-                  placeholder="Ex: Mansão Gamer"
-                  className="w-full px-3 py-2 bg-black/50 border border-white/15 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-purple-400"
-                />
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {['🏠 Mansão Gamer', '🏰 Castelo Real', '🚀 Nave Espacial', '⛵ Iate de Luxo', '🍄 Casa Cogumelo', '🌴 Casa da Árvore'].map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => setEditHouse(h)}
-                      className="px-1.5 py-0.5 rounded bg-black/30 hover:bg-black/60 border border-white/5 text-[9px] text-purple-200 cursor-pointer"
-                    >
-                      {h}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Name Color & Badge Icon */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-black/40 border border-white/10 rounded-2xl">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-amber-300 flex items-center justify-between">
-                    <span>🎨 Cor do Seu Nome</span>
-                    <span className="text-[9px] font-mono text-zinc-400">Destaque VIP</span>
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      { id: 'white', label: 'Branco', color: 'bg-white text-black' },
-                      { id: 'gold', label: 'Dourado', color: 'bg-amber-400 text-black' },
-                      { id: 'cyan', label: 'Ciano', color: 'bg-cyan-400 text-black' },
-                      { id: 'purple', label: 'Roxo', color: 'bg-purple-400 text-black' },
-                      { id: 'pink', label: 'Rosa', color: 'bg-pink-400 text-black' },
-                      { id: 'fire', label: 'Fogo', color: 'bg-orange-500 text-white' }
-                    ].map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setEditNameColor(c.id as any)}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
-                          editNameColor === c.id ? 'ring-2 ring-white scale-105 shadow-md ' + c.color : 'bg-black/50 text-zinc-300 border border-white/10 hover:border-white/30'
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${c.color}`} />
-                        <span>{c.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-pink-300 flex items-center justify-between">
-                    <span>✨ Símbolo de Destaque</span>
-                    <span className="text-[9px] font-mono text-zinc-400">Ao lado do Nick</span>
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {['⚡', '👑', '💎', '🌟', '🔥', '🦄', '🚀', '🎮', '🍕', '🏆'].map((icon) => (
-                      <button
-                        key={icon}
-                        type="button"
-                        onClick={() => setEditFeaturedIcon(icon)}
-                        className={`w-8 h-8 rounded-lg text-sm flex items-center justify-center transition-all cursor-pointer ${
-                          editFeaturedIcon === icon ? 'bg-pink-500 text-white scale-110 shadow-md ring-2 ring-pink-300' : 'bg-black/50 hover:bg-black/80 text-zinc-300 border border-white/10'
-                        }`}
-                      >
-                        {icon}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Avatar Frame Selection */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-extrabold uppercase text-purple-300 flex items-center gap-1">
-                  <span>🖼️ Moldura Especial do Avatar</span>
-                </label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {[
-                    { id: 'classic', label: 'Clássica', border: 'border-white/40' },
-                    { id: 'neon-glow', label: 'Neon Glow', border: 'border-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.5)]' },
-                    { id: 'vip-gold', label: 'VIP Gold', border: 'border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.5)]' },
-                    { id: 'cyber-tech', label: 'Cyber Tech', border: 'border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' },
-                    { id: 'fire-magic', label: 'Fogo Mágico', border: 'border-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]' },
-                    { id: 'galaxy-star', label: 'Galáxia', border: 'border-fuchsia-400 shadow-[0_0_10px_rgba(217,70,239,0.5)]' }
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setEditAvatarFrame(f.id as any)}
-                      className={`p-2 rounded-xl border text-[10px] font-bold text-center transition-all cursor-pointer ${
-                        editAvatarFrame === f.id
-                          ? 'border-purple-400 bg-purple-500/20 text-white scale-105 shadow-md'
-                          : 'border-white/10 bg-black/40 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 mx-auto rounded-lg border-2 ${f.border} mb-1`} />
-                      <span className="truncate block text-[9px]">{f.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Card Theme Selection (12 Themes!) */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-extrabold uppercase text-neutral-400 flex items-center justify-between">
-                  <span>Tema Visual do Cartão</span>
-                  <span className="text-[9px] text-zinc-400 font-mono">12 Estilos Disponíveis</span>
-                </label>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {[
-                    { id: 'neon-purple', label: 'Neon Cosmic', color: 'bg-purple-600' },
-                    { id: 'cyber-blue', label: 'Cyber Blue', color: 'bg-cyan-600' },
-                    { id: 'golden-vip', label: 'Golden VIP', color: 'bg-yellow-600' },
-                    { id: 'sunset-pink', label: 'Sunset Pink', color: 'bg-pink-600' },
-                    { id: 'emerald-gamer', label: 'Emerald', color: 'bg-emerald-600' },
-                    { id: 'volcano-red', label: 'Magma Red', color: 'bg-red-600' },
-                    { id: 'frost-diamond', label: 'Frost Ice', color: 'bg-sky-400' },
-                    { id: 'galaxy-space', label: 'Galáxia Espacial', color: 'bg-fuchsia-600' },
-                    { id: 'candy-pop', label: 'Candy Pop', color: 'bg-rose-400' },
-                    { id: 'retro-arcade', label: 'Retro Arcade', color: 'bg-emerald-400' },
-                    { id: 'aurora-nordic', label: 'Aurora Boreal', color: 'bg-teal-400' },
-                    { id: 'lava-core', label: 'Núcleo de Lava', color: 'bg-orange-600' }
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setEditTheme(t.id as any)}
-                      className={`p-2 rounded-xl border text-[10px] font-bold text-white flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                        editTheme === t.id ? 'border-white scale-105 shadow-md bg-white/10' : 'border-white/10 opacity-60'
-                      }`}
-                    >
-                      <span className={`w-4 h-4 rounded-full ${t.color}`} />
-                      <span className="truncate max-w-full">{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Avatar Options & Selection */}
-              <div className="space-y-2.5 border border-white/10 bg-black/30 p-3.5 rounded-2xl">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-extrabold uppercase text-neutral-300">Foto do Avatar & Perfil</label>
-                  {currentUser?.photoURL && (
-                    <button
-                      type="button"
-                      onClick={() => setEditAvatar(currentUser.photoURL!)}
-                      className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 underline cursor-pointer flex items-center gap-1"
-                    >
-                      <span>Usar Foto da Minha Conta</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Selected Preview and Upload button */}
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-purple-400/50 bg-black flex-shrink-0 shadow-md">
-                    <img 
-                      src={editAvatar} 
-                      alt="Preview" 
-                      className="w-full h-full object-cover" 
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as any).src = PRESET_AVATARS[0];
-                      }}
-                    />
-                  </div>
-                  <label className="flex-1 flex items-center justify-center gap-2 border border-dashed border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 py-2.5 px-3 rounded-xl text-xs font-bold text-purple-300 cursor-pointer transition-all">
-                    <UploadCloud className="w-4 h-4" />
-                    <span>Enviar Foto da Galeria</span>
-                    <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-                  </label>
-                </div>
-
-                {/* Preset Avatars */}
-                <div className="space-y-1 pt-1 border-t border-white/5">
-                  <span className="text-[9px] font-bold text-neutral-400 uppercase">Ou escolha um avatar gamer:</span>
-                  <div className="flex items-center gap-2 overflow-x-auto py-1">
-                    {PRESET_AVATARS.map((avatarUrl, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setEditAvatar(avatarUrl)}
-                        className={`w-10 h-10 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all cursor-pointer ${
-                          editAvatar === avatarUrl ? 'border-pink-400 scale-110 shadow-md' : 'border-white/10 opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={avatarUrl} alt={`Avatar ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2.5 pt-3 border-t-2 border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="flex-1 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold uppercase rounded-xl transition-all cursor-pointer"
+                  className="pkxd-btn-outline flex-1 py-2.5 text-xs cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:brightness-110 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md"
+                  className="pkxd-btn-primary flex-1 py-2.5 text-xs cursor-pointer"
                 >
-                  Salvar Alterações ✨
+                  Salvar Alterações
                 </button>
               </div>
             </form>
@@ -3045,53 +3237,58 @@ export default function PassportSection({
       {/* MODAL: ADICIONAR AMIGO */}
       {/* ========================================================= */}
       {isAddFriendModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-pink-500/50 rounded-3xl p-6 sm:p-8 w-full max-w-md relative shadow-2xl space-y-4 text-left">
+        <div
+          onClick={() => setIsAddFriendModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="pkxd-glass-modal rounded-3xl p-6 sm:p-8 w-full max-w-md relative space-y-4 text-left"
+          >
             <button
               onClick={() => setIsAddFriendModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer"
+              className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 text-pink-400">
+            <div className="flex items-center gap-2 text-[#6D28D9]">
               <Users className="w-5 h-5" />
-              <h3 className="font-sans font-black text-lg text-white uppercase tracking-wider">
-                Adicionar Amigo PKXD 🤝
+              <h3 className="font-display font-bold text-lg text-slate-900">
+                Adicionar Amigo PKXD
               </h3>
             </div>
 
             <form onSubmit={handleAddFriend} className="space-y-3.5">
               <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-neutral-400">Nome ou Tag do Amigo *</label>
+                <label className="text-xs font-extrabold text-slate-700">Nome ou Tag do Amigo *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: LunaStar ou Gabriel"
+                  placeholder="Ex: LunaStar#123 ou Gabriel"
                   value={newFriendTag}
                   onChange={(e) => setNewFriendTag(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-black/60 border border-white/15 rounded-xl text-sm text-white font-bold uppercase focus:outline-none focus:border-pink-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-bold focus:outline-none focus:border-[#6D28D9]"
                 />
-                <p className="text-[10px] text-neutral-400">Digite o nickname ou identificador do amigo.</p>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-neutral-400">Nome / Apelido (Opcional)</label>
+                <label className="text-xs font-extrabold text-slate-700">Apelido (Opcional)</label>
                 <input
                   type="text"
                   placeholder="Ex: Luna"
                   value={newFriendNick}
                   onChange={(e) => setNewFriendNick(e.target.value)}
-                  className="w-full px-3 py-2 bg-black/60 border border-white/15 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-pink-500"
+                  className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-[#6D28D9]"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-neutral-400">Minigame que jogam juntos</label>
+                <label className="text-xs font-extrabold text-slate-700">Minigame que jogam juntos</label>
                 <select
                   value={newFriendGame}
                   onChange={(e) => setNewFriendGame(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-800 border border-white/15 rounded-xl text-xs text-white font-bold cursor-pointer focus:outline-none focus:border-pink-500"
+                  className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-bold cursor-pointer focus:outline-none focus:border-[#6D28D9]"
                 >
                   {PKXD_MINIGAMES.map((game) => (
                     <option key={game.name} value={game.name}>
@@ -3102,8 +3299,8 @@ export default function PassportSection({
               </div>
 
               {friendError && (
-                <div className="p-2.5 bg-red-500/20 border border-red-500/30 rounded-xl text-xs text-red-300 font-bold">
-                  ⚠️ {friendError}
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold">
+                  {friendError}
                 </div>
               )}
 
@@ -3111,15 +3308,15 @@ export default function PassportSection({
                 <button
                   type="button"
                   onClick={() => setIsAddFriendModalOpen(false)}
-                  className="flex-1 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold uppercase rounded-xl transition-all cursor-pointer"
+                  className="pkxd-btn-outline flex-1 py-2.5 text-xs cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:brightness-110 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md"
+                  className="pkxd-btn-primary flex-1 py-2.5 text-xs cursor-pointer"
                 >
-                  Adicionar Amigo 🎉
+                  Adicionar Amigo
                 </button>
               </div>
             </form>
@@ -3128,48 +3325,55 @@ export default function PassportSection({
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: QR CODE & COMPARTILHAMENTO */}
+      {/* MODAL: QR CODE & COMPARTILHAMENTO COM LINK CURTO */}
       {/* ========================================================= */}
       {isShareModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-purple-500/50 rounded-3xl p-6 sm:p-8 w-full max-w-md relative shadow-2xl space-y-5 text-center">
+        <div
+          onClick={() => setIsShareModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="pkxd-glass-modal rounded-3xl p-6 sm:p-8 w-full max-w-md relative space-y-5 text-center"
+          >
             <button
               onClick={() => setIsShareModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer"
+              className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div className="space-y-1">
-              <div className="w-12 h-12 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center mx-auto mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-[#F3F0FF] border border-purple-200 text-[#6D28D9] flex items-center justify-center mx-auto mb-2">
                 <QrCode className="w-6 h-6" />
               </div>
-              <h3 className="font-sans font-black text-xl text-white uppercase tracking-wider">
+              <h3 className="font-display font-bold text-xl text-slate-900">
                 Compartilhar PKXD ID
               </h3>
-              <p className="text-xs text-gray-300">
-                Mostre suas conquistas e medalhas para seus amigos de PK XD!
+              <p className="text-xs sm:text-sm text-slate-600">
+                Link curto e QR Code para enviar para seus amigos de PK XD!
               </p>
             </div>
 
             {qrCodeDataUrl && (
-              <div className="w-48 h-48 mx-auto bg-white p-3 rounded-2xl shadow-xl border-2 border-purple-500/30 flex items-center justify-center">
+              <div className="w-48 h-48 mx-auto bg-white p-3 rounded-2xl shadow-sm border-2 border-slate-200 flex items-center justify-center">
                 <img src={qrCodeDataUrl} alt="Passport QR" className="w-full h-full object-contain" />
               </div>
             )}
 
             <div className="space-y-3">
-              {/* Direct URL input preview with short compact link */}
-              <div className="bg-[#0B0817] border border-[#34275A] rounded-2xl p-2.5 flex items-center justify-between gap-2 text-left">
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-2 text-left">
                 <div className="flex-1 overflow-hidden">
-                  <span className="block text-[9px] font-mono uppercase font-bold text-[#E83EBC]">Seu Link Curto Oficial:</span>
-                  <span className="font-mono text-xs text-[#F5C542] truncate block">
-                    {`https://pkxdcentral.site/?id=${encodeURIComponent(passport.playerTag)}`}
+                  <span className="block text-[10px] font-sans uppercase font-extrabold text-slate-500">
+                    Seu Link Curto Oficial:
+                  </span>
+                  <span className="font-mono text-xs text-[#0284C7] font-bold truncate block">
+                    {getPassportShareUrl(viewingSharedPassport || passport)}
                   </span>
                 </div>
                 <button
                   onClick={handleCopyLink}
-                  className="px-3 py-1.5 bg-[#7C3AED] hover:bg-[#9B5CFF] active:scale-95 text-white font-sans font-black text-[11px] uppercase rounded-xl transition-all flex items-center gap-1 cursor-pointer flex-shrink-0 shadow-md"
+                  className="pkxd-btn-primary px-3 py-1.5 text-[11px] flex items-center gap-1 cursor-pointer flex-shrink-0"
                 >
                   {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedLink ? 'Copiado!' : 'Copiar'}</span>
@@ -3179,28 +3383,28 @@ export default function PassportSection({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   onClick={handleCopyLink}
-                  className="w-full py-3 bg-gradient-to-r from-[#7C3AED] to-[#9B5CFF] hover:brightness-110 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95"
+                  className="pkxd-btn-cyan w-full py-3 text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {copiedLink ? <Check className="w-4 h-4 text-emerald-300" /> : <Share2 className="w-4 h-4" />}
-                  <span>{copiedLink ? 'Link Copiado!' : 'Copiar Link'}</span>
+                  {copiedLink ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                  <span>{copiedLink ? 'Link Copiado!' : 'Copiar Link Curto'}</span>
                 </button>
 
                 <a
-                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`✨ Confira meu PKXD ID Oficial!\n🎮 ${passport.nickname} (${passport.playerTag})\n🪪 https://pkxdcentral.site/?id=${encodeURIComponent(passport.playerTag)}`)}`}
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Confira meu PKXD ID Oficial!\n${(viewingSharedPassport || passport).nickname} (${(viewingSharedPassport || passport).playerTag})\n${getPassportShareUrl(viewingSharedPassport || passport)}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95"
+                  className="w-full py-3 bg-[#ECFDF5] hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs uppercase tracking-wider rounded-2xl transition-colors flex items-center justify-center gap-2 border-2 border-emerald-300"
                 >
-                  <span>💬 Enviar no WhatsApp</span>
+                  <span>Enviar no WhatsApp</span>
                 </a>
               </div>
 
               <button
                 onClick={handleCopyTag}
-                className="w-full py-2.5 bg-[#1D1638] hover:bg-[#251B46] border border-[#34275A] text-[#22D3EE] font-mono font-bold text-xs uppercase rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="pkxd-btn-outline w-full py-2.5 text-xs font-mono font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>{copiedTag ? 'Tag Copiada!' : `Copiar Tag: ${passport.playerTag}`}</span>
+                <Copy className="w-3.5 h-3.5 text-[#6D28D9]" />
+                <span>{copiedTag ? 'Tag Copiada!' : `Copiar Tag: ${(viewingSharedPassport || passport).playerTag}`}</span>
               </button>
             </div>
           </div>
@@ -3208,69 +3412,75 @@ export default function PassportSection({
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: DETALHES DA MEDALHA SELECIONADA */}
+      {/* MODAL: DETALHES DA MEDALHA */}
       {/* ========================================================= */}
       {selectedBadge && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-purple-500/50 rounded-3xl p-6 sm:p-8 w-full max-w-sm relative shadow-2xl space-y-4 text-center">
+        <div
+          onClick={() => setSelectedBadge(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="pkxd-glass-modal rounded-3xl p-6 sm:p-8 w-full max-w-sm relative space-y-4 text-center"
+          >
             <button
               onClick={() => setSelectedBadge(null)}
-              className="absolute top-4 right-4 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer"
+              className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div className={`w-20 h-20 rounded-3xl mx-auto flex items-center justify-center text-4xl border-2 ${
               selectedBadge.unlocked
-                ? 'bg-gradient-to-br from-purple-800 to-indigo-900 border-purple-400 shadow-xl'
-                : 'bg-neutral-800 border-white/10 grayscale opacity-60'
+                ? 'bg-[#F3F0FF] border-purple-200'
+                : 'bg-slate-100 border-slate-200 grayscale opacity-65'
             }`}>
               {selectedBadge.icon}
             </div>
 
-            <div className="space-y-1">
-              <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full uppercase font-bold ${
+            <div className="space-y-1.5">
+              <span className={`inline-block text-[10px] font-sans px-2.5 py-0.5 rounded-full uppercase font-extrabold border ${
                 selectedBadge.rarity === 'Lendário'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  ? 'bg-[#FFFBEB] text-amber-800 border-amber-300'
                   : selectedBadge.rarity === 'Épico'
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                    : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                  ? 'bg-[#F3F0FF] text-[#6D28D9] border-purple-200'
+                  : 'bg-[#EFF8FF] text-[#0284C7] border-sky-200'
               }`}>
                 Raridade: {selectedBadge.rarity || 'Comum'}
               </span>
-              <h3 className="font-sans font-black text-lg text-white uppercase pt-1">
+              <h3 className="font-display font-bold text-lg text-slate-900 pt-1">
                 {selectedBadge.title}
               </h3>
-              <p className="text-xs text-gray-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                 {selectedBadge.description}
               </p>
             </div>
 
-            <div className="p-3 bg-black/40 rounded-xl border border-white/10 text-xs font-mono">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border-2 border-slate-200 text-xs font-sans">
               {selectedBadge.unlocked ? (
-                <div className="space-y-2">
-                  <span className="text-emerald-400 font-bold flex items-center justify-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Conquista Resgatada & Desbloqueada!
+                <div className="space-y-1">
+                  <span className="text-emerald-700 font-extrabold flex items-center justify-center gap-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Conquista Desbloqueada!
                   </span>
                   {selectedBadge.unlockedAt && (
-                    <p className="text-[10px] text-gray-400 text-center">
+                    <p className="text-[11px] text-slate-500">
                       Desbloqueado em {new Date(selectedBadge.unlockedAt).toLocaleDateString('pt-BR')}
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <span className="text-amber-400 font-bold block text-center">
-                    🔒 Conquista Disponível para Resgate!
+                <div className="space-y-2.5">
+                  <span className="text-amber-700 font-extrabold block">
+                    🔒 Conquista Disponível para Resgate
                   </span>
                   <button
                     onClick={() => {
                       handleClaimBadge(selectedBadge);
                       setSelectedBadge({ ...selectedBadge, unlocked: true, unlockedAt: Date.now() });
                     }}
-                    className="w-full py-2.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:brightness-110 text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                    className="pkxd-btn-primary w-full py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Gift className="w-3.5 h-3.5 text-yellow-300" />
+                    <Gift className="w-3.5 h-3.5" />
                     <span>Resgatar Conquista (+{selectedBadge.rarity === 'Lendário' ? 100 : selectedBadge.rarity === 'Épico' ? 75 : selectedBadge.rarity === 'Raro' ? 50 : 30} XP)</span>
                   </button>
                 </div>
@@ -3284,55 +3494,34 @@ export default function PassportSection({
       {/* MODAL: CRIAR NOVO SELO OFICIAL (MODO ADM) */}
       {/* ========================================================= */}
       {isAddStampModalOpen && isAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-cyan-500/50 rounded-3xl p-6 sm:p-8 w-full max-w-lg relative shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setIsAddStampModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="pkxd-glass-modal rounded-3xl p-6 sm:p-8 w-full max-w-lg relative space-y-5 max-h-[90vh] overflow-y-auto"
+          >
             <button
               onClick={() => setIsAddStampModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer"
+              className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div className="space-y-1">
-              <h3 className="font-sans font-black text-lg text-white uppercase tracking-wider flex items-center gap-2">
-                <BookmarkCheck className="w-5 h-5 text-cyan-400" />
-                Criar Selo Oficial (Modo ADM)
+              <h3 className="font-display font-bold text-lg text-slate-900 flex items-center gap-2">
+                <BookmarkCheck className="w-5 h-5 text-[#0284C7]" />
+                <span>Criar Selo Oficial (ADM)</span>
               </h3>
-              <p className="text-xs text-gray-400">
-                Adicione carimbos comemorativos e oficiais ao PKXD ID.
+              <p className="text-xs text-slate-600">
+                Emita carimbos comemorativos para a comunidade resgatar no PKXD ID.
               </p>
-            </div>
-
-            {/* Live Preview */}
-            <div className="p-4 bg-black/40 rounded-2xl border border-white/10 space-y-2">
-              <span className="text-[10px] font-mono uppercase text-gray-400 font-bold">Pré-visualização do Selo:</span>
-              <div className="bg-zinc-900 border-2 border-white/10 rounded-2xl p-4 relative overflow-hidden flex items-start gap-3">
-                <div className="absolute top-2 right-2 border border-dashed border-white/20 rounded-full px-2 py-0.5 text-[7px] font-mono text-white/50 uppercase">
-                  OFFICIAL STAMP
-                </div>
-                <div 
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 shadow-lg border border-white/20"
-                  style={{ backgroundColor: newStampColor ? `${newStampColor}30` : 'rgba(139,92,246,0.3)' }}
-                >
-                  {newStampIcon || '🏆'}
-                </div>
-                <div className="space-y-0.5 flex-1 pr-6">
-                  <h5 className="font-sans font-black text-sm text-white uppercase">
-                    {newStampTitle || 'Nome do Selo'}
-                  </h5>
-                  <p className="text-[11px] text-cyan-300 font-bold">
-                    {newStampEvent || 'Temporada / Evento'}
-                  </p>
-                  <p className="text-[10px] text-gray-400">
-                    📍 {newStampLocation || 'Central Plaza'} • 📅 {newStampDate || '2026'}
-                  </p>
-                </div>
-              </div>
             </div>
 
             <form onSubmit={handleCreateStamp} className="space-y-4">
               <div>
-                <label className="block text-xs font-mono text-gray-300 font-bold uppercase mb-1">
+                <label className="block text-xs font-extrabold text-slate-700 mb-1">
                   Título do Selo *
                 </label>
                 <input
@@ -3341,13 +3530,13 @@ export default function PassportSection({
                   placeholder="Ex: Campeão Crazy Run"
                   value={newStampTitle}
                   onChange={(e) => setNewStampTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500 rounded-xl text-sm text-white outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0284C7] rounded-xl text-sm text-slate-900 outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-mono text-gray-300 font-bold uppercase mb-1">
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
                     Evento ou Temporada
                   </label>
                   <input
@@ -3355,106 +3544,86 @@ export default function PassportSection({
                     placeholder="Ex: Torneio de Velocidade"
                     value={newStampEvent}
                     onChange={(e) => setNewStampEvent(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500 rounded-xl text-sm text-white outline-none"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0284C7] rounded-xl text-sm text-slate-900 outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-mono text-gray-300 font-bold uppercase mb-1">
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
                     Localização na Ilha
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: Circuito dos Robôs"
+                    placeholder="Ex: Central Plaza"
                     value={newStampLocation}
                     onChange={(e) => setNewStampLocation(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500 rounded-xl text-sm text-white outline-none"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0284C7] rounded-xl text-sm text-slate-900 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                    Código Secreto (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Deixe vazio para ser aberto"
+                    value={newStampSecretCode}
+                    onChange={(e) => setNewStampSecretCode(e.target.value.toUpperCase())}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0284C7] rounded-xl text-sm text-slate-900 font-mono uppercase outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                    Recompensa em XP
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={500}
+                    value={newStampXpReward}
+                    onChange={(e) => setNewStampXpReward(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-[#0284C7] rounded-xl text-sm text-slate-900 outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-mono text-gray-300 font-bold uppercase mb-1">
-                  Data / Período
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: 2026 ou Agosto 2026"
-                  value={newStampDate}
-                  onChange={(e) => setNewStampDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500 rounded-xl text-sm text-white outline-none"
-                />
-              </div>
-
-              {/* Icon selector */}
-              <div>
-                <label className="block text-xs font-mono text-gray-300 font-bold uppercase mb-1.5">
+                <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
                   Ícone / Emoji do Carimbo
                 </label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {['🏆', '🌟', '🚀', '🏖️', '⚡', '🎉', '👾', '👑', '🔥', '💎', '🐾', '🎮', '🎯', '🎃'].map((emoji) => (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {['🏆', '🌟', '🚀', '🏖️', '⚡', '🎉', '👾', '👑', '🔥', '💎', '🐾', '🎮'].map((emoji) => (
                     <button
                       key={emoji}
                       type="button"
                       onClick={() => setNewStampIcon(emoji)}
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg border transition-all cursor-pointer ${
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg border-2 cursor-pointer ${
                         newStampIcon === emoji
-                          ? 'bg-cyan-500/20 border-cyan-400 scale-110 shadow-md'
-                          : 'bg-black/40 border-white/10 hover:border-white/30'
+                          ? 'bg-[#EFF8FF] border-[#0284C7]'
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-300'
                       }`}
                     >
                       {emoji}
                     </button>
                   ))}
                 </div>
-                <input
-                  type="text"
-                  placeholder="Ou digite outro emoji/ícone..."
-                  value={newStampIcon}
-                  onChange={(e) => setNewStampIcon(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-black/50 border border-white/10 focus:border-cyan-500 rounded-xl text-sm text-white outline-none"
-                />
               </div>
 
-              {/* Color glow selector */}
-              <div>
-                <label className="block text-xs font-mono text-gray-300 font-bold uppercase mb-1.5">
-                  Cor de Destaque
-                </label>
-                <div className="flex flex-wrap gap-2.5">
-                  {[
-                    { name: 'Roxo', color: '#8b5cf6' },
-                    { name: 'Ciano', color: '#06b6d4' },
-                    { name: 'Rosa', color: '#ec4899' },
-                    { name: 'Dourado', color: '#eab308' },
-                    { name: 'Esmeralda', color: '#10b981' },
-                    { name: 'Laranja', color: '#f97316' }
-                  ].map((c) => (
-                    <button
-                      key={c.color}
-                      type="button"
-                      onClick={() => setNewStampColor(c.color)}
-                      className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer ${
-                        newStampColor === c.color ? 'border-white scale-125 shadow-lg' : 'border-transparent opacity-70 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: c.color }}
-                      title={c.name}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-3 flex gap-3">
+              <div className="pt-2 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setIsAddStampModalOpen(false)}
-                  className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 text-gray-300 font-bold text-xs uppercase rounded-xl transition-all cursor-pointer"
+                  className="pkxd-btn-outline flex-1 py-2.5 text-xs cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:brightness-110 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                  className="pkxd-btn-cyan flex-1 py-2.5 text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Emitir Selo</span>

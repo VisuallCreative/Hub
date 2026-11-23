@@ -1,73 +1,96 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CommunityEvent, EventParticipant, EventStatus } from '../types';
-import { 
-  Calendar, 
-  Clock, 
-  Users, 
-  Plus, 
-  CheckCircle, 
-  AlertCircle, 
-  Trash2, 
-  Copy, 
-  FileSpreadsheet, 
-  FileText, 
-  Download, 
-  Search, 
-  UploadCloud, 
-  ShieldCheck, 
-  Play, 
-  X, 
-  Check, 
-  Sparkles, 
-  Filter, 
-  Tag, 
-  UserCheck, 
-  FileCheck,
-  Edit3,
-  ExternalLink,
+import {
+  Calendar,
+  Clock,
+  Users,
+  Plus,
+  CheckCircle,
+  AlertCircle,
+  Trash2,
+  Copy,
+  FileSpreadsheet,
+  FileText,
+  Download,
+  Search,
+  UploadCloud,
+  X,
+  Check,
+  Sparkles,
+  UserCheck,
   Share2,
   Star,
-  Bell,
   BookmarkCheck,
   CalendarPlus,
-  Zap,
   Lock,
-  Unlock,
   KeyRound,
   Eye,
   EyeOff,
-  ShieldAlert
+  Pencil,
+  Globe,
+  Link2,
+  UserMinus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 interface EventsSectionProps {
   isAdmin: boolean;
   currentUser?: any;
+  playerTag?: string;
   soundEnabled?: boolean;
+  initialAgendaTab?: 'todos' | 'minha_agenda';
+  autoOpenCreate?: boolean;
+  onCloseAutoCreate?: () => void;
   triggerAudio?: (type: 'tap' | 'levelUp' | 'success') => void;
-  onAddXP?: (amount: number, reason: string) => void;
+  onAddXP?: (amount: number, reason: string, rewardKey?: string) => void;
 }
 
 const CATEGORIES = [
-  "Todas",
-  "Torneios",
-  "Festas",
-  "Esconder-Esconder",
-  "Encontros de Creators",
-  "Desafios & Mini-Games",
-  "Outros"
+  'Todas',
+  'Torneios',
+  'Festas',
+  'Esconder-Esconder',
+  'Encontros de Creators',
+  'Desafios & Mini-Games',
+  'Outros'
 ];
 
 const DEFAULT_COMMUNITY_EVENTS: CommunityEvent[] = [];
 
+function EventBannerImage({ bannerUrl, name }: { bannerUrl?: string; name: string }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (bannerUrl && !bannerUrl.includes('images.unsplash.com') && !imgFailed) {
+    return (
+      <img
+        src={bannerUrl}
+        alt={name}
+        onError={() => setImgFailed(true)}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      />
+    );
+  }
+
+  return (
+    <div className="w-full h-full bg-gradient-to-br from-violet-600 via-pink-500 to-sky-500 flex items-center justify-center p-6">
+      <div className="w-16 h-16 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-white">
+        <Calendar className="w-8 h-8" />
+      </div>
+    </div>
+  );
+}
+
 export default function EventsSection({
   isAdmin,
   currentUser,
-  soundEnabled,
+  playerTag,
+  initialAgendaTab = 'todos',
+  autoOpenCreate = false,
+  onCloseAutoCreate,
   triggerAudio,
   onAddXP
 }: EventsSectionProps) {
@@ -77,43 +100,45 @@ export default function EventsSection({
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter(ev => 
-            ev.id !== 'event_crazy_run_mega' && 
+          const cleaned = parsed.filter(ev =>
+            ev.id !== 'event_crazy_run_mega' &&
             ev.id !== 'event_festa_desfile' &&
             !ev.name?.includes('Mega Torneio') &&
             !ev.name?.includes('Grande Desfile')
           );
           try {
             localStorage.setItem('pkxd_custom_events', JSON.stringify(cleaned));
-          } catch (e) {}
+          } catch {}
           return cleaned;
         }
       }
-    } catch (e) {}
+    } catch {}
     return DEFAULT_COMMUNITY_EVENTS;
   });
+
   const [participants, setParticipants] = useState<EventParticipant[]>(() => {
     try {
       const saved = localStorage.getItem('pkxd_event_participants');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter(p => 
-            p.eventId !== 'event_crazy_run_mega' && 
+          const cleaned = parsed.filter(p =>
+            p.eventId !== 'event_crazy_run_mega' &&
             p.eventId !== 'event_festa_desfile'
           );
           try {
             localStorage.setItem('pkxd_event_participants', JSON.stringify(cleaned));
-          } catch (e) {}
+          } catch {}
           return cleaned;
         }
       }
-    } catch (e) {}
+    } catch {}
     return [];
   });
-  const [selectedCategory, setSelectedCategory] = useState("Todas");
-  const [statusFilter, setStatusFilter] = useState<string>("TODOS");
-  const [agendaTab, setAgendaTab] = useState<'todos' | 'minha_agenda'>('todos');
+
+  const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [statusFilter, setStatusFilter] = useState<string>('TODOS');
+  const [agendaTab, setAgendaTab] = useState<'todos' | 'minha_agenda'>(initialAgendaTab);
   const [savedAgendaIds, setSavedAgendaIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('pkxd_saved_agenda_ids');
@@ -123,32 +148,56 @@ export default function EventsSection({
     }
   });
 
-  // Modals state
+  // Modals & confirm states
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [showPresenceModal, setShowPresenceModal] = useState<CommunityEvent | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState<CommunityEvent | null>(null);
-  const [showOrganizerPanel, setShowOrganizerPanel] = useState<CommunityEvent | null>(null);
+  const [confirmDeleteEventId, setConfirmDeleteEventId] = useState<string | null>(null);
+  const [confirmRemovePartId, setConfirmRemovePartId] = useState<string | null>(null);
 
-  // Form states for Create Event
+  // Form states for Create / Edit Event
   const [newEventName, setNewEventName] = useState('');
   const [newEventDesc, setNewEventDesc] = useState('');
   const [newEventCategory, setNewEventCategory] = useState('Torneios');
   const [customCategory, setCustomCategory] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
   const [newEventTime, setNewEventTime] = useState('');
+  const [newEventServer, setNewEventServer] = useState('');
+  const [newEventLink, setNewEventLink] = useState('');
   const [newEventBanner, setNewEventBanner] = useState('');
-  const [newOrganizerName, setNewOrganizerName] = useState(currentUser?.displayName || '');
+  const [newOrganizerName, setNewOrganizerName] = useState(
+    playerTag || currentUser?.displayName || ''
+  );
   const [newEventRules, setNewEventRules] = useState('');
   const [newMaxParticipants, setNewMaxParticipants] = useState<string>('');
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [createSuccessMsg, setCreateSuccessMsg] = useState(false);
+  const [createErrorMsg, setCreateErrorMsg] = useState<string | null>(null);
 
-  // PIN / Password Protection states for Create Event
+  // PIN / Password Protection
   const [newEventRequiresPin, setNewEventRequiresPin] = useState(false);
   const [newEventPinCode, setNewEventPinCode] = useState('');
   const [showPinInCreateForm, setShowPinInCreateForm] = useState(false);
 
-  // Presence Confirmation state
+  // Sync external route props
+  useEffect(() => {
+    setAgendaTab(initialAgendaTab);
+  }, [initialAgendaTab]);
+
+  useEffect(() => {
+    if (autoOpenCreate) {
+      setEditingEventId(null);
+      setCreateErrorMsg(null);
+      const savedTag = playerTag || localStorage.getItem('pkxd_player_tag') || currentUser?.displayName || '';
+      if (savedTag && !newOrganizerName) {
+        setNewOrganizerName(savedTag);
+      }
+      setShowCreateModal(true);
+    }
+  }, [autoOpenCreate, playerTag, currentUser]);
+
+  // Presence Confirmation
   const [playerTagInput, setPlayerTagInput] = useState('');
   const [presencePinInput, setPresencePinInput] = useState('');
   const [showPresencePinInput, setShowPresencePinInput] = useState(false);
@@ -156,13 +205,14 @@ export default function EventsSection({
   const [presenceError, setPresenceError] = useState('');
   const [presenceSuccess, setPresenceSuccess] = useState(false);
 
-  // Organizer Panel Search & Toast states
+  // Organizer Panel Search & Toast
   const [participantSearch, setParticipantSearch] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [copiedSingleTagId, setCopiedSingleTagId] = useState<string | null>(null);
   const [copiedBatchFormat, setCopiedBatchFormat] = useState<string | null>(null);
   const [copyFormatTab, setCopyFormatTab] = useState<'lines' | 'comma' | 'numbered'>('lines');
   const [quickAddTagInput, setQuickAddTagInput] = useState('');
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   const showToast = (msg: string) => {
@@ -177,10 +227,10 @@ export default function EventsSection({
       let updated: string[];
       if (isSaved) {
         updated = prev.filter(id => id !== eventId);
-        showToast(`❌ Evento removido da sua Agenda PKXD.`);
+        showToast('Evento removido da sua Agenda PKXD.');
       } else {
         updated = [...prev, eventId];
-        showToast(`⭐ Evento "${eventName}" salvo na sua Agenda PKXD!`);
+        showToast(`Evento "${eventName}" salvo na sua Agenda PKXD!`);
         if (triggerAudio) triggerAudio('success');
         if (onAddXP) onAddXP(25, 'Salvou evento na Agenda PKXD');
       }
@@ -196,16 +246,20 @@ export default function EventsSection({
     const title = encodeURIComponent(`PK XD: ${ev.name}`);
     const details = encodeURIComponent(`Evento da Comunidade PKXD Central\n${ev.description || ''}\nOrganizador: ${ev.organizerName}\nRegras: ${ev.rules || 'Sem regras adicionais'}`);
     const location = encodeURIComponent('PK XD - Servidor Oficial');
-    
+
     let dateParam = '';
     if (ev.date) {
       const cleanDate = ev.date.replace(/-/g, '');
       const cleanTime = (ev.time || '18:00').replace(/:/g, '') + '00';
       dateParam = `&dates=${cleanDate}T${cleanTime}/${cleanDate}T${cleanTime}`;
     }
-    
+
     const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}${dateParam}`;
-    window.open(gcalUrl, '_blank', 'noopener,noreferrer');
+    const a = document.createElement('a');
+    a.href = gcalUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.click();
   };
 
   const handleDownloadICS = (ev: CommunityEvent) => {
@@ -220,7 +274,7 @@ export default function EventsSection({
       'BEGIN:VEVENT',
       `SUMMARY:PK XD - ${ev.name}`,
       `DESCRIPTION:${(ev.description || '').replace(/\n/g, ' ')}`,
-      `LOCATION:Ilha PK XD`,
+      'LOCATION:Ilha PK XD',
       `DTSTART:${cleanDate}T${cleanTime}`,
       `DTEND:${cleanDate}T${cleanTime}`,
       'STATUS:CONFIRMED',
@@ -237,7 +291,7 @@ export default function EventsSection({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast(`📥 Lembrete do evento baixado com sucesso!`);
+    showToast('Lembrete do evento (.ics) baixado!');
   };
 
   const handleShareEvent = (event: CommunityEvent) => {
@@ -246,20 +300,18 @@ export default function EventsSection({
     if (navigator.share) {
       navigator.share({
         title: `Evento PK XD: ${event.name}`,
-        text: `🎉 Venha participar do evento "${event.name}" no PK XD Central!`,
+        text: `Venha participar do evento "${event.name}" no PK XD Central!`,
         url: shareUrl,
       }).catch(() => {});
     } else {
       navigator.clipboard.writeText(shareUrl);
-      showToast(`🔗 Link do evento "${event.name}" copiado!`);
+      showToast(`Link do evento "${event.name}" copiado!`);
     }
   };
 
-  // Subscribe to events & participants from Firestore
   useEffect(() => {
     if (!db) return;
 
-    // Listen to community_events
     const eventsRef = collection(db, 'community_events');
     const unsubEvents = onSnapshot(eventsRef, (snapshot) => {
       const list: CommunityEvent[] = [];
@@ -276,17 +328,15 @@ export default function EventsSection({
           list.push(evData);
         }
       });
-      // Sort by creation date descending
       list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setEvents(list);
       try {
         localStorage.setItem('pkxd_custom_events', JSON.stringify(list));
-      } catch (e) {}
+      } catch {}
     }, (error) => {
-      console.warn("Firestore events sync warning (using local):", error);
+      console.warn('Firestore events sync warning (using local):', error);
     });
 
-    // Listen to event_participants
     const partRef = collection(db, 'event_participants');
     const unsubPart = onSnapshot(partRef, (snapshot) => {
       const list: EventParticipant[] = [];
@@ -304,9 +354,9 @@ export default function EventsSection({
       setParticipants(list);
       try {
         localStorage.setItem('pkxd_event_participants', JSON.stringify(list));
-      } catch (e) {}
+      } catch {}
     }, (error) => {
-      console.warn("Firestore participants sync warning:", error);
+      console.warn('Firestore participants sync warning:', error);
     });
 
     return () => {
@@ -315,35 +365,18 @@ export default function EventsSection({
     };
   }, []);
 
-  // Filter events based on active category, status tab, and agenda mode
   const filteredEvents = useMemo(() => {
     return events.filter(ev => {
-      // If viewing Minha Agenda
-      if (agendaTab === 'minha_agenda') {
-        if (!savedAgendaIds.includes(ev.id)) {
-          return false;
-        }
-      }
-
-      // Category filter
-      if (selectedCategory !== "Todas" && ev.category !== selectedCategory) {
+      if (agendaTab === 'minha_agenda' && !savedAgendaIds.includes(ev.id)) {
         return false;
       }
-
-      // Status filter
-      if (statusFilter === "EM_ANALISE") {
-        return ev.status === 'Em análise';
+      if (selectedCategory !== 'Todas' && ev.category !== selectedCategory) {
+        return false;
       }
-      if (statusFilter === "APROVADOS") {
-        return ev.status === 'Aprovado' || ev.status === 'Em breve' || ev.status === 'Ao vivo';
-      }
-      if (statusFilter === "AO_VIVO") {
-        return ev.status === 'Ao vivo';
-      }
-      if (statusFilter === "ENCERRADOS") {
-        return ev.status === 'Encerrado';
-      }
-
+      if (statusFilter === 'EM_ANALISE') return ev.status === 'Em análise';
+      if (statusFilter === 'APROVADOS') return ev.status === 'Aprovado' || ev.status === 'Em breve' || ev.status === 'Ao vivo';
+      if (statusFilter === 'AO_VIVO') return ev.status === 'Ao vivo';
+      if (statusFilter === 'ENCERRADOS') return ev.status === 'Encerrado';
       return true;
     });
   }, [events, selectedCategory, statusFilter, agendaTab, savedAgendaIds]);
@@ -352,18 +385,17 @@ export default function EventsSection({
     return events.filter(e => savedAgendaIds.includes(e.id)).length;
   }, [events, savedAgendaIds]);
 
-  // Count pending events for Admin alert
   const pendingEventsCount = useMemo(() => {
     return events.filter(e => e.status === 'Em análise').length;
   }, [events]);
 
-  // Handle banner upload
   const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCreateErrorMsg(null);
 
     if (file.size > 8 * 1024 * 1024) {
-      alert('A imagem é muito grande! Escolha uma imagem de até 8MB.');
+      setCreateErrorMsg('A imagem é muito grande! Escolha uma imagem de até 8MB.');
       return;
     }
 
@@ -374,98 +406,184 @@ export default function EventsSection({
       setIsUploadingBanner(false);
     };
     reader.onerror = () => {
-      alert('Erro ao carregar arquivo de imagem.');
+      setCreateErrorMsg('Erro ao carregar arquivo de imagem.');
       setIsUploadingBanner(false);
     };
     reader.readAsDataURL(file);
   };
 
-  // Handle Create Event submit
+  const resetEventForm = () => {
+    setEditingEventId(null);
+    setNewEventName('');
+    setNewEventDesc('');
+    setNewEventCategory('Torneios');
+    setCustomCategory('');
+    setNewEventBanner('');
+    setNewEventRules('');
+    setNewEventServer('');
+    setNewEventLink('');
+    setNewMaxParticipants('');
+    setNewEventDate('');
+    setNewEventTime('');
+    setNewEventRequiresPin(false);
+    setNewEventPinCode('');
+    setShowPinInCreateForm(false);
+    setCreateErrorMsg(null);
+  };
+
+  const openCreateEventModal = () => {
+    resetEventForm();
+    const autoOrganizer = playerTag || localStorage.getItem('pkxd_player_tag') || currentUser?.displayName || '';
+    if (autoOrganizer) setNewOrganizerName(autoOrganizer);
+    setShowCreateModal(true);
+  };
+
+  const openEditEventModal = (ev: CommunityEvent) => {
+    if (triggerAudio) triggerAudio('tap');
+    setEditingEventId(ev.id);
+    setNewEventName(ev.name);
+    setNewEventDesc(ev.description || '');
+    const standardCats = ['Torneios', 'Festas', 'Esconder-Esconder', 'Encontros de Creators', 'Desafios & Mini-Games', 'Outros'];
+    if (standardCats.includes(ev.category)) {
+      setNewEventCategory(ev.category);
+      setCustomCategory('');
+    } else {
+      setNewEventCategory('CUSTOM');
+      setCustomCategory(ev.category);
+    }
+    setNewEventDate(ev.date || '');
+    setNewEventTime(ev.time || '');
+    setNewEventServer(ev.server || '');
+    setNewEventLink(ev.additionalLink || '');
+    setNewEventBanner(ev.bannerUrl || '');
+    setNewOrganizerName(ev.organizerName || '');
+    setNewEventRules(ev.rules || '');
+    setNewMaxParticipants(ev.maxParticipants ? String(ev.maxParticipants) : '');
+    setNewEventRequiresPin(Boolean(ev.requiresPin));
+    setNewEventPinCode(ev.pinCode || '');
+    setCreateErrorMsg(null);
+    setShowCreateModal(true);
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    setEditingEventId(null);
+    if (onCloseAutoCreate) onCloseAutoCreate();
+  };
+
   const handleCreateEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (triggerAudio) triggerAudio('tap');
+    setCreateErrorMsg(null);
 
     if (!newEventName.trim() || !newEventDate || !newOrganizerName.trim()) {
-      alert('Por favor, preencha todos os campos obrigatórios (Nome, Data e Organizador).');
+      setCreateErrorMsg('Preencha todos os campos obrigatórios (Nome, Data e Organizador).');
       return;
     }
 
     if (newEventRequiresPin && !newEventPinCode.trim()) {
-      alert('Por favor, defina o PIN ou Senha de confirmação de presença do evento.');
+      setCreateErrorMsg('Defina o PIN ou Senha de confirmação de presença do evento.');
       return;
     }
 
     const cat = newEventCategory === 'CUSTOM' ? customCategory || 'Outros' : newEventCategory;
     const maxPart = newMaxParticipants ? parseInt(newMaxParticipants, 10) : undefined;
+    const existingEvent = editingEventId ? events.find(ev => ev.id === editingEventId) : null;
+    const eventId = existingEvent ? existingEvent.id : 'event_' + Date.now();
+    const scheduleChanged = Boolean(
+      existingEvent && (existingEvent.date !== newEventDate || existingEvent.time !== (newEventTime || '18:00'))
+    );
 
-    const eventId = 'event_' + Date.now();
-    const newEvent: CommunityEvent = {
+    const eventPayload: CommunityEvent = {
       id: eventId,
       name: newEventName.trim(),
       description: newEventDesc.trim() || 'Evento oficial da comunidade PK XD!',
       category: cat,
       date: newEventDate,
       time: newEventTime || '18:00',
-      bannerUrl: newEventBanner.trim() || 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80',
+      server: newEventServer.trim() || undefined,
+      additionalLink: newEventLink.trim() || undefined,
+      bannerUrl: newEventBanner.trim(),
       organizerName: newOrganizerName.trim(),
       rules: newEventRules.trim() || 'Respeitar os demais jogadores e seguir as instruções do organizador.',
       maxParticipants: maxPart,
-      status: 'Aprovado',
-      createdAt: Date.now(),
-      approvedAt: Date.now(),
-      createdById: currentUser?.uid || 'user_' + Date.now(),
+      status: existingEvent ? existingEvent.status : 'Aprovado',
+      createdAt: existingEvent ? existingEvent.createdAt : Date.now(),
+      approvedAt: existingEvent ? existingEvent.approvedAt : Date.now(),
+      createdById: existingEvent ? existingEvent.createdById : (currentUser?.uid || 'user_' + Date.now()),
       requiresPin: newEventRequiresPin,
       pinCode: newEventRequiresPin ? newEventPinCode.trim().toUpperCase() : undefined
     };
 
-    // Clean undefined fields for Firestore compatibility
     const cleanedData: Record<string, any> = {};
-    Object.entries(newEvent).forEach(([key, val]) => {
+    Object.entries(eventPayload).forEach(([key, val]) => {
       if (val !== undefined) {
         cleanedData[key] = val;
       }
     });
 
-    // Update local state immediately so user sees their event right away!
     setEvents(prev => {
-      const updated = [newEvent, ...prev.filter(e => e.id !== eventId)];
+      const updated = existingEvent
+        ? prev.map(ev => (ev.id === eventId ? eventPayload : ev))
+        : [eventPayload, ...prev.filter(ev => ev.id !== eventId)];
       try {
         localStorage.setItem('pkxd_custom_events', JSON.stringify(updated));
-      } catch (e) {}
+      } catch {}
       return updated;
     });
 
     try {
       if (db) {
-        await setDoc(doc(db, 'community_events', eventId), cleanedData);
+        await setDoc(doc(db, 'community_events', eventId), cleanedData, { merge: true });
       }
-    } catch (err: any) {
-      console.warn("Could not sync event to remote Firestore, saved locally:", err);
+    } catch (err) {
+      console.warn('Could not sync event to remote Firestore, saved locally:', err);
     }
 
+    // Emit real community notification
+    try {
+      if (existingEvent && scheduleChanged) {
+        fetch('/api/notifications/emit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: `Horário atualizado: ${eventPayload.name}`,
+            body: `Nova data/horário: ${eventPayload.date} às ${eventPayload.time}. Organizado por ${eventPayload.organizerName}.`,
+            type: 'schedule_change',
+            eventId,
+            url: '/eventos',
+          }),
+        }).catch(() => {});
+      } else if (!existingEvent) {
+        const isTournament = cat.toLowerCase().includes('torneio');
+        fetch('/api/notifications/emit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: isTournament ? `Novo Torneio: ${eventPayload.name}` : `Novo Evento: ${eventPayload.name}`,
+            body: `${eventPayload.category} em ${eventPayload.date} às ${eventPayload.time} · Organizador: ${eventPayload.organizerName}.`,
+            type: isTournament ? 'new_tournament' : 'new_event',
+            eventId,
+            url: '/eventos',
+          }),
+        }).catch(() => {});
+      }
+    } catch {}
+
     if (triggerAudio) triggerAudio('success');
-    if (onAddXP) onAddXP(50, 'Criou um evento da comunidade (+50 XP)');
+    if (!existingEvent && onAddXP) {
+      onAddXP(50, `Criou o evento "${eventPayload.name}"`);
+    }
 
     setCreateSuccessMsg(true);
     setTimeout(() => {
       setCreateSuccessMsg(false);
-      setShowCreateModal(false);
-      // Reset form
-      setNewEventName('');
-      setNewEventDesc('');
-      setNewEventBanner('');
-      setNewEventRules('');
-      setNewMaxParticipants('');
-      setNewEventDate('');
-      setNewEventTime('');
-      setNewEventRequiresPin(false);
-      setNewEventPinCode('');
-      setShowPinInCreateForm(false);
-      showToast('🎉 Evento criado e publicado com sucesso!');
-    }, 1200);
+      closeCreateModal();
+      resetEventForm();
+      showToast(existingEvent ? 'Evento atualizado com sucesso!' : 'Evento criado e publicado com sucesso!');
+    }, 1000);
   };
 
-  // Handle Status Change (Admin)
   const handleUpdateStatus = async (eventId: string, newStatus: EventStatus) => {
     if (triggerAudio) triggerAudio('tap');
     try {
@@ -477,13 +595,12 @@ export default function EventsSection({
       } else {
         setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, status: newStatus } : ev));
       }
-      showToast(`Status do evento atualizado para "${newStatus}"!`);
+      showToast(`Status do evento atualizado para "${newStatus}".`);
     } catch (err) {
-      console.error("Error updating event status:", err);
+      console.error('Error updating event status:', err);
     }
   };
 
-  // Open Presence Modal helper with auto-filled tag
   const handleOpenPresenceModal = (event: CommunityEvent) => {
     if (triggerAudio) triggerAudio('tap');
     const rawTag = localStorage.getItem('pkxd_player_tag') || '';
@@ -504,19 +621,17 @@ export default function EventsSection({
     setShowPresenceModal(event);
   };
 
-  // Handle Event Delete (Admin/Organizer)
   const handleDeleteEvent = async (eventId: string) => {
     if (triggerAudio) triggerAudio('tap');
+    setConfirmDeleteEventId(null);
     setShowDetailsModal(null);
     setShowPresenceModal(null);
-    setShowOrganizerPanel(null);
 
-    // 1. Update local state immediately
     setEvents(prev => {
       const updated = prev.filter(ev => ev.id !== eventId);
       try {
         localStorage.setItem('pkxd_custom_events', JSON.stringify(updated));
-      } catch (e) {}
+      } catch {}
       return updated;
     });
 
@@ -524,19 +639,18 @@ export default function EventsSection({
       const updated = prev.filter(p => p.eventId !== eventId);
       try {
         localStorage.setItem('pkxd_event_participants', JSON.stringify(updated));
-      } catch (e) {}
+      } catch {}
       return updated;
     });
 
-    // 2. Also remove this event from user's passport event history if present
     try {
       const savedPassport = localStorage.getItem('pkxd_passport_data');
       if (savedPassport) {
         const pData = JSON.parse(savedPassport);
         if (Array.isArray(pData.eventHistory)) {
           const evToDelete = events.find(e => e.id === eventId);
-          pData.eventHistory = pData.eventHistory.filter((h: any) => 
-            h.id !== eventId && 
+          pData.eventHistory = pData.eventHistory.filter((h: any) =>
+            h.id !== eventId &&
             h.eventName !== evToDelete?.name &&
             h.id !== 'ev_1' && h.id !== 'ev_2' &&
             !h.eventName?.includes('Mega Torneio') &&
@@ -548,26 +662,22 @@ export default function EventsSection({
           }
         }
       }
-    } catch (e) {}
+    } catch {}
 
-    // 3. Delete from Firestore if exists
     try {
       if (db) {
         deleteDoc(doc(db, 'community_events', eventId)).catch(() => {});
         const eventParts = participants.filter(p => p.eventId === eventId);
         for (const p of eventParts) {
-          try {
-            deleteDoc(doc(db, 'event_participants', p.id)).catch(() => {});
-          } catch (e) {}
+          deleteDoc(doc(db, 'event_participants', p.id)).catch(() => {});
         }
       }
     } catch (err) {
-      console.warn("Could not delete from remote Firestore (deleted locally):", err);
+      console.warn('Could not delete from remote Firestore (deleted locally):', err);
     }
-    showToast('🗑️ Evento excluído com sucesso!');
+    showToast('Evento excluído com sucesso.');
   };
 
-  // Handle Presence Confirmation submit
   const handleConfirmPresence = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showPresenceModal) return;
@@ -577,27 +687,25 @@ export default function EventsSection({
 
     let rawTag = playerTagInput.trim().toUpperCase();
     if (!rawTag) {
-      setPresenceError('Por favor, informe seu identificador do PK XD (ex: KOOSH#000).');
+      setPresenceError('Informe seu identificador do PK XD (ex: KOOSH#000).');
       return;
     }
 
-    // Auto-format if user forgot '#'
     if (!rawTag.includes('#')) {
       rawTag = rawTag + '#000';
     }
 
-    // Validate Event Security PIN / Password if required
     if (showPresenceModal.requiresPin && showPresenceModal.pinCode) {
       const cleanPinInput = presencePinInput.trim().toUpperCase();
       const expectedPin = showPresenceModal.pinCode.trim().toUpperCase();
 
       if (!cleanPinInput) {
-        setPresenceError('🔒 Este evento exige o PIN / Senha de confirmação. Digite o código de acesso para confirmar sua presença!');
+        setPresenceError('Este evento exige o PIN / Senha de confirmação.');
         return;
       }
 
       if (cleanPinInput !== expectedPin) {
-        setPresenceError('❌ PIN / Senha de acesso incorreta! Peça a senha de confirmação ao organizador do evento.');
+        setPresenceError('PIN / Senha de acesso incorreta. Confirme com o organizador.');
         return;
       }
     }
@@ -605,15 +713,13 @@ export default function EventsSection({
     const eventId = showPresenceModal.id;
     const currentList = participants.filter(p => p.eventId === eventId);
 
-    // Check duplicate
     if (currentList.some(p => p.playerIdentifier === rawTag)) {
-      setPresenceError(`O jogador "${rawTag}" já está confirmado neste evento!`);
+      setPresenceError(`O jogador "${rawTag}" já está confirmado neste evento.`);
       return;
     }
 
-    // Check max participants limit
     if (showPresenceModal.maxParticipants && currentList.length >= showPresenceModal.maxParticipants) {
-      setPresenceError('Desculpe, o limite máximo de participantes para este evento já foi atingido!');
+      setPresenceError('O limite máximo de participantes para este evento já foi atingido.');
       return;
     }
 
@@ -621,19 +727,28 @@ export default function EventsSection({
       id: `part_${eventId}_${Date.now()}`,
       eventId,
       playerIdentifier: rawTag,
+      userId: currentUser?.uid || undefined,
       registeredAt: Date.now()
     };
 
-    // 1. Update local state and localStorage immediately (guaranteed success)
     setParticipants(prev => {
       const updated = [...prev, newPart];
       try {
         localStorage.setItem('pkxd_event_participants', JSON.stringify(updated));
-      } catch (e) {}
+      } catch {}
       return updated;
     });
 
-    // 2. Automatically record in user's Passport Event History (+30 XP)
+    // Auto-save to Minha Agenda when confirming presence
+    setSavedAgendaIds(prev => {
+      if (prev.includes(eventId)) return prev;
+      const updated = [...prev, eventId];
+      try {
+        localStorage.setItem('pkxd_saved_agenda_ids', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     try {
       const savedPassport = localStorage.getItem('pkxd_passport_data');
       if (savedPassport) {
@@ -645,12 +760,12 @@ export default function EventsSection({
           date: showPresenceModal.date,
           category: showPresenceModal.category
         };
-        const currentHist = Array.isArray(pData.eventHistory) 
-          ? pData.eventHistory.filter((h: any) => 
+        const currentHist = Array.isArray(pData.eventHistory)
+          ? pData.eventHistory.filter((h: any) =>
               h.id !== 'ev_1' && h.id !== 'ev_2' &&
               !h.eventName?.includes('Mega Torneio') &&
               !h.eventName?.includes('Grande Desfile')
-            ) 
+            )
           : [];
         if (!currentHist.some((h: any) => h.eventName === showPresenceModal.name)) {
           pData.eventHistory = [newHistEntry, ...currentHist];
@@ -661,14 +776,13 @@ export default function EventsSection({
           }
         }
       }
-    } catch (e) {
-      console.warn("Could not sync to passport:", e);
+    } catch (err) {
+      console.warn('Could not sync to passport:', err);
     }
 
-    // 3. Attempt async Firestore persistence in background
     if (db) {
       setDoc(doc(db, 'event_participants', newPart.id), newPart).catch((err) => {
-        console.warn("Participant sync to Firestore background warning (saved locally):", err);
+        console.warn('Participant sync to Firestore background warning:', err);
       });
     }
 
@@ -680,37 +794,40 @@ export default function EventsSection({
       setPresenceSuccess(false);
       setShowPresenceModal(null);
       setPlayerTagInput('');
-      showToast(`✓ Presença confirmada para "${rawTag}"! (+30 XP)`);
-    }, 1200);
+      showToast(`Presença confirmada para "${rawTag}"! (+30 XP)`);
+    }, 1100);
   };
 
-  // Handle Remove Participant
-  const handleRemoveParticipant = async (partId: string, playerIdentifier: string) => {
-    if (!window.confirm(`Deseja remover "${playerIdentifier}" da lista de participantes?`)) return;
+  const handleConfirmRemoveParticipant = async (partId: string, playerIdentifier: string) => {
     if (triggerAudio) triggerAudio('tap');
+    setConfirmRemovePartId(null);
+
+    setParticipants(prev => {
+      const updated = prev.filter(p => p.id !== partId);
+      try {
+        localStorage.setItem('pkxd_event_participants', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     try {
       if (db) {
         await deleteDoc(doc(db, 'event_participants', partId));
-      } else {
-        setParticipants(prev => prev.filter(p => p.id !== partId));
       }
       showToast(`Participante "${playerIdentifier}" removido.`);
     } catch (err) {
-      console.error("Error removing participant:", err);
+      console.error('Error removing participant:', err);
     }
   };
 
-  // Helper to copy a single player's tag
   const handleCopySingleTag = (tag: string, partId: string) => {
     if (triggerAudio) triggerAudio('tap');
     navigator.clipboard.writeText(tag);
     setCopiedSingleTagId(partId);
     setTimeout(() => setCopiedSingleTagId(null), 2500);
-    showToast(`✓ Tag "${tag}" copiada! Cole no jogo para convidar.`);
+    showToast(`Tag "${tag}" copiada! Cole no PK XD para convidar.`);
   };
 
-  // Helper to copy list with custom formats (lines, comma-separated, or numbered)
   const handleCopyTagsFormatted = (event: CommunityEvent, list: EventParticipant[], format: 'lines' | 'comma' | 'numbered') => {
     if (triggerAudio) triggerAudio('tap');
     if (list.length === 0) {
@@ -723,34 +840,28 @@ export default function EventsSection({
       formattedText = list.map(p => p.playerIdentifier).join('\n');
     } else if (format === 'comma') {
       formattedText = list.map(p => p.playerIdentifier).join(', ');
-    } else if (format === 'numbered') {
+    } else {
       formattedText = `[Lista de Membros - ${event.name}]\n` + list.map((p, i) => `${i + 1}. ${p.playerIdentifier}`).join('\n');
     }
 
     navigator.clipboard.writeText(formattedText);
     setCopiedBatchFormat(format);
     setTimeout(() => setCopiedBatchFormat(null), 2500);
-    showToast(`✓ ${list.length} tag(s) copiadas (${format === 'comma' ? 'com vírgula' : format === 'numbered' ? 'numeradas' : '1 por linha'})!`);
+    showToast(`${list.length} tag(s) copiada(s)!`);
   };
 
-  // Helper to copy list formatted as plain line-by-line list
-  const handleCopyList = (event: CommunityEvent, list: EventParticipant[]) => {
-    handleCopyTagsFormatted(event, list, 'lines');
-  };
-
-  // Helper for Organizer to manually add a participant tag
   const handleQuickAddParticipant = async (eventId: string) => {
+    setQuickAddError(null);
     if (!quickAddTagInput.trim()) return;
     const rawTag = quickAddTagInput.trim().toUpperCase();
     if (!rawTag.includes('#')) {
-      alert('Por favor insira a tag no formato NOME#000');
+      setQuickAddError('Insira a tag no formato NOME#000.');
       return;
     }
 
-    // Check duplicate
     const eventParts = participants.filter(p => p.eventId === eventId);
     if (eventParts.some(p => p.playerIdentifier.toUpperCase() === rawTag)) {
-      alert('Este jogador já está na lista deste evento!');
+      setQuickAddError('Este jogador já está na lista deste evento.');
       return;
     }
 
@@ -765,7 +876,7 @@ export default function EventsSection({
       const updated = [...prev, newPart];
       try {
         localStorage.setItem('pkxd_event_participants', JSON.stringify(updated));
-      } catch (e) {}
+      } catch {}
       return updated;
     });
 
@@ -776,13 +887,11 @@ export default function EventsSection({
     setQuickAddTagInput('');
     setShowQuickAdd(false);
     if (triggerAudio) triggerAudio('success');
-    showToast(`✓ Jogador "${rawTag}" adicionado à lista do evento!`);
+    showToast(`Jogador "${rawTag}" adicionado à lista!`);
   };
 
-  // Helper to export list as TXT
   const handleExportTXT = (event: CommunityEvent, list: EventParticipant[]) => {
     if (triggerAudio) triggerAudio('tap');
-
     const formattedText = list.map(p => p.playerIdentifier).join('\n');
     const blob = new Blob([formattedText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -794,10 +903,8 @@ export default function EventsSection({
     showToast('Arquivo .TXT baixado!');
   };
 
-  // Helper to export list as Excel (.xlsx)
   const handleExportExcel = (event: CommunityEvent, list: EventParticipant[]) => {
     if (triggerAudio) triggerAudio('tap');
-
     const excelData = list.map((p, index) => ({
       '#': index + 1,
       'Identificador PKXD': p.playerIdentifier,
@@ -807,42 +914,36 @@ export default function EventsSection({
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Participantes');
-
     XLSX.writeFile(workbook, `participantes_${event.name.replace(/\s+/g, '_')}.xlsx`);
-    showToast('Planilha Excel (.XLSX) baixada com sucesso!');
+    showToast('Planilha Excel (.XLSX) baixada!');
   };
 
-  // Helper to export list as PDF
   const handleExportPDF = (event: CommunityEvent, list: EventParticipant[]) => {
     if (triggerAudio) triggerAudio('tap');
+    const pdf = new jsPDF();
 
-    const doc = new jsPDF();
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(18);
+    pdf.setTextColor(109, 40, 217);
+    pdf.text('PKXD Central - Lista Oficial de Participantes', 14, 20);
 
-    // Title & Header
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(124, 58, 237); // PKXD Purple
-    doc.text('PKXD Central - Lista Oficial de Participantes', 14, 20);
+    pdf.setFontSize(14);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text(`Evento: ${event.name}`, 14, 30);
 
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Evento: ${event.name}`, 14, 30);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text(`Organizador: ${event.organizerName} | Categoria: ${event.category} | Data: ${event.date} às ${event.time}`, 14, 37);
+    pdf.text(`Total de Participantes Confirmados: ${list.length}`, 14, 43);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Organizador: ${event.organizerName} | Categoria: ${event.category} | Data: ${event.date} às ${event.time}`, 14, 37);
-    doc.text(`Total de Participantes Confirmados: ${list.length}`, 14, 43);
+    pdf.setLineWidth(0.5);
+    pdf.setDrawColor(203, 213, 225);
+    pdf.line(14, 48, 196, 48);
 
-    // Line separator
-    doc.setLineWidth(0.5);
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, 48, 196, 48);
-
-    // List of identifiers in 3 clean columns
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(30, 30, 30);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(15, 23, 42);
 
     let x = 14;
     let y = 58;
@@ -850,28 +951,26 @@ export default function EventsSection({
     const maxY = 270;
 
     list.forEach((p, i) => {
-      doc.text(`${i + 1}. ${p.playerIdentifier}`, x, y);
+      pdf.text(`${i + 1}. ${p.playerIdentifier}`, x, y);
       y += 8;
 
       if (y > maxY) {
         y = 58;
         x += colWidth;
         if (x > 140) {
-          doc.addPage();
+          pdf.addPage();
           x = 14;
           y = 20;
         }
       }
     });
 
-    // Save PDF file
-    doc.save(`lista_participantes_${event.name.replace(/\s+/g, '_')}.pdf`);
+    pdf.save(`lista_participantes_${event.name.replace(/\s+/g, '_')}.pdf`);
     showToast('Documento PDF baixado!');
   };
 
   return (
     <div className="space-y-8 text-left relative">
-      
       {/* Toast Alert */}
       <AnimatePresence>
         {toastMsg && (
@@ -879,69 +978,64 @@ export default function EventsSection({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed bottom-6 right-6 z-50 bg-purple-900 border-2 border-pink-400 text-white font-sans text-xs font-black uppercase px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2"
+            className="fixed bottom-6 right-6 z-50 bg-slate-900 border-2 border-violet-500 text-white font-sans text-xs font-bold px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2"
           >
-            <Sparkles className="w-4 h-4 text-yellow-300 animate-spin" />
+            <Sparkles className="w-4 h-4 text-amber-300" />
             <span>{toastMsg}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Main Section Header */}
-      <div className="bg-gradient-to-r from-[#251B46]/85 via-[#1D1638]/80 to-[#15102A]/85 backdrop-blur-xl border border-white/[0.09] rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.4)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        
-        {/* Neon Glow */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-pink-500/10 rounded-full filter blur-3xl pointer-events-none" />
-
-        <div className="space-y-2 max-w-xl">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 bg-pink-500/20 text-pink-300 border border-pink-500/30 text-[10px] font-black uppercase rounded-lg">
-              Comunidade PK XD 🎉
+      <div className="pkxd-pop-card-purple p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="space-y-2.5 max-w-xl">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-3.5 py-1 bg-[#F9C826] text-[#120624] border-2 border-[#120624] text-xs font-black uppercase rounded-full shadow-[0_3px_0_#16032E]">
+              Comunidade PK XD
             </span>
             {pendingEventsCount > 0 && isAdmin && (
-              <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase rounded-lg animate-pulse flex items-center gap-1">
-                <AlertCircle className="w-3 h-3 text-amber-400" /> {pendingEventsCount} Em Análise
+              <span className="px-3 py-1 bg-amber-100 text-amber-900 border-2 border-[#120624] text-xs font-bold uppercase rounded-full flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-700" /> {pendingEventsCount} Em Análise
               </span>
             )}
           </div>
 
-          <h2 className="font-sans font-black text-2xl sm:text-4xl text-white uppercase tracking-tight">
-            Central de <span className="text-yellow-300">Eventos</span>
+          <h2 className="font-display font-bold text-3xl sm:text-4xl text-[#120624] tracking-tight">
+            Central de <span className="text-[#7C3AED]">Eventos</span>
           </h2>
 
-          <p className="font-sans text-xs sm:text-sm text-gray-300 leading-relaxed">
-            Crie seus próprios torneios, festas e encontros de PK XD ou confirme presença nos eventos da nossa comunidade para jogar junto com a galera!
+          <p className="font-sans text-sm text-slate-600 leading-relaxed font-medium">
+            Crie seus próprios torneios, festas e encontros ou confirme presença nos eventos oficiais da comunidade para jogar junto com a galera!
           </p>
         </div>
 
-        {/* Create Event Button */}
         <button
           onClick={() => {
             if (triggerAudio) triggerAudio('tap');
-            setShowCreateModal(true);
+            openCreateEventModal();
           }}
-          className="w-full md:w-auto px-6 py-3.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white font-sans text-xs font-black uppercase tracking-wider rounded-2xl shadow-xl border border-pink-400/40 cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2.5 flex-shrink-0"
+          className="pkxd-btn-primary w-full md:w-auto px-6 py-3.5 font-display text-sm font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 shrink-0"
         >
-          <Plus className="w-5 h-5 text-yellow-300" />
-          <span>Criar Novo Evento 🚀</span>
+          <Plus className="w-5 h-5" />
+          <span>Criar Novo Evento</span>
         </button>
       </div>
 
       {/* Mode Switcher: Todos os Eventos vs Minha Agenda PKXD */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#15102A]/75 backdrop-blur-xl p-2 rounded-2xl border border-white/[0.08] shadow-md">
-        <div className="flex items-center gap-1.5 bg-[#0B0817]/60 backdrop-blur-sm p-1 rounded-xl border border-white/5 flex-1 sm:flex-initial">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pkxd-pop-card-sm p-3">
+        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
           <button
             onClick={() => {
               if (triggerAudio) triggerAudio('tap');
               setAgendaTab('todos');
             }}
-            className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-sans text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-full font-display text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border-[2.5px] border-[#120624] ${
               agendaTab === 'todos'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md border border-purple-400/40'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-[#7C3AED] text-white shadow-[0_3px_0_#16032E]'
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
             }`}
           >
-            <Calendar className="w-4 h-4 text-pink-400" />
+            <Calendar className="w-4 h-4" />
             <span>Todos os Eventos ({events.length})</span>
           </button>
 
@@ -950,78 +1044,87 @@ export default function EventsSection({
               if (triggerAudio) triggerAudio('tap');
               setAgendaTab('minha_agenda');
             }}
-            className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-sans text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 relative ${
+            className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-full font-display text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border-[2.5px] border-[#120624] ${
               agendaTab === 'minha_agenda'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-purple-950 font-black shadow-md border border-yellow-300'
-                : 'text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10'
+                ? 'bg-[#F9C826] text-[#120624] shadow-[0_3px_0_#16032E]'
+                : 'bg-amber-50 text-[#120624] hover:bg-amber-100'
             }`}
           >
-            <Star className={`w-4 h-4 ${agendaTab === 'minha_agenda' ? 'text-purple-950 fill-purple-950' : 'text-yellow-400 fill-yellow-400'}`} />
+            <Calendar className="w-4 h-4" />
             <span>Minha Agenda PKXD</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-              agendaTab === 'minha_agenda' ? 'bg-purple-950 text-yellow-300' : 'bg-yellow-400/20 text-yellow-300'
-            }`}>
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-black bg-[#120624] text-[#F9C826] tabular-nums">
               {savedAgendaEventsCount}
             </span>
           </button>
         </div>
 
         {agendaTab === 'minha_agenda' && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-400/10 border border-yellow-400/30 rounded-xl text-[11px] font-bold text-yellow-300">
-            <BookmarkCheck className="w-3.5 h-3.5" />
-            <span>Seus eventos salvos com lembretes automáticos!</span>
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-[#FFF8DB] border-2 border-[#120624] rounded-2xl text-xs font-bold text-[#120624]">
+            <BookmarkCheck className="w-4 h-4 text-[#7C3AED] shrink-0" />
+            <span>Eventos salvos e confirmados com exportação para agenda</span>
           </div>
         )}
       </div>
 
-      {/* Categories & Filter Tabs */}
-      <div className="space-y-4">
-        {/* Status Filters */}
+      {/* Filters */}
+      <div className="pkxd-pop-card-sm p-4 space-y-3">
         <div className="flex flex-wrap gap-2 items-center justify-between">
-          <div className="flex flex-wrap gap-1.5 bg-[#15102A]/75 backdrop-blur-md p-1.5 rounded-2xl border border-white/[0.08]">
+          <div className="flex flex-wrap gap-1.5">
             <button
-              onClick={() => { if (triggerAudio) triggerAudio('tap'); setStatusFilter("TODOS"); }}
-              className={`px-3.5 py-1.5 rounded-xl font-sans text-xs font-extrabold uppercase transition-all cursor-pointer ${
-                statusFilter === "TODOS"
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : 'text-neutral-400 hover:text-white'
+              onClick={() => {
+                if (triggerAudio) triggerAudio('tap');
+                setStatusFilter('TODOS');
+              }}
+              className={`px-4 py-2 rounded-full text-xs font-extrabold border-2 border-[#120624] transition-all cursor-pointer ${
+                statusFilter === 'TODOS'
+                  ? 'bg-[#2D0859] text-white shadow-[0_3px_0_#16032E]'
+                  : 'bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
               Todos
             </button>
             <button
-              onClick={() => { if (triggerAudio) triggerAudio('tap'); setStatusFilter("AO_VIVO"); }}
-              className={`px-3.5 py-1.5 rounded-xl font-sans text-xs font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                statusFilter === "AO_VIVO"
-                  ? 'bg-emerald-500 text-white shadow-md'
-                  : 'text-emerald-400 hover:bg-emerald-500/10'
+              onClick={() => {
+                if (triggerAudio) triggerAudio('tap');
+                setStatusFilter('AO_VIVO');
+              }}
+              className={`px-4 py-2 rounded-full text-xs font-extrabold border-2 border-[#120624] transition-all cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === 'AO_VIVO'
+                  ? 'bg-rose-600 text-white shadow-[0_3px_0_#16032E]'
+                  : 'bg-white text-rose-700 hover:bg-rose-50'
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              Ao Vivo 🔴
+              <span className="w-2 h-2 rounded-full bg-current" />
+              <span>Ao Vivo</span>
             </button>
             <button
-              onClick={() => { if (triggerAudio) triggerAudio('tap'); setStatusFilter("APROVADOS"); }}
-              className={`px-3.5 py-1.5 rounded-xl font-sans text-xs font-extrabold uppercase transition-all cursor-pointer ${
-                statusFilter === "APROVADOS"
-                  ? 'bg-pink-600 text-white shadow-md'
-                  : 'text-neutral-400 hover:text-white'
+              onClick={() => {
+                if (triggerAudio) triggerAudio('tap');
+                setStatusFilter('APROVADOS');
+              }}
+              className={`px-4 py-2 rounded-full text-xs font-extrabold border-2 border-[#120624] transition-all cursor-pointer ${
+                statusFilter === 'APROVADOS'
+                  ? 'bg-emerald-600 text-white shadow-[0_3px_0_#16032E]'
+                  : 'bg-white text-emerald-800 hover:bg-emerald-50'
               }`}
             >
-              Confirmados ✅
+              Confirmados
             </button>
             {isAdmin && (
               <button
-                onClick={() => { if (triggerAudio) triggerAudio('tap'); setStatusFilter("EM_ANALISE"); }}
-                className={`px-3.5 py-1.5 rounded-xl font-sans text-xs font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                  statusFilter === "EM_ANALISE"
-                    ? 'bg-amber-500 text-purple-950 font-black shadow-md'
-                    : 'text-amber-400 hover:bg-amber-500/10'
+                onClick={() => {
+                  if (triggerAudio) triggerAudio('tap');
+                  setStatusFilter('EM_ANALISE');
+                }}
+                className={`px-4 py-2 rounded-full text-xs font-extrabold border-2 border-[#120624] transition-all cursor-pointer flex items-center gap-1.5 ${
+                  statusFilter === 'EM_ANALISE'
+                    ? 'bg-[#F9C826] text-[#120624] shadow-[0_3px_0_#16032E]'
+                    : 'bg-white text-amber-800 hover:bg-amber-50'
                 }`}
               >
-                <span>Em Análise ⏳</span>
+                <span>Em Análise</span>
                 {pendingEventsCount > 0 && (
-                  <span className="bg-amber-950 text-amber-200 px-1.5 py-0.2 text-[9px] rounded-full">
+                  <span className="bg-[#120624] text-white px-1.5 py-0.5 text-[10px] rounded-full tabular-nums">
                     {pendingEventsCount}
                   </span>
                 )}
@@ -1029,13 +1132,13 @@ export default function EventsSection({
             )}
           </div>
 
-          <span className="text-[11px] font-mono text-neutral-400 px-2">
-            Mostrando <strong>{filteredEvents.length}</strong> evento(s) {agendaTab === 'minha_agenda' ? 'na sua Agenda' : ''}
+          <span className="text-xs font-bold text-slate-700 px-2 tabular-nums">
+            Mostrando <strong className="text-[#2D0859]">{filteredEvents.length}</strong> evento(s).
           </span>
         </div>
 
-        {/* Category Pill Filters */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* Category Pills */}
+        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-100">
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
@@ -1043,10 +1146,10 @@ export default function EventsSection({
                 if (triggerAudio) triggerAudio('tap');
                 setSelectedCategory(cat);
               }}
-              className={`px-3 py-1.5 rounded-xl font-sans text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 border-[#120624] ${
                 selectedCategory === cat
-                  ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40 shadow-sm'
-                  : 'bg-neutral-900/60 text-neutral-400 border border-white/5 hover:text-white hover:bg-white/5'
+                  ? 'bg-[#EC4899] text-white shadow-[0_3px_0_#16032E]'
+                  : 'bg-slate-50 text-slate-700 hover:bg-[#FFF8DB]'
               }`}
             >
               {cat}
@@ -1057,200 +1160,244 @@ export default function EventsSection({
 
       {/* Events Grid Display */}
       {filteredEvents.length === 0 ? (
-        <div className="bg-zinc-900/40 border-2 border-dashed border-white/10 rounded-3xl p-12 text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto text-2xl">
-            {agendaTab === 'minha_agenda' ? '⭐' : '📅'}
+        <div className="pkxd-pop-card-purple p-10 sm:p-12 text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-[#F9C826] border-[3px] border-[#120624] text-[#120624] flex items-center justify-center mx-auto shadow-[0_4px_0_#16032E]">
+            <Calendar className="w-8 h-8" />
           </div>
-          <h3 className="font-sans font-black text-lg text-white uppercase">
-            {agendaTab === 'minha_agenda' ? 'Sua Agenda PKXD está vazia!' : 'Nenhum evento encontrado'}
+          <h3 className="font-display font-bold text-2xl text-[#120624]">
+            {agendaTab === 'minha_agenda' ? 'Nenhum evento na sua agenda' : 'Nenhum evento encontrado'}
           </h3>
-          <p className="text-xs text-neutral-400 max-w-md mx-auto">
+          <p className="text-sm text-slate-600 max-w-md mx-auto font-medium">
             {agendaTab === 'minha_agenda'
-              ? 'Você ainda não salvou nenhum evento na sua agenda! Navegue pela lista de eventos e clique em "⭐ Salvar na Minha Agenda" para acompanhar os que você quer participar.'
-              : 'Não há eventos disponíveis nesta categoria no momento. Seja o primeiro a divulgar um evento para a comunidade PK XD!'}
+              ? 'Você ainda não salvou ou confirmou presença em nenhum evento. Explore todos os eventos ou crie o seu agora!'
+              : 'Não há eventos disponíveis nesta categoria no momento. Seja o primeiro a divulgar um evento!'}
           </p>
-          {agendaTab === 'minha_agenda' ? (
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+            {agendaTab === 'minha_agenda' && (
+              <button
+                onClick={() => {
+                  if (triggerAudio) triggerAudio('tap');
+                  setAgendaTab('todos');
+                }}
+                className="pkxd-pop-btn px-5 py-2.5 text-xs uppercase cursor-pointer"
+              >
+                Ver Todos os Eventos
+              </button>
+            )}
             <button
               onClick={() => {
                 if (triggerAudio) triggerAudio('tap');
-                setAgendaTab('todos');
+                openCreateEventModal();
               }}
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-sans text-xs font-black uppercase rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 mt-2"
-            >
-              Explorar Todos os Eventos
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-sans text-xs font-black uppercase rounded-xl transition-all cursor-pointer mt-2"
+              className="pkxd-btn-primary px-6 py-3 font-display text-sm font-bold cursor-pointer"
             >
               Criar Evento Agora
             </button>
-          )}
+          </div>
         </div>
       ) : (
-        <div className="max-h-[580px] overflow-y-auto pr-1.5 sm:pr-2 scrollbar-thin scrollbar-thumb-purple-600/40 scrollbar-track-black/30">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredEvents.map((event) => {
             const eventParts = participants.filter(p => p.eventId === event.id);
             const isFull = event.maxParticipants ? eventParts.length >= event.maxParticipants : false;
             const isSaved = savedAgendaIds.includes(event.id);
+            const canDelete = isAdmin || (currentUser && event.createdById === currentUser.uid);
+            const normalizedMyTag = (playerTag || localStorage.getItem('pkxd_player_tag') || '').trim().toUpperCase();
+            const myParticipation = eventParts.find(
+              p => (normalizedMyTag && p.playerIdentifier.toUpperCase() === normalizedMyTag) || (currentUser?.uid && p.userId === currentUser.uid)
+            );
 
             return (
               <div
                 key={event.id}
-                className="bg-[#1D1638]/72 backdrop-blur-xl border border-white/[0.09] rounded-3xl overflow-hidden flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.35)] hover:border-purple-500/40 transition-all duration-300 group relative"
+                className="pkxd-pop-card-purple overflow-hidden flex flex-col transition-all duration-200 group"
               >
-                {/* Banner Header Image */}
-                <div className="relative h-44 sm:h-48 w-full bg-black overflow-hidden flex-shrink-0">
-                  <img
-                    src={event.bannerUrl}
-                    alt={event.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#1D1638] via-[#1D1638]/30 to-transparent" />
+                {/* Banner */}
+                <div className="relative h-44 sm:h-48 w-full bg-slate-100 overflow-hidden flex-shrink-0">
+                  <EventBannerImage bannerUrl={event.bannerUrl} name={event.name} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/20 to-transparent" />
 
-                  {/* Status Badge */}
-                  <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                  {/* Status Badges */}
+                  <div className="absolute top-3 left-3 right-12 flex flex-wrap gap-1.5">
                     {event.status === 'Ao vivo' && (
-                      <span className="px-2.5 py-1 bg-emerald-500 text-white text-[10px] font-black uppercase rounded-lg shadow-lg flex items-center gap-1.5 animate-pulse">
-                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                        Ao Vivo 🔴
+                      <span className="px-2.5 py-1 bg-emerald-600 text-white text-[11px] font-bold uppercase rounded-full shadow-sm flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-white" />
+                        Ao Vivo
                       </span>
                     )}
                     {event.status === 'Em breve' && (
-                      <span className="px-2.5 py-1 bg-cyan-500 text-white text-[10px] font-black uppercase rounded-lg shadow-lg">
-                        Em Breve ⏰
+                      <span className="px-2.5 py-1 bg-sky-600 text-white text-[11px] font-bold uppercase rounded-full shadow-sm">
+                        Em Breve
                       </span>
                     )}
                     {event.status === 'Aprovado' && (
-                      <span className="px-2.5 py-1 bg-purple-600 text-white text-[10px] font-black uppercase rounded-lg shadow-lg">
-                        Confirmado ✅
+                      <span className="px-2.5 py-1 bg-violet-600 text-white text-[11px] font-bold uppercase rounded-full shadow-sm">
+                        Confirmado
                       </span>
                     )}
                     {event.status === 'Em análise' && (
-                      <span className="px-2.5 py-1 bg-amber-500 text-purple-950 text-[10px] font-black uppercase rounded-lg shadow-lg">
-                        Em Análise ⏳
+                      <span className="px-2.5 py-1 bg-amber-400 text-slate-950 text-[11px] font-bold uppercase rounded-full shadow-sm">
+                        Em Análise
                       </span>
                     )}
                     {event.status === 'Encerrado' && (
-                      <span className="px-2.5 py-1 bg-neutral-800 text-neutral-400 text-[10px] font-black uppercase rounded-lg shadow-lg">
-                        Encerrado 🏁
+                      <span className="px-2.5 py-1 bg-slate-700 text-slate-200 text-[11px] font-bold uppercase rounded-full shadow-sm">
+                        Encerrado
                       </span>
                     )}
 
-                    <span className="px-2.5 py-1 bg-black/60 backdrop-blur-md text-pink-300 border border-white/10 text-[10px] font-black uppercase rounded-lg">
+                    <span className="px-2.5 py-1 bg-white/95 text-slate-800 text-[11px] font-bold uppercase rounded-full shadow-sm">
                       {event.category}
                     </span>
 
                     {event.requiresPin && event.pinCode && (
-                      <span className="px-2.5 py-1 bg-amber-500 text-purple-950 font-mono text-[10px] font-black uppercase rounded-lg shadow-lg flex items-center gap-1">
+                      <span className="px-2.5 py-1 bg-amber-400 text-slate-950 font-mono text-[11px] font-bold uppercase rounded-full shadow-sm flex items-center gap-1">
                         <Lock className="w-3 h-3" />
-                        Com PIN 🔒
+                        Com PIN
                       </span>
                     )}
                   </div>
 
-                  {/* Event actions quick menu */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/80 backdrop-blur-md p-1 rounded-xl border border-white/10 z-10">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteEvent(event.id);
-                      }}
-                      className="p-1.5 text-neutral-400 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-all cursor-pointer"
-                      title="Excluir Evento / Torneio"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {/* Edit & Delete Actions */}
+                  {canDelete && (
+                    <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+                      {confirmDeleteEventId === event.id ? (
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-md border-2 border-[#120624]">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteEvent(event.id);
+                            }}
+                            className="px-2 py-1 bg-rose-600 text-white text-[10px] font-bold rounded-lg cursor-pointer"
+                          >
+                            Excluir
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteEventId(null);
+                            }}
+                            className="p-1 text-slate-500 hover:text-slate-900 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditEventModal(event);
+                            }}
+                            className="p-2 bg-white hover:bg-[#F9C826] text-[#120624] border-2 border-[#120624] rounded-xl shadow-[0_3px_0_#16032E] transition-colors cursor-pointer"
+                            title="Editar Evento"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteEventId(event.id);
+                            }}
+                            className="p-2 bg-white hover:bg-rose-100 text-[#120624] hover:text-rose-700 border-2 border-[#120624] rounded-xl shadow-[0_3px_0_#16032E] transition-colors cursor-pointer"
+                            title="Excluir Evento"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Organizer Tag at bottom of banner */}
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-purple-200 bg-purple-950/80 backdrop-blur-md border border-purple-500/30 px-2.5 py-1 rounded-lg">
+                  {/* Organizer Tag */}
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <span className="text-xs font-medium text-white bg-slate-900/75 px-3 py-1 rounded-full inline-block">
                       Organizado por: <strong>{event.organizerName}</strong>
                     </span>
                   </div>
                 </div>
 
-                {/* Event Details Content */}
+                {/* Event Details */}
                 <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   <div className="space-y-2">
-                    <h3 className="font-sans font-black text-lg text-white uppercase tracking-wide leading-tight group-hover:text-yellow-300 transition-colors">
+                    <h3 className="font-display font-bold text-xl text-slate-900 leading-tight group-hover:text-violet-700 transition-colors">
                       {event.name}
                     </h3>
 
-                    <p className="text-xs text-neutral-300 line-clamp-2 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed">
                       {event.description}
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-neutral-400 pt-1">
-                      <span className="flex items-center gap-1 text-purple-300">
-                        <Calendar className="w-3.5 h-3.5 text-pink-400" />
+                    <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-700 pt-1">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <Calendar className="w-4 h-4 text-[#EC4899]" />
                         {event.date}
                       </span>
-                      <span className="flex items-center gap-1 text-purple-300">
-                        <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <Clock className="w-4 h-4 text-[#2563EB]" />
                         {event.time}
                       </span>
+                      {event.server && (
+                        <span className="flex items-center gap-1 font-bold text-[#7C3AED]">
+                          <Globe className="w-3.5 h-3.5" />
+                          {event.server}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Save to Agenda Highlight Button */}
-                  <div className="pt-2 border-t border-white/5">
+                  {/* Save to Agenda Button */}
+                  <div className="pt-2 border-t border-slate-100 space-y-2">
                     <button
                       onClick={() => toggleSaveAgenda(event.id, event.name)}
-                      className={`w-full py-2.5 px-3 rounded-xl font-sans text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95 border ${
+                      className={`w-full py-2.5 px-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer border-2 ${
                         isSaved
-                          ? 'bg-amber-500/15 border-amber-400/50 text-amber-300 hover:bg-amber-500/25'
-                          : 'bg-zinc-800/80 hover:bg-amber-500/10 border-white/10 hover:border-amber-400/30 text-gray-300 hover:text-amber-300'
+                          ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                          : 'bg-slate-50 hover:bg-amber-50 border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-900'
                       }`}
                     >
-                      <Star className={`w-3.5 h-3.5 ${isSaved ? 'text-amber-400 fill-amber-400' : 'text-gray-400'}`} />
-                      <span>{isSaved ? '⭐ Na Minha Agenda PKXD (Salvo) ✓' : '⭐ Salvar na Minha Agenda PKXD'}</span>
+                      <Star className={`w-4 h-4 ${isSaved ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+                      <span>{isSaved ? 'Salvo na Minha Agenda' : 'Salvar na Minha Agenda'}</span>
                     </button>
+
+                    {isSaved && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleGoogleCalendar(event)}
+                          className="flex-1 py-2 px-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-[11px] font-bold uppercase flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <CalendarPlus className="w-3.5 h-3.5" />
+                          <span>Google Agenda</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleDownloadICS(event)}
+                          className="flex-1 py-2 px-2.5 bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200 rounded-xl text-[11px] font-bold uppercase flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Lembrete (.ICS)</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Calendar Quick Exports (If in Minha Agenda or Saved) */}
-                  {isSaved && (
-                    <div className="flex items-center gap-1.5 p-2 bg-black/40 rounded-2xl border border-amber-500/20">
-                      <button
-                        onClick={() => handleGoogleCalendar(event)}
-                        className="flex-1 py-1.5 px-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-[10px] font-bold uppercase flex items-center justify-center gap-1 transition-all cursor-pointer"
-                        title="Adicionar ao Google Agenda"
-                      >
-                        <CalendarPlus className="w-3 h-3 text-blue-400" />
-                        <span>Google Agenda</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleDownloadICS(event)}
-                        className="flex-1 py-1.5 px-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl text-[10px] font-bold uppercase flex items-center justify-center gap-1 transition-all cursor-pointer"
-                        title="Baixar arquivo de lembrete .ICS"
-                      >
-                        <Download className="w-3 h-3 text-purple-400" />
-                        <span>Lembrete (.ICS)</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Participants progress & Quick Copy for Organizer */}
-                  <div className="space-y-2 pt-1">
+                  {/* Participants Progress */}
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-neutral-400 flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5 text-pink-400" />
+                      <span className="text-slate-600 flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-violet-600" />
                         Confirmados:
                       </span>
-                      <span className="text-white font-mono">
+                      <span className="text-slate-900 font-mono tabular-nums">
                         {eventParts.length} {event.maxParticipants ? `/ ${event.maxParticipants}` : 'jogadores'}
                       </span>
                     </div>
 
                     {event.maxParticipants && (
-                      <div className="w-full bg-black/60 rounded-full h-2 overflow-hidden border border-white/10">
+                      <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${
-                            isFull ? 'bg-red-500' : 'bg-gradient-to-r from-pink-500 to-purple-600'
+                            isFull ? 'bg-rose-500' : 'bg-violet-600'
                           }`}
                           style={{ width: `${Math.min(100, (eventParts.length / event.maxParticipants) * 100)}%` }}
                         />
@@ -1258,14 +1405,13 @@ export default function EventsSection({
                     )}
 
                     {eventParts.length > 0 && (
-                      <div className="flex items-center gap-1.5 pt-1">
+                      <div className="flex items-center gap-2 pt-1">
                         <button
                           onClick={() => handleCopyTagsFormatted(event, eventParts, 'lines')}
-                          className="flex-1 py-1.5 px-2.5 bg-yellow-400/10 hover:bg-yellow-400/20 text-yellow-300 border border-yellow-400/30 rounded-xl text-[11px] font-bold uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-sm"
-                          title="Copiar todas as tags dos participantes para colar no PK XD"
+                          className="flex-1 py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
-                          <Copy className="w-3.5 h-3.5 text-yellow-300" />
-                          <span>Copiar {eventParts.length} Tags 📋</span>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar {eventParts.length} Tags</span>
                         </button>
 
                         <button
@@ -1273,10 +1419,9 @@ export default function EventsSection({
                             if (triggerAudio) triggerAudio('tap');
                             setShowDetailsModal(event);
                           }}
-                          className="py-1.5 px-2.5 bg-purple-950/60 hover:bg-purple-900 border border-purple-500/30 text-purple-200 rounded-xl text-[11px] font-bold uppercase flex items-center justify-center gap-1 transition-all cursor-pointer"
-                          title="Ver lista detalhada de membros"
+                          className="py-2 px-3 bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
-                          <Users className="w-3.5 h-3.5 text-pink-400" />
+                          <Users className="w-3.5 h-3.5" />
                           <span>Ver Lista</span>
                         </button>
                       </div>
@@ -1287,11 +1432,11 @@ export default function EventsSection({
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <button
                       onClick={() => handleShareEvent(event)}
-                      className="py-2.5 px-3 bg-purple-950/60 hover:bg-purple-900 border border-purple-500/30 text-purple-200 font-sans text-xs font-bold uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                      className="pkxd-btn-outline py-2.5 px-3 text-xs font-bold uppercase rounded-2xl cursor-pointer flex items-center justify-center gap-1.5"
                       title="Compartilhar Link do Evento"
                     >
-                      <Share2 className="w-3.5 h-3.5 text-pink-400" />
-                      <span>Compartilhar 🔗</span>
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Compartilhar</span>
                     </button>
 
                     <button
@@ -1299,44 +1444,53 @@ export default function EventsSection({
                         if (triggerAudio) triggerAudio('tap');
                         setShowDetailsModal(event);
                       }}
-                      className="flex-1 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 font-sans text-xs font-bold uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      className="pkxd-btn-outline flex-1 py-2.5 px-3 text-xs font-bold uppercase rounded-2xl cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <FileText className="w-3.5 h-3.5" />
-                      <span>Detalhes 📋</span>
+                      <span>Detalhes</span>
                     </button>
 
                     {event.status !== 'Encerrado' && (
-                      <button
-                        onClick={() => handleOpenPresenceModal(event)}
-                        disabled={isFull}
-                        className={`flex-1 py-2.5 px-3 font-sans text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          isFull
-                            ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-                            : event.requiresPin
-                            ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white hover:brightness-110 active:scale-95'
-                            : 'bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:brightness-110 active:scale-95'
-                        }`}
-                      >
-                        {event.requiresPin ? <Lock className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
-                        <span>{isFull ? 'Esgotado' : event.requiresPin ? 'Confirmar c/ PIN 🔒' : 'Confirmar Presença ✋'}</span>
-                      </button>
+                      myParticipation ? (
+                        <button
+                          onClick={() => handleConfirmRemoveParticipant(myParticipation.id, myParticipation.playerIdentifier)}
+                          className="flex-1 py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border-2 border-[#120624] font-display text-xs font-bold uppercase tracking-wider rounded-full cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_3px_0_#16032E]"
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                          <span>Cancelar Presença</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenPresenceModal(event)}
+                          disabled={isFull}
+                          className={`flex-1 py-2.5 px-3 font-display text-xs font-bold uppercase tracking-wider rounded-full cursor-pointer flex items-center justify-center gap-1.5 ${
+                            isFull
+                              ? 'bg-slate-200 text-slate-500 cursor-not-allowed border-2 border-slate-300'
+                              : event.requiresPin
+                              ? 'pkxd-btn-gold'
+                              : 'pkxd-btn-primary'
+                          }`}
+                        >
+                          {event.requiresPin ? <Lock className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                          <span>{isFull ? 'Esgotado' : event.requiresPin ? 'Confirmar c/ PIN' : 'Confirmar Presença'}</span>
+                        </button>
+                      )
                     )}
 
-                    {/* Admin Status Approver dropdown */}
                     {isAdmin && (
-                      <div className="w-full pt-1">
-                        <div className="flex items-center justify-between p-2 bg-black/40 rounded-xl border border-white/10 text-[11px]">
-                          <span className="text-amber-400 font-bold uppercase">Painel Admin:</span>
+                      <div className="w-full pt-2">
+                        <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+                          <span className="text-amber-700 font-bold uppercase">Status Admin:</span>
                           <select
                             value={event.status}
                             onChange={(e) => handleUpdateStatus(event.id, e.target.value as EventStatus)}
-                            className="bg-neutral-800 border border-white/10 text-white font-bold rounded-lg px-2 py-1 text-[10px] cursor-pointer"
+                            className="bg-white border border-slate-300 text-slate-900 font-bold rounded-xl px-2.5 py-1 text-xs cursor-pointer"
                           >
-                            <option value="Em análise">⏳ Em análise</option>
-                            <option value="Aprovado">✅ Aprovado</option>
-                            <option value="Em breve">⏰ Em breve</option>
-                            <option value="Ao vivo">🔴 Ao vivo</option>
-                            <option value="Encerrado">🏁 Encerrado</option>
+                            <option value="Em análise">Em análise</option>
+                            <option value="Aprovado">Aprovado</option>
+                            <option value="Em breve">Em breve</option>
+                            <option value="Ao vivo">Ao vivo</option>
+                            <option value="Encerrado">Encerrado</option>
                           </select>
                         </div>
                       </div>
@@ -1346,248 +1500,274 @@ export default function EventsSection({
               </div>
             );
           })}
-          </div>
         </div>
       )}
 
       {/* CREATE EVENT MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-purple-500/40 rounded-3xl w-full max-w-xl max-h-[92vh] flex flex-col relative shadow-2xl overflow-hidden">
-            
-            {/* Modal Header */}
-            <div className="p-5 border-b border-white/10 bg-gradient-to-r from-purple-950 to-zinc-900 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-yellow-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
+          <div className="pkxd-glass-modal rounded-3xl w-full max-w-xl max-h-[92vh] flex flex-col relative overflow-hidden text-slate-900">
+            <div className="p-5 border-b-2 border-[#120624] bg-[#F9C826] flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-[#120624]">
                 <Calendar className="w-5 h-5" />
-                <h3 className="font-sans font-black text-sm sm:text-base text-white uppercase tracking-wider">
-                  Criar Evento da Comunidade 🚀
+                <h3 className="font-display font-bold text-base sm:text-lg text-[#120624] uppercase">
+                  {editingEventId ? 'Editar Evento da Comunidade' : 'Criar Evento da Comunidade'}
                 </h3>
               </div>
               <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full transition-all cursor-pointer"
+                onClick={closeCreateModal}
+                className="p-2 bg-white hover:bg-slate-100 border-2 border-[#120624] text-[#120624] rounded-full cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleCreateEventSubmit} className="flex flex-col flex-1 overflow-hidden text-left">
-              <div className="p-5 space-y-4 overflow-y-auto max-h-[62vh] scrollbar-thin">
-                
+              <div className="p-5 space-y-4 overflow-y-auto max-h-[62vh] custom-scrollbar">
+                {createErrorMsg && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border-2 border-rose-200 text-xs font-bold text-rose-700 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{createErrorMsg}</span>
+                  </div>
+                )}
+
                 {createSuccessMsg ? (
-                  <div className="py-12 text-center space-y-3 animate-scale-up">
-                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto">
+                  <div className="py-12 text-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-emerald-100 border-2 border-emerald-400 text-emerald-700 flex items-center justify-center mx-auto">
                       <Check className="w-8 h-8" />
                     </div>
-                    <h3 className="font-sans font-black text-xl text-white uppercase">Evento Publicado com Sucesso!</h3>
-                    <p className="text-xs text-neutral-300 max-w-md mx-auto">
-                      Seu evento já está disponível e visível para toda a comunidade PK XD participar e confirmar presença! 🎉
+                    <h3 className="font-display font-bold text-xl text-slate-900 uppercase">
+                      Evento Publicado!
+                    </h3>
+                    <p className="text-xs text-slate-600 max-w-md mx-auto">
+                      Seu evento já está visível para toda a comunidade PK XD confirmar presença.
                     </p>
                   </div>
                 ) : (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-neutral-400">Nome do Evento *</label>
+                      <label className="text-xs font-bold uppercase text-slate-700">Nome do Evento *</label>
                       <input
                         type="text"
                         required
                         placeholder="Ex: Torneio de Esconder-Esconder / Festa na Ilha"
                         value={newEventName}
                         onChange={(e) => setNewEventName(e.target.value)}
-                        className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-bold"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-violet-500 focus:bg-white font-semibold"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold uppercase text-neutral-400">Seu Nome / Nickname *</label>
+                        <label className="text-xs font-bold uppercase text-slate-700">Seu Nome / Nickname *</label>
                         <input
                           type="text"
                           required
-                          placeholder="Ex: Seu Nickname ou Nome"
+                          placeholder="Seu Nickname"
                           value={newOrganizerName}
                           onChange={(e) => setNewOrganizerName(e.target.value)}
-                          className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-bold"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-violet-500 focus:bg-white font-semibold"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold uppercase text-neutral-400">Categoria *</label>
+                        <label className="text-xs font-bold uppercase text-slate-700">Categoria *</label>
                         <select
                           value={newEventCategory}
                           onChange={(e) => setNewEventCategory(e.target.value)}
-                          className="w-full px-3 py-2 bg-neutral-800 border border-white/10 rounded-xl text-xs text-white font-bold cursor-pointer"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-semibold cursor-pointer"
                         >
-                          <option value="Torneios">🏆 Torneios</option>
-                          <option value="Festas">🎉 Festas e Desfiles</option>
-                          <option value="Esconder-Esconder">🙈 Esconder-Esconder</option>
-                          <option value="Encontros de Creators">⭐ Encontros de Creators</option>
-                          <option value="Desafios & Mini-Games">🕹️ Desafios & Mini-Games</option>
-                          <option value="Outros">📁 Outros</option>
-                          <option value="CUSTOM">➕ Criar Categoria...</option>
+                          <option value="Torneios">Torneios</option>
+                          <option value="Festas">Festas e Desfiles</option>
+                          <option value="Esconder-Esconder">Esconder-Esconder</option>
+                          <option value="Encontros de Creators">Encontros de Creators</option>
+                          <option value="Desafios & Mini-Games">Desafios & Mini-Games</option>
+                          <option value="Outros">Outros</option>
+                          <option value="CUSTOM">+ Criar Categoria...</option>
                         </select>
                       </div>
                     </div>
 
                     {newEventCategory === 'CUSTOM' && (
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold uppercase text-pink-400">Nome da Nova Categoria</label>
+                        <label className="text-xs font-bold uppercase text-pink-700">Nome da Nova Categoria</label>
                         <input
                           type="text"
                           required
                           placeholder="Ex: Batalha de Dança"
                           value={customCategory}
                           onChange={(e) => setCustomCategory(e.target.value)}
-                          className="w-full px-3 py-2 bg-black/40 border border-pink-500/30 rounded-xl text-xs text-white font-bold"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-pink-300 rounded-xl text-sm text-slate-900 font-semibold"
                         />
                       </div>
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold uppercase text-neutral-400">Data do Evento *</label>
+                        <label className="text-xs font-bold uppercase text-slate-700">Data do Evento *</label>
                         <input
                           type="date"
                           required
                           value={newEventDate}
                           onChange={(e) => setNewEventDate(e.target.value)}
-                          className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white font-bold"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-semibold"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold uppercase text-neutral-400">Horário *</label>
+                        <label className="text-xs font-bold uppercase text-slate-700">Horário *</label>
                         <input
                           type="time"
                           required
                           value={newEventTime}
                           onChange={(e) => setNewEventTime(e.target.value)}
-                          className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white font-bold"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-semibold"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-neutral-400">Descrição do Evento</label>
+                      <label className="text-xs font-bold uppercase text-slate-700">Descrição do Evento</label>
                       <textarea
                         rows={2}
                         placeholder="Descreva o objetivo do evento e o que vai acontecer..."
                         value={newEventDesc}
                         onChange={(e) => setNewEventDesc(e.target.value)}
-                        className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white"
+                        className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-neutral-400">Regras e Instruções</label>
+                      <label className="text-xs font-bold uppercase text-slate-700">Regras e Instruções</label>
                       <textarea
                         rows={2}
                         placeholder="Ex: 1. Não vale usar montaria. 2. Respeitar o horário..."
                         value={newEventRules}
                         onChange={(e) => setNewEventRules(e.target.value)}
-                        className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white"
+                        className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900"
                       />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-slate-700">Servidor PK XD</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Brasil / América do Sul"
+                          value={newEventServer}
+                          onChange={(e) => setNewEventServer(e.target.value)}
+                          className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-semibold focus:outline-none focus:border-violet-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-slate-700">Limite Máximo (Opcional)</label>
+                        <input
+                          type="number"
+                          placeholder="Ex: 50 (vazio = ilimitado)"
+                          value={newMaxParticipants}
+                          onChange={(e) => setNewMaxParticipants(e.target.value)}
+                          className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-semibold focus:outline-none focus:border-violet-500"
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-neutral-400">Limite Máximo de Participantes (Opcional)</label>
+                      <label className="text-xs font-bold uppercase text-slate-700">Link ou Informações Adicionais (Opcional)</label>
                       <input
-                        type="number"
-                        placeholder="Ex: 50 (deixe em branco se for ilimitado)"
-                        value={newMaxParticipants}
-                        onChange={(e) => setNewMaxParticipants(e.target.value)}
-                        className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white font-bold"
+                        type="text"
+                        placeholder="Ex: https://youtube.com/... ou código da ilha"
+                        value={newEventLink}
+                        onChange={(e) => setNewEventLink(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-semibold focus:outline-none focus:border-violet-500"
                       />
                     </div>
 
-                    {/* PIN / Password Protection Option */}
-                    <div className="p-3.5 rounded-2xl bg-black/40 border border-purple-500/30 space-y-3">
+                    {/* PIN Protection */}
+                    <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-200 space-y-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 flex-shrink-0">
+                          <div className="w-9 h-9 rounded-xl bg-amber-200 flex items-center justify-center text-amber-900 shrink-0">
                             <Lock className="w-4 h-4" />
                           </div>
                           <div>
-                            <label className="text-xs font-black uppercase text-white tracking-wide block">
-                              Proteger Inscrição com PIN / Senha? 🔒
-                            </label>
-                            <span className="text-[10px] text-neutral-400 block leading-tight">
+                            <span className="text-xs font-bold uppercase text-slate-900 block">
+                              Proteger Inscrição com PIN / Senha?
+                            </span>
+                            <span className="text-[11px] text-slate-600 block">
                               Apenas jogadores com a senha poderão confirmar presença
                             </span>
                           </div>
                         </div>
 
-                        <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
                           <input
                             type="checkbox"
                             checked={newEventRequiresPin}
                             onChange={(e) => setNewEventRequiresPin(e.target.checked)}
                             className="sr-only peer"
                           />
-                          <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-amber-500 peer-checked:to-pink-500"></div>
+                          <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
                         </label>
                       </div>
 
                       {newEventRequiresPin && (
-                        <div className="pt-2 border-t border-white/10 space-y-2 animate-fade-in">
-                          <label className="block text-[10px] font-extrabold uppercase text-amber-300">
-                            Crie o PIN / Senha Secreta do Evento *
+                        <div className="pt-2 border-t border-amber-200 space-y-2">
+                          <label className="block text-xs font-bold uppercase text-amber-900">
+                            Crie o PIN / Senha Secreta *
                           </label>
                           <div className="relative flex items-center">
-                            <div className="absolute left-3 text-amber-400">
+                            <div className="absolute left-3 text-amber-700">
                               <KeyRound className="w-4 h-4" />
                             </div>
                             <input
-                              type={showPinInCreateForm ? "text" : "password"}
+                              type={showPinInCreateForm ? 'text' : 'password'}
                               required={newEventRequiresPin}
                               maxLength={20}
                               placeholder="Ex: 1234, FESTA2026 ou VIPPKXD"
                               value={newEventPinCode}
                               onChange={(e) => setNewEventPinCode(e.target.value.toUpperCase())}
-                              className="w-full pl-9 pr-10 py-2 bg-black/60 border border-amber-500/40 rounded-xl text-xs text-amber-300 font-mono font-black focus:outline-none focus:ring-1 focus:ring-amber-400 uppercase tracking-widest placeholder-zinc-600"
+                              className="w-full pl-9 pr-10 py-2 bg-white border-2 border-amber-300 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 uppercase tracking-widest"
                             />
                             <button
                               type="button"
                               onClick={() => setShowPinInCreateForm(!showPinInCreateForm)}
-                              className="absolute right-3 text-neutral-400 hover:text-white cursor-pointer"
-                              title={showPinInCreateForm ? "Ocultar PIN" : "Mostrar PIN"}
+                              className="absolute right-3 text-slate-500 hover:text-slate-900 cursor-pointer"
                             >
                               {showPinInCreateForm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
-                          <p className="text-[10px] text-amber-200/80 leading-relaxed font-sans">
-                            💡 <strong>Como funciona:</strong> Quem for confirmar presença precisará digitar exatamente esta senha/PIN. Você poderá ver e copiar o PIN no painel do organizador a qualquer momento!
-                          </p>
                         </div>
                       )}
                     </div>
 
-                    {/* Banner Image Choice */}
-                    <div className="space-y-2 border border-white/10 bg-black/20 p-3 rounded-2xl">
-                      <label className="block text-[10px] font-extrabold uppercase text-neutral-400">
-                        Banner do Evento (Foto do Aparelho ou Link) 🖼️
+                    {/* Banner Upload */}
+                    <div className="space-y-2 border-2 border-slate-200 bg-slate-50 p-3.5 rounded-2xl">
+                      <label className="block text-xs font-bold uppercase text-slate-700">
+                        Banner do Evento (Opcional)
                       </label>
-                      
-                      <div className="flex items-center gap-2">
-                        <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-purple-500/40 bg-purple-500/5 hover:bg-purple-500/10 rounded-xl p-3 cursor-pointer transition-all">
-                          <UploadCloud className="w-5 h-5 text-purple-400 mb-1" />
-                          <span className="text-[10px] font-bold uppercase text-purple-300">
-                            {newEventBanner.startsWith('data:') ? '✓ Imagem Selecionada!' : '📱 Enviar Foto do Celular'}
-                          </span>
-                          <input type="file" accept="image/*" onChange={handleBannerUpload} className="hidden" />
-                        </label>
-                      </div>
+
+                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-violet-300 bg-white hover:bg-violet-50 rounded-xl p-3 cursor-pointer transition-colors">
+                        <UploadCloud className="w-5 h-5 text-violet-600 mb-1" />
+                        <span className="text-xs font-bold uppercase text-violet-700">
+                          {isUploadingBanner
+                            ? 'Carregando imagem...'
+                            : newEventBanner.startsWith('data:')
+                            ? 'Imagem Selecionada!'
+                            : 'Enviar Foto do Dispositivo'}
+                        </span>
+                        <input type="file" accept="image/*" onChange={handleBannerUpload} className="hidden" />
+                      </label>
 
                       {newEventBanner && (
-                        <div className="h-28 w-full rounded-xl overflow-hidden border border-white/10 bg-black relative">
+                        <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-200 bg-white relative">
                           <img src={newEventBanner} alt="Preview" className="w-full h-full object-cover" />
                           <button
                             type="button"
                             onClick={() => setNewEventBanner('')}
-                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full cursor-pointer"
+                            className="absolute top-1.5 right-1.5 p-1 bg-rose-600 text-white rounded-full cursor-pointer"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}
@@ -1596,21 +1776,20 @@ export default function EventsSection({
                 )}
               </div>
 
-              {/* Footer */}
               {!createSuccessMsg && (
-                <div className="p-5 border-t border-white/10 bg-zinc-950 flex gap-2">
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2.5">
                   <button
                     type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold uppercase rounded-xl transition-all cursor-pointer"
+                    onClick={closeCreateModal}
+                    className="pkxd-btn-outline flex-1 py-2.5 text-xs font-bold uppercase rounded-full cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:brightness-110 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md"
+                    className="pkxd-btn-primary flex-1 py-2.5 text-xs font-display font-bold uppercase tracking-wider cursor-pointer"
                   >
-                    Publicar Evento 🚀
+                    {editingEventId ? 'Salvar Alterações' : 'Publicar Evento'}
                   </button>
                 </div>
               )}
@@ -1621,65 +1800,58 @@ export default function EventsSection({
 
       {/* CONFIRM PRESENCE MODAL */}
       {showPresenceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-pink-500/50 rounded-3xl p-6 w-full max-w-md relative shadow-2xl text-left space-y-4 overflow-hidden">
-            
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="pkxd-glass-modal rounded-3xl p-6 w-full max-w-md relative text-left space-y-4 text-slate-900">
             <button
               onClick={() => {
                 setShowPresenceModal(null);
                 setPresenceError('');
               }}
-              className="absolute top-4 right-4 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer"
+              className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 text-pink-400">
+            <div className="flex items-center gap-2.5 text-violet-700">
               <UserCheck className="w-6 h-6" />
-              <h3 className="font-sans font-black text-base text-white uppercase tracking-wider">
-                Confirmar Presença ✋
+              <h3 className="font-display font-bold text-lg text-slate-900 uppercase">
+                Confirmar Presença
               </h3>
             </div>
 
-            <p className="text-xs text-neutral-300">
-              Evento: <strong className="text-yellow-300">{showPresenceModal.name}</strong>
+            <p className="text-xs text-slate-600">
+              Evento: <strong className="text-violet-700">{showPresenceModal.name}</strong>
             </p>
 
             {presenceSuccess ? (
-              <div className="py-6 text-center space-y-2 animate-scale-up">
-                <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
-                <h4 className="font-black text-white text-sm uppercase">Presença Confirmada!</h4>
-                <p className="text-xs text-neutral-300">
-                  Você foi adicionado à lista oficial de participantes! Nos vemos no evento! 🎉
+              <div className="py-6 text-center space-y-2">
+                <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto" />
+                <h4 className="font-display font-bold text-slate-900 text-base uppercase">Presença Confirmada!</h4>
+                <p className="text-xs text-slate-600">
+                  Você foi adicionado à lista oficial de participantes!
                 </p>
               </div>
             ) : (
               <form onSubmit={handleConfirmPresence} className="space-y-4">
                 {hasAutoFilledTag ? (
-                  <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl flex items-center gap-2.5 text-left">
-                    <span className="text-lg">✨</span>
-                    <div>
-                      <p className="text-xs font-black text-emerald-300">Preenchimento Automático Ativo!</p>
-                      <p className="text-[10px] text-emerald-200/80 leading-tight">
-                        Tag PK XD vinculada ao seu perfil detectada: <strong className="font-mono text-white">{playerTagInput}</strong>
-                      </p>
-                    </div>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900">
+                    <p className="font-bold">Preenchimento Automático Ativo</p>
+                    <p className="text-emerald-700 mt-0.5">
+                      Tag detectada no perfil: <strong className="font-mono">{playerTagInput}</strong>
+                    </p>
                   </div>
                 ) : (
-                  <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-2xl flex items-start gap-2 text-left">
-                    <span className="text-base mt-0.5">ℹ️</span>
-                    <div>
-                      <p className="text-xs font-black text-amber-300">Sem Tag PK XD Vinculada</p>
-                      <p className="text-[10px] text-amber-200/80 leading-tight">
-                        Você ainda não cadastrou seu Nome e # no perfil. Digite manualmente abaixo ou configure no seu Passaporte para preenchimento automático nas próximas festas!
-                      </p>
-                    </div>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900">
+                    <p className="font-bold">Digite seu Nickname e # do PK XD</p>
+                    <p className="text-amber-700 mt-0.5">
+                      Configure seu PKXD ID para preencher automaticamente nas próximas festas.
+                    </p>
                   </div>
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-neutral-400">
-                    Informe seu Identificador do PK XD *
+                  <label className="text-xs font-bold uppercase text-slate-700">
+                    Seu Identificador do PK XD *
                   </label>
                   <input
                     type="text"
@@ -1687,69 +1859,58 @@ export default function EventsSection({
                     placeholder="Ex: KOOSH#000 ou LUNA#245"
                     value={playerTagInput}
                     onChange={(e) => setPlayerTagInput(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-sm text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-pink-500 uppercase"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-mono font-bold focus:outline-none focus:border-violet-500 uppercase"
                   />
-                  <p className="text-[10px] text-neutral-400 leading-tight">
-                    Digite seu Nickname exatamente como aparece no PK XD com o código (ex: NICK#123).
-                  </p>
                 </div>
 
-                {/* PIN / Password Input for Protected Events */}
                 {showPresenceModal.requiresPin && showPresenceModal.pinCode && (
-                  <div className="space-y-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-fade-in">
-                    <div className="flex items-center gap-2 text-amber-300">
-                      <Lock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <div className="space-y-2 p-3.5 bg-amber-50 border-2 border-amber-200 rounded-2xl">
+                    <div className="flex items-center gap-2 text-amber-900">
+                      <Lock className="w-4 h-4 shrink-0" />
                       <div>
-                        <span className="text-xs font-black uppercase block leading-tight">
-                          Senha / PIN Obrigatório 🔒
+                        <span className="text-xs font-bold uppercase block">
+                          Senha / PIN Obrigatório
                         </span>
-                        <span className="text-[10px] text-amber-200/80 block font-normal leading-tight">
-                          Este evento é restrito pelo criador ({showPresenceModal.organizerName}).
+                        <span className="text-[11px] text-amber-800 block">
+                          Evento restrito pelo organizador ({showPresenceModal.organizerName}).
                         </span>
                       </div>
                     </div>
 
-                    <div className="space-y-1 pt-1">
-                      <label className="text-[10px] font-extrabold uppercase text-amber-300 flex items-center justify-between">
-                        <span>Digite o PIN / Senha de Acesso *</span>
-                        <span className="text-[9px] text-amber-400/80 font-mono font-bold">REQUERIDO</span>
-                      </label>
-                      <div className="relative flex items-center">
-                        <div className="absolute left-3 text-amber-400">
-                          <KeyRound className="w-4 h-4" />
-                        </div>
-                        <input
-                          type={showPresencePinInput ? "text" : "password"}
-                          required
-                          placeholder="Digite o PIN fornecido pelo organizador"
-                          value={presencePinInput}
-                          onChange={(e) => setPresencePinInput(e.target.value.toUpperCase())}
-                          className="w-full pl-9 pr-10 py-2.5 bg-black/70 border border-amber-500/50 rounded-xl text-xs text-amber-300 font-mono font-black focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase tracking-widest placeholder-zinc-600"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPresencePinInput(!showPresencePinInput)}
-                          className="absolute right-3 text-neutral-400 hover:text-white cursor-pointer"
-                          title={showPresencePinInput ? "Ocultar PIN" : "Mostrar PIN"}
-                        >
-                          {showPresencePinInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
+                    <div className="relative flex items-center">
+                      <div className="absolute left-3 text-amber-700">
+                        <KeyRound className="w-4 h-4" />
                       </div>
+                      <input
+                        type={showPresencePinInput ? 'text' : 'password'}
+                        required
+                        placeholder="Digite o PIN do evento"
+                        value={presencePinInput}
+                        onChange={(e) => setPresencePinInput(e.target.value.toUpperCase())}
+                        className="w-full pl-9 pr-10 py-2.5 bg-white border-2 border-amber-300 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 uppercase tracking-widest"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPresencePinInput(!showPresencePinInput)}
+                        className="absolute right-3 text-slate-500 hover:text-slate-900 cursor-pointer"
+                      >
+                        {showPresencePinInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
                 )}
 
                 {presenceError && (
-                  <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-300 font-bold">
-                    ⚠️ {presenceError}
+                  <div className="p-3 bg-rose-50 border-2 border-rose-200 rounded-xl text-xs text-rose-700 font-bold">
+                    {presenceError}
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:brightness-110 text-white font-sans text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg active:scale-95"
+                  className="pkxd-btn-primary w-full py-3 font-display text-xs font-bold uppercase tracking-wider rounded-2xl cursor-pointer"
                 >
-                  Confirmar Minha Presença 🚀
+                  Confirmar Minha Presença
                 </button>
               </form>
             )}
@@ -1757,78 +1918,70 @@ export default function EventsSection({
         </div>
       )}
 
-      {/* EVENT DETAILS & PARTICIPANTS LIST MODAL */}
+      {/* EVENT DETAILS & PARTICIPANTS MODAL */}
       {showDetailsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
-          <div className="bg-zinc-900 border-2 border-purple-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col relative shadow-2xl overflow-hidden text-left">
-            
-            {/* Header */}
-            <div className="p-5 border-b border-white/10 bg-gradient-to-r from-purple-950 to-zinc-900 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
+          <div className="pkxd-glass-modal rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col relative overflow-hidden text-left text-slate-900">
+            <div className="p-5 border-b border-white/60 bg-white/55 flex items-center justify-between">
               <div>
-                <span className="px-2 py-0.5 bg-pink-500/20 text-pink-300 text-[9px] font-black uppercase rounded">
+                <span className="px-2.5 py-0.5 bg-pink-100 text-pink-800 text-[11px] font-bold uppercase rounded-full">
                   {showDetailsModal.category}
                 </span>
-                <h3 className="font-sans font-black text-lg text-white uppercase tracking-wider mt-1">
+                <h3 className="font-display font-bold text-xl text-slate-900 mt-1">
                   {showDetailsModal.name}
                 </h3>
               </div>
               <button
                 onClick={() => setShowDetailsModal(null)}
-                className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer"
+                className="p-2 bg-white hover:bg-slate-200 border border-slate-200 text-slate-600 rounded-full cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-5 overflow-y-auto space-y-6 max-h-[70vh] scrollbar-thin">
-              
-              {/* Event Info Card */}
-              <div className="space-y-3 bg-black/40 p-4 rounded-2xl border border-white/10">
-                <p className="text-xs text-neutral-200 leading-relaxed">
+            <div className="p-5 overflow-y-auto space-y-6 max-h-[70vh] custom-scrollbar">
+              <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <p className="text-sm text-slate-700 leading-relaxed">
                   {showDetailsModal.description}
                 </p>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-2 border-t border-white/5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-2 border-t border-slate-200">
                   <div>
-                    <span className="text-[9px] text-neutral-500 uppercase block">Data e Hora</span>
-                    <strong className="text-purple-300">{showDetailsModal.date} às {showDetailsModal.time}</strong>
+                    <span className="text-[10px] text-slate-500 uppercase block">Data e Hora</span>
+                    <strong className="text-violet-700">{showDetailsModal.date} às {showDetailsModal.time}</strong>
                   </div>
                   <div>
-                    <span className="text-[9px] text-neutral-500 uppercase block">Organizador</span>
-                    <strong className="text-yellow-300">{showDetailsModal.organizerName}</strong>
+                    <span className="text-[10px] text-slate-500 uppercase block">Organizador</span>
+                    <strong className="text-slate-900">{showDetailsModal.organizerName}</strong>
                   </div>
                   <div>
-                    <span className="text-[9px] text-neutral-500 uppercase block">Status</span>
-                    <strong className="text-pink-400">{showDetailsModal.status}</strong>
+                    <span className="text-[10px] text-slate-500 uppercase block">Status</span>
+                    <strong className="text-pink-700">{showDetailsModal.status}</strong>
                   </div>
                   <div>
-                    <span className="text-[9px] text-neutral-500 uppercase block">Segurança</span>
-                    <strong className="text-amber-400 flex items-center gap-1">
+                    <span className="text-[10px] text-slate-500 uppercase block">Segurança</span>
+                    <strong className="text-amber-700 flex items-center gap-1">
                       {showDetailsModal.requiresPin ? (
                         <>
-                          <Lock className="w-3 h-3 text-amber-400" />
-                          <span>Com PIN 🔒</span>
+                          <Lock className="w-3 h-3" />
+                          <span>Com PIN</span>
                         </>
                       ) : (
-                        <span className="text-emerald-400">Pública 🌐</span>
+                        <span className="text-emerald-700">Pública</span>
                       )}
                     </strong>
                   </div>
                 </div>
 
-                {/* Show PIN Box if Event Requires PIN */}
                 {showDetailsModal.requiresPin && showDetailsModal.pinCode && (
-                  <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl flex flex-wrap items-center justify-between gap-2 animate-fade-in">
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 flex-shrink-0">
-                        <KeyRound className="w-4 h-4" />
-                      </div>
+                      <KeyRound className="w-4 h-4 text-amber-700" />
                       <div>
-                        <span className="text-[10px] font-black uppercase text-amber-300 block leading-tight">
+                        <span className="text-[11px] font-bold uppercase text-amber-900 block">
                           PIN / Senha de Inscrição:
                         </span>
-                        <span className="font-mono font-black text-xs text-yellow-300 tracking-widest bg-black/60 px-2 py-0.5 rounded border border-white/10 inline-block mt-0.5">
+                        <span className="font-mono font-bold text-xs text-slate-900 tracking-widest bg-white px-2.5 py-0.5 rounded border border-amber-200 inline-block mt-0.5">
                           {showDetailsModal.pinCode}
                         </span>
                       </div>
@@ -1839,9 +1992,9 @@ export default function EventsSection({
                       onClick={() => {
                         if (triggerAudio) triggerAudio('tap');
                         navigator.clipboard.writeText(showDetailsModal.pinCode || '');
-                        showToast(`🔑 PIN "${showDetailsModal.pinCode}" copiado para a área de transferência!`);
+                        showToast(`PIN "${showDetailsModal.pinCode}" copiado!`);
                       }}
-                      className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-purple-950 font-sans text-[11px] font-black uppercase rounded-lg flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow"
+                      className="pkxd-btn-gold px-3 py-1.5 text-xs font-bold uppercase rounded-xl flex items-center gap-1.5 cursor-pointer"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       <span>Copiar PIN</span>
@@ -1849,24 +2002,54 @@ export default function EventsSection({
                   </div>
                 )}
 
+                {(showDetailsModal.server || showDetailsModal.additionalLink) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 text-xs">
+                    {showDetailsModal.server && (
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold uppercase text-slate-500 block">Servidor</span>
+                        <strong className="text-[#7C3AED] inline-flex items-center gap-1 mt-0.5">
+                          <Globe className="w-3.5 h-3.5" />
+                          {showDetailsModal.server}
+                        </strong>
+                      </div>
+                    )}
+                    {showDetailsModal.additionalLink && (
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold uppercase text-slate-500 block">Link / Info Adicional</span>
+                        {showDetailsModal.additionalLink.startsWith('http') ? (
+                          <a
+                            href={showDetailsModal.additionalLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[#2563EB] font-bold underline inline-flex items-center gap-1 mt-0.5 break-all"
+                          >
+                            <Link2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>Abrir Link</span>
+                          </a>
+                        ) : (
+                          <strong className="text-slate-900 mt-0.5 block">{showDetailsModal.additionalLink}</strong>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {showDetailsModal.rules && (
                   <div className="pt-2">
-                    <span className="text-[10px] font-extrabold uppercase text-neutral-400 block mb-1">Regras do Evento:</span>
-                    <div className="p-3 bg-black/60 rounded-xl text-xs text-neutral-300 font-mono leading-relaxed border border-white/5">
+                    <span className="text-xs font-bold uppercase text-slate-600 block mb-1">Regras do Evento:</span>
+                    <div className="p-3 bg-white rounded-xl text-xs text-slate-700 leading-relaxed border border-slate-200">
                       {showDetailsModal.rules}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* PARTICIPANTS SECTION / ORGANIZER COPY & PASTE PANEL */}
               {(() => {
                 const eventParts = participants.filter(p => p.eventId === showDetailsModal.id);
-                const filteredList = eventParts.filter(p => 
+                const filteredList = eventParts.filter(p =>
                   p.playerIdentifier.toLowerCase().includes(participantSearch.toLowerCase())
                 );
 
-                // Prepared text formats for easy copy-paste
                 const linesText = eventParts.map(p => p.playerIdentifier).join('\n');
                 const commaText = eventParts.map(p => p.playerIdentifier).join(', ');
                 const numberedText = `[Lista de Membros - ${showDetailsModal.name}]\n` + eventParts.map((p, i) => `${i + 1}. ${p.playerIdentifier}`).join('\n');
@@ -1875,38 +2058,29 @@ export default function EventsSection({
 
                 return (
                   <div className="space-y-4">
-                    {/* Organizer / Host Highlight Box */}
-                    <div className="bg-gradient-to-r from-yellow-500/10 via-purple-900/30 to-pink-500/10 border-2 border-yellow-400/30 p-4 rounded-2xl space-y-3">
+                    <div className="bg-amber-50/70 border-2 border-amber-200 p-4 rounded-2xl space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-xl bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center text-yellow-300 font-black flex-shrink-0">
-                            👑
-                          </div>
-                          <div>
-                            <h4 className="font-sans font-black text-sm uppercase text-white tracking-wide flex items-center gap-2">
-                              Painel de Membros & Tags (PK XD)
-                            </h4>
-                            <p className="text-[11px] text-yellow-200/80">
-                              Copie as tags dos participantes para colar na busca de amigos do PK XD e convidá-los para sua festa!
-                            </p>
-                          </div>
+                        <div>
+                          <h4 className="font-display font-bold text-sm uppercase text-slate-900">
+                            Painel de Membros & Tags (PK XD)
+                          </h4>
+                          <p className="text-xs text-slate-600">
+                            Copie as tags dos participantes para convidá-los no PK XD.
+                          </p>
                         </div>
-
-                        <span className="px-3 py-1 bg-yellow-400/20 text-yellow-300 font-mono text-xs font-bold rounded-xl border border-yellow-400/30 self-start sm:self-auto">
+                        <span className="px-3 py-1 bg-white text-amber-900 font-mono text-xs font-bold rounded-xl border border-amber-200 self-start sm:self-auto tabular-nums">
                           {eventParts.length} {eventParts.length === 1 ? 'membro' : 'membros'}
                         </span>
                       </div>
 
-                      {/* Quick Copy Format Controls */}
                       {eventParts.length > 0 && (
-                        <div className="space-y-2 pt-1 border-t border-white/10">
+                        <div className="space-y-2 pt-2 border-t border-amber-200">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            {/* Format selector tabs */}
-                            <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/10 text-[10px] font-bold">
+                            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-amber-200 text-[11px] font-bold">
                               <button
                                 onClick={() => setCopyFormatTab('lines')}
                                 className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                                  copyFormatTab === 'lines' ? 'bg-yellow-400 text-purple-950 font-black' : 'text-neutral-400 hover:text-white'
+                                  copyFormatTab === 'lines' ? 'bg-amber-400 text-slate-950' : 'text-slate-600 hover:text-slate-900'
                                 }`}
                               >
                                 1 por Linha
@@ -1914,112 +2088,98 @@ export default function EventsSection({
                               <button
                                 onClick={() => setCopyFormatTab('comma')}
                                 className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                                  copyFormatTab === 'comma' ? 'bg-yellow-400 text-purple-950 font-black' : 'text-neutral-400 hover:text-white'
+                                  copyFormatTab === 'comma' ? 'bg-amber-400 text-slate-950' : 'text-slate-600 hover:text-slate-900'
                                 }`}
                               >
-                                Separado por Vírgulas
+                                Por Vírgulas
                               </button>
                               <button
                                 onClick={() => setCopyFormatTab('numbered')}
                                 className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                                  copyFormatTab === 'numbered' ? 'bg-yellow-400 text-purple-950 font-black' : 'text-neutral-400 hover:text-white'
+                                  copyFormatTab === 'numbered' ? 'bg-amber-400 text-slate-950' : 'text-slate-600 hover:text-slate-900'
                                 }`}
                               >
                                 Numerado
                               </button>
                             </div>
 
-                            {/* Main Copy Button */}
                             <button
                               onClick={() => handleCopyTagsFormatted(showDetailsModal, eventParts, copyFormatTab)}
-                              className={`px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-lg ${
+                              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase flex items-center gap-1.5 cursor-pointer ${
                                 copiedBatchFormat === copyFormatTab
-                                  ? 'bg-emerald-500 text-white shadow-emerald-500/30'
-                                  : 'bg-gradient-to-r from-yellow-400 to-amber-500 text-purple-950 hover:brightness-110'
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'pkxd-btn-gold'
                               }`}
                             >
                               {copiedBatchFormat === copyFormatTab ? (
                                 <>
-                                  <Check className="w-4 h-4 text-white" />
-                                  <span>Copiado com Sucesso! ✓</span>
+                                  <Check className="w-4 h-4" />
+                                  <span>Copiado!</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy className="w-4 h-4" />
-                                  <span>Copiar Todas as Tags 📋</span>
+                                  <span>Copiar Todas</span>
                                 </>
                               )}
                             </button>
                           </div>
 
-                          {/* Live Copyable Box / Textarea */}
-                          <div className="relative">
-                            <textarea
-                              readOnly
-                              value={activeFormattedText}
-                              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                              rows={Math.min(5, Math.max(2, eventParts.length))}
-                              className="w-full p-3 bg-black/80 border border-yellow-400/30 rounded-xl text-xs font-mono text-yellow-300 leading-relaxed focus:outline-none focus:ring-1 focus:ring-yellow-400 cursor-text resize-none scrollbar-thin selection:bg-yellow-400 selection:text-purple-950"
-                              placeholder="Nenhuma tag de jogador cadastrada ainda."
-                            />
-                            <span className="absolute right-3 bottom-2 text-[9px] font-mono text-neutral-500 pointer-events-none">
-                              Clique no texto para selecionar tudo
-                            </span>
-                          </div>
+                          <textarea
+                            readOnly
+                            value={activeFormattedText}
+                            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                            rows={Math.min(5, Math.max(2, eventParts.length))}
+                            className="w-full p-3 bg-white border border-amber-200 rounded-xl text-xs font-mono text-slate-900 leading-relaxed focus:outline-none resize-none"
+                          />
                         </div>
                       )}
                     </div>
 
-                    {/* Action Bar: Export Buttons & Manual Add */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-sans font-black text-sm uppercase text-white flex items-center gap-2">
-                          <Users className="w-4 h-4 text-pink-400" />
-                          Membros Inscritos ({eventParts.length})
-                        </h4>
-                      </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <h4 className="font-display font-bold text-sm uppercase text-slate-900 flex items-center gap-2">
+                        <Users className="w-4 h-4 text-violet-700" />
+                        Membros Inscritos ({eventParts.length})
+                      </h4>
 
-                      {/* Export Toolbar */}
-                      <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
-                          onClick={() => setShowQuickAdd(!showQuickAdd)}
-                          className="px-2.5 py-1.5 bg-pink-600 hover:bg-pink-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                          title="Adicionar jogador manualmente"
+                          onClick={() => {
+                            setQuickAddError(null);
+                            setShowQuickAdd(!showQuickAdd);
+                          }}
+                          className="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-[11px] font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                           <span>{showQuickAdd ? 'Fechar' : 'Add Jogador'}</span>
                         </button>
 
                         <button
                           onClick={() => handleExportExcel(showDetailsModal, eventParts)}
-                          className="px-2.5 py-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 cursor-pointer transition-all"
-                          title="Exportar em Excel (.xlsx)"
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
-                          <FileSpreadsheet className="w-3 h-3" /> Excel
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                         </button>
 
                         <button
                           onClick={() => handleExportPDF(showDetailsModal, eventParts)}
-                          className="px-2.5 py-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 cursor-pointer transition-all"
-                          title="Exportar em PDF"
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
-                          <FileText className="w-3 h-3" /> PDF
+                          <FileText className="w-3.5 h-3.5" /> PDF
                         </button>
 
                         <button
                           onClick={() => handleExportTXT(showDetailsModal, eventParts)}
-                          className="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 cursor-pointer transition-all"
-                          title="Exportar em TXT"
+                          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-[11px] font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
-                          <Download className="w-3 h-3" /> TXT
+                          <Download className="w-3.5 h-3.5" /> TXT
                         </button>
                       </div>
                     </div>
 
-                    {/* Manual Add Participant Box */}
                     {showQuickAdd && (
-                      <div className="p-3.5 bg-purple-950/40 border border-pink-500/30 rounded-2xl space-y-2 animate-fade-in">
-                        <span className="text-[11px] font-bold text-pink-300 uppercase block">
+                      <div className="p-3.5 bg-pink-50 border border-pink-200 rounded-2xl space-y-2">
+                        <span className="text-xs font-bold text-pink-900 uppercase block">
                           Adicionar Jogador Diretamente na Lista:
                         </span>
                         <div className="flex gap-2">
@@ -2027,37 +2187,43 @@ export default function EventsSection({
                             type="text"
                             placeholder="Tag no PK XD (ex: AMIGO#123)..."
                             value={quickAddTagInput}
-                            onChange={(e) => setQuickAddTagInput(e.target.value.toUpperCase())}
-                            className="flex-1 px-3 py-2 bg-black/70 border border-white/10 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-pink-500"
+                            onChange={(e) => {
+                              setQuickAddError(null);
+                              setQuickAddTagInput(e.target.value.toUpperCase());
+                            }}
+                            className="flex-1 px-3 py-2 bg-white border border-pink-200 rounded-xl text-xs text-slate-900 font-mono"
                           />
                           <button
                             onClick={() => handleQuickAddParticipant(showDetailsModal.id)}
-                            className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-sans text-xs font-black uppercase rounded-xl transition-all cursor-pointer active:scale-95 flex items-center gap-1 flex-shrink-0"
+                            className="pkxd-btn-primary px-4 py-2 text-xs font-bold uppercase rounded-xl cursor-pointer flex items-center gap-1 shrink-0"
                           >
                             <Plus className="w-3.5 h-3.5" /> Adicionar
                           </button>
                         </div>
+                        {quickAddError && (
+                          <p className="text-xs font-bold text-rose-700">{quickAddError}</p>
+                        )}
                       </div>
                     )}
 
-                    {/* Search Field */}
                     <div className="relative">
-                      <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         placeholder="Pesquisar jogador na lista (ex: KOOSH#000)..."
                         value={participantSearch}
                         onChange={(e) => setParticipantSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-black/60 border border-white/10 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-pink-500"
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs text-slate-900 font-mono"
                       />
                     </div>
 
-                    {/* Interactive List of Members with Individual Copy Buttons */}
-                    <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin pr-1">
+                    <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
                       {filteredList.length === 0 ? (
-                        <div className="p-8 text-center bg-black/40 rounded-2xl border border-dashed border-white/10">
-                          <p className="text-neutral-400 text-xs font-sans">
-                            {eventParts.length === 0 ? 'Nenhum participante confirmado ainda. Compartilhe o link do evento para os membros se inscreverem!' : 'Nenhum jogador encontrado com essa pesquisa.'}
+                        <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                          <p className="text-slate-500 text-xs">
+                            {eventParts.length === 0
+                              ? 'Nenhum participante confirmado ainda. Compartilhe o link do evento!'
+                              : 'Nenhum jogador encontrado com essa pesquisa.'}
                           </p>
                         </div>
                       ) : (
@@ -2066,17 +2232,17 @@ export default function EventsSection({
                           return (
                             <div
                               key={p.id}
-                              className="flex items-center justify-between bg-black/60 hover:bg-purple-950/40 border border-white/10 hover:border-purple-500/30 p-2.5 rounded-xl transition-all group"
+                              className="flex items-center justify-between bg-slate-50 hover:bg-violet-50 border border-slate-200 p-2.5 rounded-xl transition-colors"
                             >
                               <div className="flex items-center gap-3">
-                                <span className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center font-mono text-[10px] text-neutral-400 font-bold">
+                                <span className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-mono text-[11px] text-slate-500 font-bold tabular-nums">
                                   #{idx + 1}
                                 </span>
                                 <div>
-                                  <span className="font-mono text-xs font-bold text-white tracking-wider block">
+                                  <span className="font-mono text-xs font-bold text-slate-900 tracking-wider block">
                                     {p.playerIdentifier}
                                   </span>
-                                  <span className="text-[9px] text-neutral-500 font-mono">
+                                  <span className="text-[10px] text-slate-500 font-mono">
                                     Inscrito em {new Date(p.registeredAt).toLocaleDateString('pt-BR')}
                                   </span>
                                 </div>
@@ -2085,34 +2251,50 @@ export default function EventsSection({
                               <div className="flex items-center gap-1.5">
                                 <button
                                   onClick={() => handleCopySingleTag(p.playerIdentifier, p.id)}
-                                  className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 transition-all cursor-pointer active:scale-95 ${
+                                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold uppercase flex items-center gap-1 cursor-pointer border ${
                                     isCopied
-                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                      : 'bg-white/5 hover:bg-yellow-400/20 text-neutral-300 hover:text-yellow-300 border border-white/10 hover:border-yellow-400/30'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : 'bg-white hover:bg-amber-50 text-slate-700 border-slate-200'
                                   }`}
-                                  title="Copiar apenas esta tag"
                                 >
                                   {isCopied ? (
                                     <>
-                                      <Check className="w-3 h-3 text-emerald-400" />
-                                      <span>Copiado!</span>
+                                      <Check className="w-3 h-3" />
+                                      <span>Copiado</span>
                                     </>
                                   ) : (
                                     <>
-                                      <Copy className="w-3 h-3 text-yellow-300" />
+                                      <Copy className="w-3 h-3" />
                                       <span>Copiar Tag</span>
                                     </>
                                   )}
                                 </button>
 
                                 {(isAdmin || (currentUser && showDetailsModal.createdById === currentUser.uid)) && (
-                                  <button
-                                    onClick={() => handleRemoveParticipant(p.id, p.playerIdentifier)}
-                                    className="p-1.5 text-neutral-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
-                                    title="Remover jogador da lista"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  confirmRemovePartId === p.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => handleConfirmRemoveParticipant(p.id, p.playerIdentifier)}
+                                        className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-bold cursor-pointer"
+                                      >
+                                        Sim
+                                      </button>
+                                      <button
+                                        onClick={() => setConfirmRemovePartId(null)}
+                                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        Não
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => setConfirmRemovePartId(p.id)}
+                                      className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                      title="Remover jogador da lista"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )
                                 )}
                               </div>
                             </div>
@@ -2125,23 +2307,40 @@ export default function EventsSection({
               })()}
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-white/10 bg-zinc-950 flex items-center justify-between">
-              <button
-                onClick={() => {
-                  const evId = showDetailsModal.id;
-                  setShowDetailsModal(null);
-                  handleDeleteEvent(evId);
-                }}
-                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 font-sans text-xs font-bold uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Excluir Evento</span>
-              </button>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+              {(isAdmin || (currentUser && showDetailsModal.createdById === currentUser.uid)) ? (
+                confirmDeleteEventId === showDetailsModal.id ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-rose-700">Confirmar exclusão?</span>
+                    <button
+                      onClick={() => handleDeleteEvent(showDetailsModal.id)}
+                      className="px-3 py-1.5 bg-rose-600 text-white text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      Excluir
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteEventId(null)}
+                      className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteEventId(showDetailsModal.id)}
+                    className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold uppercase rounded-xl cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Excluir Evento</span>
+                  </button>
+                )
+              ) : (
+                <div />
+              )}
 
               <button
                 onClick={() => setShowDetailsModal(null)}
-                className="px-5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-sans text-xs font-bold uppercase rounded-xl transition-all cursor-pointer"
+                className="pkxd-btn-outline px-5 py-2 text-xs font-bold uppercase rounded-2xl cursor-pointer"
               >
                 Fechar
               </button>
@@ -2149,7 +2348,6 @@ export default function EventsSection({
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Compass, Trophy, Star, ChevronRight, X, Flame, Gamepad2 } from 'lucide-react';
+import { Sparkles, Compass, Trophy, ChevronRight, X, Flame } from 'lucide-react';
 
 interface WelcomeGuideCardProps {
   onNavigateToPassport: () => void;
@@ -21,46 +21,44 @@ export default function WelcomeGuideCard({
   onDismiss
 }: WelcomeGuideCardProps) {
   return (
-    <div 
+    <div
       id="first-access-welcome-guide"
-      className="relative overflow-hidden bg-[#1D1638]/72 backdrop-blur-xl border border-white/[0.09] rounded-[20px] p-5 sm:p-7 shadow-[0_8px_32px_rgba(0,0,0,0.38)] text-left select-none animate-fade-in"
+      className="relative overflow-hidden pkxd-glass rounded-3xl p-5 sm:p-7 text-left select-none animate-fade-in"
     >
-      {/* Header bar with dismiss and compact mode selector */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/[0.08] relative z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-[12px] bg-[#251B46]/80 backdrop-blur-md border border-[#7C3AED]/40 flex items-center justify-center text-[#7C3AED] shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b-2 border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#F3F0FF] border border-purple-200 flex items-center justify-center text-[#6D28D9]">
             <Compass className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#15102A]/80 backdrop-blur-sm text-[#22D3EE] border border-[#22D3EE]/30">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-sans font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-[#EFF8FF] text-[#0284C7] border border-sky-200">
                 Guia Rápido
               </span>
-              <h3 className="font-sans font-black text-sm sm:text-base text-[#F8F7FF] uppercase tracking-tight">
-                Novo por aqui? Bem-vindo à Central PK XD! 👋
+              <h3 className="font-display font-bold text-base sm:text-lg text-slate-900 tracking-tight">
+                Bem-vindo ao PKXD Central 2.0!
               </h3>
             </div>
-            <p className="text-xs text-[#B8B2CC] mt-0.5">
-              Reunimos tudo o que você precisa em 3 passos simples:
+            <p className="text-xs text-slate-600 mt-0.5">
+              Comece por onde preferir em 3 caminhos diretos:
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View Filter Toggle */}
           <button
             onClick={() => {
               if (triggerAudio) triggerAudio('tap');
               onToggleCompactMode();
             }}
-            className={`px-3 py-1.5 rounded-[12px] text-[11px] font-sans font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer border ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-colors flex items-center gap-1.5 cursor-pointer border-2 ${
               isCompactMode
-                ? 'bg-[#7C3AED] text-white border-white/20'
-                : 'bg-[#15102A]/80 backdrop-blur-sm text-[#B8B2CC] border-white/10 hover:text-[#F8F7FF]'
+                ? 'bg-[#6D28D9] text-white border-[#6D28D9]'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
             title="Alternar entre visualização focada e completa"
           >
-            <span>{isCompactMode ? '🎯 Modo Focado' : '🌐 Todas as Seções'}</span>
+            <span>{isCompactMode ? 'Modo Focado' : 'Todas as Seções'}</span>
           </button>
 
           <button
@@ -68,7 +66,7 @@ export default function WelcomeGuideCard({
               if (triggerAudio) triggerAudio('tap');
               onDismiss();
             }}
-            className="p-1.5 rounded-[12px] bg-[#15102A]/80 hover:bg-[#251B46] text-[#716A83] hover:text-[#F8F7FF] border border-white/10 transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
             title="Fechar guia"
           >
             <X className="w-4 h-4" />
@@ -76,91 +74,99 @@ export default function WelcomeGuideCard({
         </div>
       </div>
 
-      {/* 3 Clear Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-4 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
         {/* Action 1: PKXD ID */}
-        <div 
+        <button
+          type="button"
           onClick={() => {
             if (triggerAudio) triggerAudio('tap');
             onNavigateToPassport();
           }}
-          className="group p-4 bg-[#15102A]/75 hover:bg-[#251B46]/80 backdrop-blur-md border border-white/[0.08] hover:border-[#F5C542]/50 rounded-[16px] transition-all cursor-pointer shadow-sm flex flex-col justify-between space-y-3"
+          className="group p-4 bg-[#FFFBEB] hover:bg-amber-100/70 border-2 border-amber-200 hover:border-amber-400 rounded-2xl transition-all cursor-pointer text-left flex flex-col justify-between space-y-3"
         >
           <div className="space-y-2">
-            <div className="w-10 h-10 rounded-[12px] bg-[#251B46] border border-[#F5C542]/30 text-[#F5C542] flex items-center justify-center font-bold">
-              <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            <div className="w-10 h-10 rounded-xl bg-white border border-amber-200 text-amber-600 flex items-center justify-center">
+              <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-sans font-black text-sm text-[#F8F7FF] uppercase flex items-center justify-between">
+              <h4 className="font-display font-bold text-sm text-slate-900 flex items-center justify-between gap-2">
                 <span>1. Criar Meu PKXD ID</span>
-                <span className="text-[10px] font-mono text-[#F5C542] font-bold">Popular 🔥</span>
+                <span className="text-[10px] font-sans text-amber-800 bg-white px-2 py-0.5 rounded-full border border-amber-200 font-extrabold">
+                  Popular
+                </span>
               </h4>
-              <p className="text-xs text-[#B8B2CC] mt-1 leading-relaxed">
-                Crie seu cartão oficial com seu Nick, Nível, Conquistas e baixe em imagem para compartilhar com amigos!
+              <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                Crie seu cartão com Nick, Nível e Conquistas, baixe em imagem HD e compartilhe seu link curto.
               </p>
             </div>
           </div>
-          <div className="flex items-center text-xs font-bold text-[#F5C542] group-hover:translate-x-1 transition-transform">
+          <div className="flex items-center text-xs font-extrabold text-amber-800 group-hover:translate-x-1 transition-transform">
             <span>Acessar PKXD ID</span>
             <ChevronRight className="w-4 h-4 ml-1" />
           </div>
-        </div>
+        </button>
 
-        {/* Action 2: Spoilers Countdown */}
-        <div 
+        {/* Action 2: Spoilers */}
+        <button
+          type="button"
           onClick={() => {
             if (triggerAudio) triggerAudio('tap');
             onNavigateToSpoilers();
           }}
-          className="group p-4 bg-[#15102A]/75 hover:bg-[#251B46]/80 backdrop-blur-md border border-white/[0.08] hover:border-[#E83EBC]/50 rounded-[16px] transition-all cursor-pointer shadow-sm flex flex-col justify-between space-y-3"
+          className="group p-4 bg-[#EFF8FF] hover:bg-sky-100/70 border-2 border-sky-200 hover:border-[#0284C7] rounded-2xl transition-all cursor-pointer text-left flex flex-col justify-between space-y-3"
         >
           <div className="space-y-2">
-            <div className="w-10 h-10 rounded-[12px] bg-[#3A1947] border border-[#E83EBC]/30 text-[#E83EBC] flex items-center justify-center font-bold">
-              <Flame className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <div className="w-10 h-10 rounded-xl bg-white border border-sky-200 text-[#0284C7] flex items-center justify-center">
+              <Flame className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-sans font-black text-sm text-[#F8F7FF] uppercase flex items-center justify-between">
+              <h4 className="font-display font-bold text-sm text-slate-900 flex items-center justify-between gap-2">
                 <span>2. Spoilers & Novidades</span>
-                <span className="text-[10px] font-mono text-[#E83EBC] font-bold">Ao Vivo</span>
+                <span className="text-[10px] font-sans text-[#0284C7] bg-white px-2 py-0.5 rounded-full border border-sky-200 font-extrabold">
+                  Ao Vivo
+                </span>
               </h4>
-              <p className="text-xs text-[#B8B2CC] mt-1 leading-relaxed">
-                Acompanhe o cronômetro para os novos spoilers semanais e veja o que vai chegar na próxima atualização.
+              <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                Veja o cronômetro dos próximos spoilers semanais e acompanhe tudo o que vai chegar no jogo.
               </p>
             </div>
           </div>
-          <div className="flex items-center text-xs font-bold text-[#E83EBC] group-hover:translate-x-1 transition-transform">
+          <div className="flex items-center text-xs font-extrabold text-[#0284C7] group-hover:translate-x-1 transition-transform">
             <span>Ver Contagem Regressiva</span>
             <ChevronRight className="w-4 h-4 ml-1" />
           </div>
-        </div>
+        </button>
 
         {/* Action 3: Creator Program */}
-        <div 
+        <button
+          type="button"
           onClick={() => {
             if (triggerAudio) triggerAudio('tap');
             onNavigateToCreator();
           }}
-          className="group p-4 bg-[#15102A]/75 hover:bg-[#251B46]/80 backdrop-blur-md border border-white/[0.08] hover:border-[#7C3AED]/50 rounded-[16px] transition-all cursor-pointer shadow-sm flex flex-col justify-between space-y-3"
+          className="group p-4 bg-[#F3F0FF] hover:bg-purple-100/70 border-2 border-purple-200 hover:border-[#6D28D9] rounded-2xl transition-all cursor-pointer text-left flex flex-col justify-between space-y-3"
         >
           <div className="space-y-2">
-            <div className="w-10 h-10 rounded-[12px] bg-[#251B46] border border-[#7C3AED]/40 text-[#7C3AED] flex items-center justify-center font-bold">
-              <Trophy className="w-5 h-5 group-hover:rotate-6 transition-transform" />
+            <div className="w-10 h-10 rounded-xl bg-white border border-purple-200 text-[#6D28D9] flex items-center justify-center">
+              <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-sans font-black text-sm text-[#F8F7FF] uppercase flex items-center justify-between">
+              <h4 className="font-display font-bold text-sm text-slate-900 flex items-center justify-between gap-2">
                 <span>3. Programa Creator</span>
-                <span className="text-[10px] font-mono text-[#7C3AED] font-bold">Stardust / Star</span>
+                <span className="text-[10px] font-sans text-[#6D28D9] bg-white px-2 py-0.5 rounded-full border border-purple-200 font-extrabold">
+                  Progresso
+                </span>
               </h4>
-              <p className="text-xs text-[#B8B2CC] mt-1 leading-relaxed">
-                Descubra os requisitos oficiais e teste sua elegibilidade para se tornar um Creator reconhecido do PK XD.
+              <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                Consulte os requisitos oficiais e calcule seu progresso para se tornar Creator reconhecido.
               </p>
             </div>
           </div>
-          <div className="flex items-center text-xs font-bold text-[#7C3AED] group-hover:translate-x-1 transition-transform">
+          <div className="flex items-center text-xs font-extrabold text-[#6D28D9] group-hover:translate-x-1 transition-transform">
             <span>Calcular Requisitos</span>
             <ChevronRight className="w-4 h-4 ml-1" />
           </div>
-        </div>
+        </button>
       </div>
     </div>
   );

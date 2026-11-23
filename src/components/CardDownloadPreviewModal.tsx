@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Copy, Check, X, Share2, Sparkles, Smartphone, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Download, Copy, Check, X, Share2, Sparkles, Smartphone, ExternalLink } from 'lucide-react';
 
 interface CardDownloadPreviewModalProps {
   isOpen: boolean;
@@ -29,38 +29,31 @@ export default function CardDownloadPreviewModal({
 
   if (!isOpen || !imageUrl) return null;
 
-  // Compact clean share URL
-  const cleanTag = encodeURIComponent(playerTag || 'Explorador');
-  const shortShareUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/?id=${cleanTag}`
-    : `https://pkxdcentral.site/?id=${cleanTag}`;
+  // Compact short share URL
+  const cleanTag = encodeURIComponent((playerTag || 'Explorador').replace(/^#/, ''));
+  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pkxdcentral.site';
+  const shortShareUrl = `${originUrl}/?id=${cleanTag}`;
 
-  const cleanShortDomainUrl = `https://pkxdcentral.site/?id=${cleanTag}`;
-
-  // Robust Direct Download Handler
+  // Reliable Direct PNG Download (no target=_blank so browsers trigger file save instead of blank tab)
   const handleDownload = () => {
     setDownloadStatus('downloading');
     try {
+      const downloadHref = blob ? URL.createObjectURL(blob) : imageUrl;
       const link = document.createElement('a');
-      link.download = filename;
-      link.href = imageUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
+      link.download = filename || 'PKXD_ID.png';
+      link.href = downloadHref;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
+      if (blob) {
+        setTimeout(() => URL.revokeObjectURL(downloadHref), 4000);
+      }
       setDownloadStatus('done');
       if (triggerAudio) triggerAudio('tap');
       setTimeout(() => setDownloadStatus('idle'), 3000);
     } catch (e) {
       console.warn('Erro ao disparar download:', e);
-      // Fallback: open image in new window/tab so user can save
-      try {
-        window.open(imageUrl, '_blank');
-      } catch (err2) {
-        console.warn('Fallback window.open falhou:', err2);
-      }
       setDownloadStatus('done');
     }
   };
@@ -78,7 +71,7 @@ export default function CardDownloadPreviewModal({
         await navigator.share({
           files: [file],
           title: `PKXD ID - ${nickname}`,
-          text: `Meu PKXD ID Oficial no PK XD Central!`
+          text: 'Meu PKXD ID Oficial no PKXD Central!'
         });
         setSharedNative(true);
         if (triggerAudio) triggerAudio('levelUp');
@@ -89,7 +82,6 @@ export default function CardDownloadPreviewModal({
       console.warn('Native share cancelled or failed:', err);
     }
 
-    // If native share not supported or cancelled, trigger direct download
     handleDownload();
   };
 
@@ -121,14 +113,20 @@ export default function CardDownloadPreviewModal({
     }
   };
 
-  const whatsappMessage = `✨ Olha meu PKXD ID Oficial no PK XD Central!\n🎮 Meu Nick: ${nickname} (${playerTag})\n🪪 Ver perfil: ${cleanShortDomainUrl}`;
+  const whatsappMessage = `Olha meu PKXD ID Oficial no PKXD Central!\nNick: ${nickname} (${playerTag})\nPerfil: ${shortShareUrl}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in text-left">
-      <div className="bg-[#15102A] border border-[#34275A] rounded-[24px] p-5 sm:p-7 w-full max-w-lg relative shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-3 sm:p-4 animate-fade-in text-left"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="pkxd-glass-modal rounded-3xl p-5 sm:p-7 w-full max-w-lg relative space-y-4 max-h-[95vh] overflow-y-auto"
+      >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 bg-[#1D1638] hover:bg-[#251B46] text-[#B8B2CC] hover:text-[#F8F7FF] rounded-full cursor-pointer transition-colors border border-[#34275A]"
+          className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-full cursor-pointer transition-colors"
           title="Fechar"
         >
           <X className="w-4 h-4" />
@@ -136,107 +134,113 @@ export default function CardDownloadPreviewModal({
 
         {/* Modal Header */}
         <div className="text-center space-y-1">
-          <div className="w-12 h-12 rounded-[16px] bg-[#251B46] border border-[#7C3AED]/40 text-[#F5C542] flex items-center justify-center mx-auto mb-2 shadow-inner">
+          <div className="w-12 h-12 rounded-2xl bg-[#FFFBEB] border-2 border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-2">
             <Sparkles className="w-6 h-6" />
           </div>
-          <h3 className="font-sans font-black text-xl text-[#F8F7FF] uppercase tracking-wider">
-            Seu PKXD ID Está Pronto! 📸
+          <h3 className="font-display font-bold text-xl text-slate-900">
+            Seu PKXD ID Está Pronto!
           </h3>
-          <p className="text-xs text-[#B8B2CC]">
-            Cartão oficial em alta definição gerado para <strong className="text-[#F8F7FF]">{nickname}</strong> ({playerTag})
+          <p className="text-xs sm:text-sm text-slate-600">
+            Cartão em alta definição gerado para <strong className="text-slate-900">{nickname}</strong> ({playerTag})
           </p>
         </div>
 
-        {/* Card Image Preview with zoom border */}
-        <div className="relative rounded-[18px] overflow-hidden border border-[#34275A] bg-[#0B0817] shadow-inner max-w-md mx-auto group">
+        {/* Card Image Preview */}
+        <div className="relative rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-950 shadow-inner max-w-md mx-auto">
           <img
             src={imageUrl}
             alt={`PKXD ID ${nickname}`}
-            className="w-full h-auto object-contain rounded-[16px]"
+            className="w-full h-auto object-contain"
           />
         </div>
 
         {/* Clear Touch / Mobile Guidance */}
-        <div className="p-3 bg-[#1D1638] rounded-[16px] border border-[#34275A] text-[11px] text-[#B8B2CC] space-y-1">
-          <p className="flex items-center gap-1.5 font-bold text-[#F8F7FF]">
-            <Smartphone className="w-4 h-4 text-[#22D3EE] shrink-0" />
-            <span>Como Salvar no Celular ou Computador:</span>
+        <div className="p-3.5 bg-[#EFF8FF] rounded-2xl border border-sky-200 text-xs text-slate-700 space-y-1">
+          <p className="flex items-center gap-1.5 font-extrabold text-sky-900">
+            <Smartphone className="w-4 h-4 text-[#0284C7] shrink-0" />
+            <span>Como salvar no celular ou computador:</span>
           </p>
-          <p className="text-[#B8B2CC] pl-5 leading-relaxed">
-            • <strong>No Celular:</strong> Clique em <span className="text-[#22D3EE] font-bold">"Salvar na Galeria"</span> ou segure o dedo na imagem acima e escolha <em>"Fazer download da imagem"</em>.
+          <p className="pl-5 leading-relaxed">
+            • <strong>No Celular:</strong> Toque em <strong>&ldquo;Salvar na Galeria&rdquo;</strong> ou pressione a imagem acima e escolha <em>&ldquo;Fazer download da imagem&rdquo;</em>.
           </p>
-          <p className="text-[#B8B2CC] pl-5 leading-relaxed">
-            • <strong>No Computador:</strong> Clique em <span className="text-[#F5C542] font-bold">"Baixar Imagem (PNG)"</span> para salvar direto nos seus arquivos.
+          <p className="pl-5 leading-relaxed">
+            • <strong>No Computador:</strong> Clique em <strong>&ldquo;Baixar Imagem (PNG)&rdquo;</strong> para salvar direto nos seus arquivos.
           </p>
         </div>
 
         {/* Main Action Buttons Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-          {/* 1. Primary Download / Save Button */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
           <button
             onClick={handleDownload}
-            className="w-full py-3 px-3 bg-gradient-to-r from-[#7C3AED] to-[#9B5CFF] hover:brightness-110 active:scale-95 text-[#FFFFFF] font-sans font-black text-xs uppercase tracking-wider rounded-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md border border-[#9B5CFF]/30"
+            className="pkxd-btn-primary w-full py-3 px-3 text-xs flex items-center justify-center gap-2 cursor-pointer"
           >
-            {downloadStatus === 'done' ? <Check className="w-4 h-4 text-[#22D3EE]" /> : <Download className="w-4 h-4" />}
-            <span>{downloadStatus === 'downloading' ? 'Salvando...' : downloadStatus === 'done' ? 'Arquivo Baixado!' : 'Baixar Imagem (PNG)'}</span>
+            {downloadStatus === 'done' ? <Check className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+            <span>
+              {downloadStatus === 'downloading'
+                ? 'Salvando...'
+                : downloadStatus === 'done'
+                ? 'Arquivo Baixado!'
+                : 'Baixar Imagem (PNG)'}
+            </span>
           </button>
 
-          {/* 2. Mobile Native Save / Share Sheet */}
           <button
             onClick={handleSaveToGalleryOrShare}
-            className="w-full py-3 px-3 bg-[#1D1638] hover:bg-[#251B46] active:scale-95 text-[#F8F7FF] font-sans font-bold text-xs uppercase tracking-wider rounded-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#34275A]"
+            className="pkxd-btn-cyan w-full py-3 px-3 text-xs flex items-center justify-center gap-2 cursor-pointer"
           >
-            {sharedNative ? <Check className="w-4 h-4 text-[#22D3EE]" /> : <Smartphone className="w-4 h-4 text-[#22D3EE]" />}
+            {sharedNative ? <Check className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
             <span>{sharedNative ? 'Compartilhado!' : 'Salvar na Galeria'}</span>
           </button>
 
-          {/* 3. Copy Image to Clipboard if supported */}
           {blob && typeof window !== 'undefined' && (window as any).ClipboardItem && (
             <button
               onClick={handleCopyImage}
-              className="w-full py-2.5 px-3 bg-[#1D1638] hover:bg-[#251B46] active:scale-95 text-[#B8B2CC] hover:text-[#F8F7FF] font-sans font-bold text-xs uppercase tracking-wider rounded-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#34275A]"
+              className="pkxd-btn-outline w-full py-2.5 px-3 text-xs flex items-center justify-center gap-2 cursor-pointer"
             >
-              {copiedImage ? <Check className="w-4 h-4 text-[#22D3EE]" /> : <Copy className="w-4 h-4 text-[#9B5CFF]" />}
+              {copiedImage ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-[#6D28D9]" />}
               <span>{copiedImage ? 'Imagem Copiada!' : 'Copiar Imagem'}</span>
             </button>
           )}
 
-          {/* 4. Open in New Tab fallback */}
-          <button
-            onClick={() => window.open(imageUrl, '_blank')}
-            className={`w-full py-2.5 px-3 bg-[#1D1638] hover:bg-[#251B46] active:scale-95 text-[#B8B2CC] hover:text-[#F8F7FF] font-sans font-bold text-xs uppercase tracking-wider rounded-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#34275A] ${
+          <a
+            href={imageUrl}
+            download={filename || 'PKXD_ID.png'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`pkxd-btn-outline w-full py-2.5 px-3 text-xs flex items-center justify-center gap-2 ${
               blob && typeof window !== 'undefined' && (window as any).ClipboardItem ? '' : 'sm:col-span-2'
             }`}
           >
-            <ExternalLink className="w-4 h-4 text-[#F5C542]" />
+            <ExternalLink className="w-4 h-4 text-[#0284C7]" />
             <span>Abrir Imagem Completa</span>
-          </button>
+          </a>
 
-          {/* 5. Short Link WhatsApp Share */}
           <a
             href={`https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappMessage)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-3 bg-[#123225] hover:bg-[#184232] active:scale-95 text-[#25D366] font-sans font-black text-xs uppercase tracking-wider rounded-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md sm:col-span-2 border border-[#25D366]/40"
+            className="w-full py-3 bg-[#ECFDF5] hover:bg-emerald-100 text-emerald-800 font-sans font-extrabold text-xs uppercase tracking-wider rounded-2xl transition-colors flex items-center justify-center gap-2 sm:col-span-2 border-2 border-emerald-300"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-4 h-4 text-[#25D366]" />
             <span>Compartilhar no WhatsApp (Link Curto)</span>
           </a>
         </div>
 
-        {/* Clean Link Bar */}
-        <div className="pt-2 border-t border-[#34275A] flex items-center justify-between gap-2 text-xs">
+        {/* Clean Short Link Bar */}
+        <div className="pt-3 border-t-2 border-slate-100 flex items-center justify-between gap-2 text-xs">
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] font-mono text-[#716A83] uppercase block font-bold">Link Direto Curto:</span>
-            <span className="font-mono text-[11px] text-[#22D3EE] truncate block font-bold">
-              {cleanShortDomainUrl}
+            <span className="text-[10px] font-sans text-slate-500 uppercase block font-extrabold">
+              Link Curto para Compartilhar:
+            </span>
+            <span className="font-mono text-xs text-[#0284C7] truncate block font-bold">
+              {shortShareUrl}
             </span>
           </div>
           <button
             onClick={handleCopyShortLink}
-            className="px-3 py-1.5 bg-[#251B46] hover:bg-[#34275A] text-[#F8F7FF] rounded-[10px] font-bold text-xs uppercase transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border border-[#7C3AED]/30 active:scale-95"
+            className="pkxd-btn-outline px-3 py-2 text-xs font-extrabold flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-[#22D3EE]" /> : <Copy className="w-3.5 h-3.5" />}
+            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copiedLink ? 'Copiado!' : 'Copiar'}</span>
           </button>
         </div>

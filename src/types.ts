@@ -13,7 +13,7 @@ export interface NewsItem {
 export interface SpoilerConfig {
   title: string;
   description: string;
-  revealDateOverride?: string; // in case they want a custom specific date
+  revealDateOverride?: string;
 }
 
 export interface FeaturedVideo {
@@ -46,7 +46,7 @@ export interface AppSettings {
   spoilerTitle?: string;
   spoilerDesc?: string;
   extraCountdownTitle?: string;
-  extraCountdownDate?: string; // ISO string or date string
+  extraCountdownDate?: string;
   extraCountdownEnabled?: boolean;
   isDelayed?: boolean;
   delayMessage?: string;
@@ -67,21 +67,35 @@ export interface PastSpoiler {
   reactions?: Record<string, number>;
 }
 
+export type NotificationCategory =
+  | 'story_published'
+  | 'countdown_alert'
+  | 'custom_push'
+  | 'delayed_alert'
+  | 'new_event'
+  | 'upcoming_event'
+  | 'schedule_change'
+  | 'presence_confirmed'
+  | 'new_tournament'
+  | 'important_news'
+  | 'admin_announcement';
+
 export interface AppNotification {
   id: string;
   title: string;
   body: string;
-  type: 'story_published' | 'countdown_alert' | 'custom_push' | 'delayed_alert';
+  type: NotificationCategory;
+  targetUrl?: string;
   createdAt: number;
 }
 
 export interface AppComment {
   id: string;
-  targetId: string; // theory id, video id, or post id
+  targetId: string;
   targetType: 'theory' | 'video' | 'post';
   authorName: string;
-  authorId?: string; // firebase user uid if authenticated
-  authorAvatar?: string; // photoURL if logged in
+  authorId?: string;
+  authorAvatar?: string;
   content: string;
   status: 'approved' | 'pending_review' | 'blocked';
   createdAt: number;
@@ -94,7 +108,7 @@ export interface Post {
   authorAvatar?: string;
   content: string;
   likes: number;
-  likedBy: string[]; // user uids
+  likedBy: string[];
   createdAt: number;
 }
 
@@ -124,7 +138,7 @@ export interface ArtAsset {
   description: string;
   imageUrl: string;
   downloadUrl?: string;
-  category: string; // e.g. Renders, Vídeos, Logos, Fundos, Outros
+  category: string;
   createdAt: number;
   isVideo?: boolean;
   order?: number;
@@ -151,7 +165,8 @@ export type EventStatus = 'Em análise' | 'Aprovado' | 'Em breve' | 'Ao vivo' | 
 export interface EventParticipant {
   id: string;
   eventId: string;
-  playerIdentifier: string; // e.g. "KOOSH#000"
+  playerIdentifier: string;
+  userId?: string;
   registeredAt: number;
 }
 
@@ -159,21 +174,107 @@ export interface CommunityEvent {
   id: string;
   name: string;
   description: string;
-  category: string; // e.g. Torneios, Festas, Esconder-Esconder, Encontros, Mini-Games, Outros
-  date: string; // e.g. "2026-08-15"
-  time: string; // e.g. "18:00"
+  category: string;
+  date: string;
+  time: string;
+  server?: string;
+  additionalLink?: string;
   bannerUrl: string;
-  organizerName: string; // e.g. "KOOSH#000"
+  organizerName: string;
   organizerContact?: string;
   rules: string;
-  maxParticipants?: number; // optional limit
+  maxParticipants?: number;
   status: EventStatus;
   createdAt: number;
   approvedAt?: number;
   createdById?: string;
   admin_secret?: string;
-  requiresPin?: boolean; // Whether registration requires a security PIN / password
-  pinCode?: string; // Secret PIN or password set by organizer to confirm presence
+  requiresPin?: boolean;
+  pinCode?: string;
+}
+
+// ===================================
+// SISTEMA DE XP & PERFIL PERSISTENTE
+// ===================================
+
+export interface XPHistoryEntry {
+  id: string;
+  amount: number;
+  reason: string;
+  rewardKey?: string;
+  createdAt: number;
+}
+
+export interface UserAchievement {
+  id: string;
+  title: string;
+  description: string;
+  xpBonus: number;
+  unlocked: boolean;
+  unlockedAt?: number;
+}
+
+export interface ServerXPProfile {
+  userKey: string;
+  displayName?: string;
+  playerTag?: string;
+  avatarUrl?: string;
+  bio?: string;
+  totalXp: number;
+  level: number;
+  xpInLevel: number;
+  claimedRewards: string[];
+  history: XPHistoryEntry[];
+  updatedAt: number;
+}
+
+// ===================================
+// PK GRAMMY (PREMIAÇÃO DA COMUNIDADE)
+// ===================================
+
+export type PKGrammyPhase = 'em_breve' | 'indicacoes' | 'votacao_aberta' | 'apuracao' | 'encerrada';
+
+export interface PKGrammyScheduleItem {
+  id: string;
+  stage: string;
+  dateLabel: string;
+  description: string;
+  status: 'done' | 'active' | 'upcoming';
+}
+
+export interface PKGrammyConfig {
+  edition: string;
+  title: string;
+  subtitle: string;
+  presentation: string;
+  phase: PKGrammyPhase;
+  showResults: boolean;
+  rules: string[];
+  schedule: PKGrammyScheduleItem[];
+  updatedAt: number;
+}
+
+export interface PKGrammyNominee {
+  id: string;
+  categoryId: string;
+  name: string;
+  handle: string;
+  bio: string;
+  avatarUrl?: string;
+  channelUrl?: string;
+  highlight?: string;
+  votes: number;
+  isWinner?: boolean;
+  createdAt: number;
+}
+
+export interface PKGrammyCategory {
+  id: string;
+  name: string;
+  description: string;
+  order: number;
+  createdAt: number;
+  nominees?: PKGrammyNominee[];
 }
 
 // ===================================
@@ -210,7 +311,7 @@ export interface PassportStamp {
 
 export interface PassportFriend {
   id: string;
-  playerTag: string; // e.g. "LUNA#245"
+  playerTag: string;
   nickname: string;
   avatarUrl?: string;
   level?: number;
@@ -230,11 +331,11 @@ export interface PassportEventHistory {
 export interface PKXDPassport {
   id: string;
   userId: string;
-  playerTag: string; // e.g. "KOOSH#000"
+  playerTag: string;
   nickname: string;
   avatarUrl: string;
   bio: string;
-  title: string; // e.g. "Explorador da Ilha"
+  title: string;
   level: number;
   xp: number;
   joinedAt: number;
@@ -265,14 +366,12 @@ export interface UpcomingStreamItem {
   creatorOrChannel: string;
   streamType: 'live_codes' | 'spoiler_premiere' | 'special_event' | 'gem_giveaway';
   platform: 'youtube' | 'twitch' | 'whatsapp' | 'pkxd';
-  scheduledDate: string; // ISO string e.g. "2026-08-16T18:30:00"
+  scheduledDate: string;
   targetUrl: string;
-  rewardsSummary: string; // e.g. "3 Códigos de 50 Gemas + 10.000 Moedas"
-  hintsOrInstructions?: string; // e.g. "Os códigos aparecem na tela durante o Crazy Run!"
+  rewardsSummary: string;
+  hintsOrInstructions?: string;
   bannerUrl?: string;
   status?: 'scheduled' | 'live_now' | 'completed';
   remindersCount?: number;
   createdAt: number;
 }
-
-

@@ -63,62 +63,51 @@ export default function GiftCountdown({
   return (
     <div 
       id="gift-countdown-banner-wrapper"
-      className={`relative w-full max-w-4xl mx-auto mb-6 overflow-hidden rounded-3xl border-2 p-5 sm:p-6 transition-all duration-500 ${
+      className={`relative w-full max-w-4xl mx-auto mb-6 overflow-hidden rounded-3xl border-2 p-5 sm:p-6 transition-all duration-300 shadow-sm ${
         timeLeft.isOver 
-          ? 'bg-gradient-to-r from-emerald-950/80 via-zinc-950/90 to-teal-950/80 border-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.25)]' 
-          : 'bg-gradient-to-r from-purple-950/80 via-zinc-950/90 to-fuchsia-950/80 border-purple-500/60 shadow-[0_0_25px_rgba(168,85,247,0.25)]'
+          ? 'bg-emerald-50 border-emerald-200 text-slate-900' 
+          : 'bg-violet-50 border-violet-200 text-slate-900'
       }`}
     >
-      {/* Dynamic Background Grid Pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
-
-      {/* Glow ambient effects */}
-      <div className={`absolute -right-24 -top-24 w-48 h-48 rounded-full blur-[80px] pointer-events-none opacity-45 ${
-        timeLeft.isOver ? 'bg-emerald-500' : 'bg-purple-500'
-      }`} />
-      <div className={`absolute -left-24 -bottom-24 w-48 h-48 rounded-full blur-[80px] pointer-events-none opacity-45 ${
-        timeLeft.isOver ? 'bg-teal-500' : 'bg-fuchsia-500'
-      }`} />
-
       <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
         
         {/* Present state / details */}
         <div className="flex items-center gap-4 text-left flex-1 w-full">
-          <div className={`relative p-3.5 rounded-2xl flex-shrink-0 border ${
+          <div className={`relative p-3.5 rounded-2xl flex-shrink-0 border-2 ${
             timeLeft.isOver 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.15)] animate-bounce' 
-              : 'bg-purple-500/10 border-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.15)] animate-pulse'
+              ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' 
+              : 'bg-violet-600 border-violet-700 text-white shadow-sm'
           }`}>
             {timeLeft.isOver ? (
               <>
-                <Unlock className="w-8 h-8" />
-                <Sparkles className="absolute -top-1 -right-1 w-4 h-4 text-yellow-300 animate-spin" />
+                <Unlock className="w-7 h-7" />
+                <Sparkles className="absolute -top-1.5 -right-1.5 w-4 h-4 text-amber-300" />
               </>
             ) : (
               <>
-                <Lock className="w-8 h-8" />
-                <Gift className="absolute -top-1 -right-1 w-4 h-4 text-purple-300 animate-pulse" />
+                <Lock className="w-7 h-7" />
+                <Gift className="absolute -top-1.5 -right-1.5 w-4 h-4 text-amber-300" />
               </>
             )}
           </div>
 
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className={`text-[10px] sm:text-[11px] font-mono tracking-widest font-black uppercase px-2 py-0.5 rounded-full ${
+              <span className={`text-[11px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border ${
                 timeLeft.isOver 
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                  : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                  : 'bg-violet-100 text-violet-800 border-violet-200'
               }`}>
-                {timeLeft.isOver ? 'REVELADO! 🎉' : 'EM CONTAGEM REGRESSIVA ⏳'}
+                {timeLeft.isOver ? 'Liberado agora' : 'Contagem regressiva'}
               </span>
             </div>
-            <h3 className="font-sans font-black text-lg sm:text-xl text-white tracking-tight leading-tight">
+            <h3 className="font-display font-bold text-lg sm:text-xl text-slate-900 tracking-tight leading-tight">
               {title}
             </h3>
-            <p className="text-xs text-gray-300 max-w-lg leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-600 max-w-lg leading-relaxed">
               {timeLeft.isOver 
                 ? 'A contagem acabou! O código ou presente abaixo já está liberado para resgate.' 
-                : `Aguarde a contagem abaixo para revelar o seu código especial PK XD!`
+                : 'Aguarde a contagem abaixo para revelar o seu código especial PK XD.'
               }
             </p>
           </div>
@@ -129,57 +118,58 @@ export default function GiftCountdown({
           
           {!timeLeft.isOver ? (
             /* CLOCK TIMER DISPLAY */
-            <div className="flex items-center gap-1.5 sm:gap-2.5" id="gift-countdown-timer-clocks">
+            <div className="flex items-center gap-1.5 sm:gap-2" id="gift-countdown-timer-clocks">
               
               {/* Days */}
               {timeLeft.days > 0 && (
-                <div className="flex flex-col items-center bg-zinc-900/90 border border-purple-500/20 rounded-xl p-2 px-3 min-w-[56px] shadow-md">
-                  <span className="font-mono font-black text-lg sm:text-xl text-purple-300 leading-none">
+                <div className="flex flex-col items-center bg-white border-2 border-violet-200 rounded-2xl p-2 px-3 min-w-[54px] shadow-xs">
+                  <span className="font-mono tabular-nums font-bold text-lg sm:text-xl text-violet-700 leading-none">
                     {String(timeLeft.days).padStart(2, '0')}
                   </span>
-                  <span className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest pt-1">Dias</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-1">Dias</span>
                 </div>
               )}
 
               {/* Hours */}
-              <div className="flex flex-col items-center bg-zinc-900/90 border border-purple-500/20 rounded-xl p-2 px-3 min-w-[56px] shadow-md">
-                <span className="font-mono font-black text-lg sm:text-xl text-purple-300 leading-none">
+              <div className="flex flex-col items-center bg-white border-2 border-violet-200 rounded-2xl p-2 px-3 min-w-[54px] shadow-xs">
+                <span className="font-mono tabular-nums font-bold text-lg sm:text-xl text-violet-700 leading-none">
                   {String(timeLeft.hours).padStart(2, '0')}
                 </span>
-                <span className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest pt-1">Horas</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-1">Horas</span>
               </div>
 
-              <span className="font-mono font-black text-purple-400 animate-pulse text-lg">:</span>
+              <span className="font-mono font-black text-violet-400 text-lg">:</span>
 
               {/* Minutes */}
-              <div className="flex flex-col items-center bg-zinc-900/90 border border-purple-500/20 rounded-xl p-2 px-3 min-w-[56px] shadow-md">
-                <span className="font-mono font-black text-lg sm:text-xl text-purple-300 leading-none">
+              <div className="flex flex-col items-center bg-white border-2 border-violet-200 rounded-2xl p-2 px-3 min-w-[54px] shadow-xs">
+                <span className="font-mono tabular-nums font-bold text-lg sm:text-xl text-violet-700 leading-none">
                   {String(timeLeft.minutes).padStart(2, '0')}
                 </span>
-                <span className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest pt-1">Min</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-1">Min</span>
               </div>
 
-              <span className="font-mono font-black text-purple-400 animate-pulse text-lg">:</span>
+              <span className="font-mono font-black text-violet-400 text-lg">:</span>
 
               {/* Seconds */}
-              <div className="flex flex-col items-center bg-zinc-950 border border-fuchsia-500/30 rounded-xl p-2 px-3 min-w-[56px] shadow-md">
-                <span className="font-mono font-black text-lg sm:text-xl text-fuchsia-400 leading-none">
+              <div className="flex flex-col items-center bg-white border-2 border-pink-200 rounded-2xl p-2 px-3 min-w-[54px] shadow-xs">
+                <span className="font-mono tabular-nums font-bold text-lg sm:text-xl text-pink-600 leading-none">
                   {String(timeLeft.seconds).padStart(2, '0')}
                 </span>
-                <span className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest pt-1">Seg</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-1">Seg</span>
               </div>
 
             </div>
           ) : (
             /* REVEALED GIFT/CODE CONTAINER */
             <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-2.5 px-4 font-mono font-black text-sm text-emerald-300 tracking-wide text-center select-all flex items-center justify-center min-w-[200px] shadow-inner">
+              <div className="bg-white border-2 border-emerald-300 rounded-2xl p-2.5 px-4 font-mono font-bold text-sm text-emerald-800 tracking-wide text-center select-all flex items-center justify-center min-w-[200px]">
                 {giftContent}
               </div>
 
               <button
+                type="button"
                 onClick={handleCopy}
-                className="bg-emerald-500 hover:bg-emerald-600 text-black font-sans font-black uppercase text-xs p-2.5 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md border-b-2 border-emerald-700 active:border-b-0"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-bold text-xs py-2.5 px-4 rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_3px_0_0_#047857] active:translate-y-0.5 active:shadow-none"
               >
                 {copied ? (
                   <>

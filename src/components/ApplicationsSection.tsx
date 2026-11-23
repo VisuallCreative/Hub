@@ -1,26 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Sparkles, 
-  Smartphone, 
-  Video, 
-  UserCheck, 
-  Compass, 
-  Send, 
-  Check, 
-  ExternalLink, 
-  FileText, 
+import {
+  Sparkles,
+  Smartphone,
+  Video,
+  UserCheck,
+  Compass,
+  Send,
+  Check,
+  ExternalLink,
   AlertCircle,
   Trophy,
-  Flame,
   ArrowLeft,
   Lock,
-  Unlock,
   RefreshCw,
   Trash2,
   CheckCircle,
   Eye,
   Star,
-  Settings,
   Upload,
   Image as ImageIcon,
   Instagram,
@@ -45,14 +41,13 @@ interface ApplicationsSectionProps {
   onAddFeaturedVideo?: (video: any) => void;
 }
 
-export default function ApplicationsSection({ 
-  onBackToHub, 
+export default function ApplicationsSection({
+  onBackToHub,
   onOpenCreatorAnalyzer,
-  onAddXP, 
+  onAddXP,
   soundEnabled,
   user,
   isAdmin = false,
-  onAddNews,
   onAddShort,
   onAddTheory,
   onAddFeaturedVideo
@@ -61,21 +56,14 @@ export default function ApplicationsSection({
     try {
       const hash = window.location.hash.toLowerCase();
       const search = window.location.search.toLowerCase();
-      if (hash.includes('admin') || search.includes('admin')) {
-        return 'admin';
-      }
-      if (hash.includes('shorts') || search.includes('shorts')) {
-        return 'shorts';
-      }
-      if (hash.includes('theory') || search.includes('theory') || hash.includes('teoria') || search.includes('teoria')) {
-        return 'theory';
-      }
-      if (hash.includes('panel') || search.includes('panel') || hash.includes('destaque') || search.includes('destaque')) {
-        return 'panel';
-      }
-    } catch (e) {}
+      if (hash.includes('admin') || search.includes('admin')) return 'admin';
+      if (hash.includes('shorts') || search.includes('shorts')) return 'shorts';
+      if (hash.includes('theory') || search.includes('theory') || hash.includes('teoria') || search.includes('teoria')) return 'theory';
+      if (hash.includes('panel') || search.includes('panel') || hash.includes('destaque') || search.includes('destaque')) return 'panel';
+    } catch {}
     return 'panel';
   });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -93,7 +81,7 @@ export default function ApplicationsSection({
         } else if (hash.includes('panel') || search.includes('panel') || hash.includes('destaque') || search.includes('destaque')) {
           setActiveTab('panel');
         }
-      } catch (e) {}
+      } catch {}
     };
     checkHash();
     window.addEventListener('hashchange', checkHash);
@@ -105,7 +93,9 @@ export default function ApplicationsSection({
   const [isComponentAdmin, setIsComponentAdmin] = useState(isAdmin);
   const [inputPasscode, setInputPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
-  
+  const [adminFeedback, setAdminFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [confirmDeleteAppId, setConfirmDeleteAppId] = useState<string | null>(null);
+
   const [appsPanel, setAppsPanel] = useState<any[]>([]);
   const [appsShorts, setAppsShorts] = useState<any[]>([]);
   const [appsTheories, setAppsTheories] = useState<any[]>([]);
@@ -118,33 +108,33 @@ export default function ApplicationsSection({
     try {
       try {
         const panelSnap = await getDocs(collection(db, 'applications_panel'));
-        setAppsPanel(panelSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setAppsPanel(panelSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) {
         handleFirestoreError(e, OperationType.GET, 'applications_panel');
       }
 
       try {
         const shortsSnap = await getDocs(collection(db, 'applications_shorts'));
-        setAppsShorts(shortsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setAppsShorts(shortsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) {
         handleFirestoreError(e, OperationType.GET, 'applications_shorts');
       }
 
       try {
         const theoriesSnap = await getDocs(collection(db, 'applications_theories'));
-        setAppsTheories(theoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setAppsTheories(theoriesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) {
         handleFirestoreError(e, OperationType.GET, 'applications_theories');
       }
 
       try {
         const adminSnap = await getDocs(collection(db, 'applications_admin'));
-        setAppsAdmin(adminSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setAppsAdmin(adminSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) {
         handleFirestoreError(e, OperationType.GET, 'applications_admin');
       }
     } catch (err) {
-      console.error("Erro ao buscar inscrições:", err);
+      console.error('Erro ao buscar inscrições:', err);
     } finally {
       setIsAppsLoading(false);
     }
@@ -171,11 +161,11 @@ export default function ApplicationsSection({
       setInputPasscode('');
       triggerAudio('success');
     } else {
-      setPasscodeError('Código de acesso incorreto. Tente novamente!');
+      setPasscodeError('Código de acesso incorreto. Tente novamente.');
     }
   };
 
-  // Form states - Tab 1: Panel Highlight & Sugestão de Criador
+  // Form states - Tab 1: Panel Highlight
   const [panelCreator, setPanelCreator] = useState('');
   const [panelUrl, setPanelUrl] = useState('');
   const [panelDescription, setPanelDescription] = useState('');
@@ -195,7 +185,7 @@ export default function ApplicationsSection({
   const [shortsTikTok, setShortsTikTok] = useState('');
   const [shortsYouTube, setShortsYouTube] = useState('');
 
-  // Form states - Tab 3: Submit Theory
+  // Form states - Tab 3: Theory
   const [theoryTitle, setTheoryTitle] = useState('');
   const [theoryContent, setTheoryContent] = useState('');
   const [theoryAuthor, setTheoryAuthor] = useState('');
@@ -211,7 +201,10 @@ export default function ApplicationsSection({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('⚠️ A foto é muito pesada (limite de 5MB). Por favor, escolha outra imagem.');
+      setSubmitStatus({
+        success: false,
+        message: 'A foto é muito pesada (limite de 5MB). Por favor, escolha outra imagem.'
+      });
       return;
     }
     const reader = new FileReader();
@@ -276,19 +269,18 @@ export default function ApplicationsSection({
       submittedBy: user?.uid || 'anonymous',
       submittedByEmail: user?.email || 'convidado@pkxdcentral.com',
       createdAt: Date.now(),
-      status: 'pending' // pending, approved, rejected
+      status: 'pending'
     };
 
     try {
       if (activeTab === 'panel') {
         if (!panelCreator.trim() || !panelUrl.trim() || !panelDescription.trim()) {
-          throw new Error('Por favor, preencha todos os campos obrigatórios (Nome, Link do Conteúdo e Descrição).');
+          throw new Error('Preencha todos os campos obrigatórios (Nome, Link do Conteúdo e Descrição).');
         }
 
-        // Validate that at least ONE social media network is provided
         const hasSocial = Boolean(panelInstagram.trim() || panelTikTok.trim() || panelYouTube.trim());
         if (!hasSocial) {
-          throw new Error('Por favor, informe pelo menos UMA rede social do indicado (Instagram, TikTok ou YouTube)!');
+          throw new Error('Informe pelo menos UMA rede social do indicado (Instagram, TikTok ou YouTube).');
         }
 
         const socialParts: string[] = [];
@@ -310,13 +302,12 @@ export default function ApplicationsSection({
         };
       } else if (activeTab === 'shorts') {
         if (!shortsCreator.trim() || !shortsUrl.trim() || !shortsTitle.trim()) {
-          throw new Error('Por favor, preencha todos os campos obrigatórios (Canal, Link do Short e Título).');
+          throw new Error('Preencha todos os campos obrigatórios (Canal, Link do Short e Título).');
         }
 
-        // Validate that at least ONE social media network is provided
         const hasSocial = Boolean(shortsInstagram.trim() || shortsTikTok.trim() || shortsYouTube.trim());
         if (!hasSocial) {
-          throw new Error('Por favor, informe pelo menos UMA rede social do indicado (Instagram, TikTok ou YouTube)!');
+          throw new Error('Informe pelo menos UMA rede social do indicado (Instagram, TikTok ou YouTube).');
         }
 
         const socialParts: string[] = [];
@@ -338,7 +329,7 @@ export default function ApplicationsSection({
         };
       } else if (activeTab === 'theory') {
         if (!theoryTitle.trim() || !theoryContent.trim() || !theoryAuthor.trim()) {
-          throw new Error('Por favor, preencha todos os campos obrigatórios.');
+          throw new Error('Preencha todos os campos obrigatórios.');
         }
         collectionName = 'applications_theories';
         payload = {
@@ -349,7 +340,7 @@ export default function ApplicationsSection({
         };
       } else if (activeTab === 'admin') {
         if (!adminName.trim() || !adminContact.trim() || !adminAge || !adminReason.trim() || !adminHours.trim()) {
-          throw new Error('Por favor, preencha todos os campos obrigatórios.');
+          throw new Error('Preencha todos os campos obrigatórios.');
         }
         collectionName = 'applications_admin';
         payload = {
@@ -365,23 +356,21 @@ export default function ApplicationsSection({
       try {
         await setDoc(doc(db, collectionName, id), payload);
       } catch (dbErr: any) {
-        console.warn("Erro no Firestore, verificando código do erro:", dbErr);
         if (dbErr?.code === 'permission-denied') {
-          throw new Error('Permissão Negada de Nuvem (Firestore): A gravação foi rejeitada pelas regras de segurança. Entre em contato com um administrador!');
+          throw new Error('Permissão Negada de Nuvem (Firestore). Entre em contato com um administrador.');
         } else {
           handleFirestoreError(dbErr, OperationType.WRITE, collectionName);
         }
       }
-      
+
       triggerAudio('levelUp');
       setSubmitStatus({
         success: true,
-        message: 'Sugestão / Inscrição enviada com sucesso! Guardada na nuvem do PKXD Central para análise da equipe! 🌟'
+        message: 'Sugestão / Inscrição enviada com sucesso! Guardada na nuvem do PKXD Central para análise da equipe!'
       });
-      
-      // Award XP
+
       const xpReward = 150;
-      onAddXP(xpReward, `Inscrição: ${activeTab === 'panel' ? 'Destaque de Vídeo' : activeTab === 'shorts' ? 'Destaque de Shorts' : activeTab === 'theory' ? 'Envio de Teoria' : 'Candidatura ADM'}! 📝`);
+      onAddXP(xpReward, `Inscrição: ${activeTab === 'panel' ? 'Destaque de Vídeo' : activeTab === 'shorts' ? 'Destaque de Shorts' : activeTab === 'theory' ? 'Envio de Teoria' : 'Candidatura ADM'}`);
 
       resetForms();
     } catch (err: any) {
@@ -391,14 +380,14 @@ export default function ApplicationsSection({
         if (err.message && err.message.startsWith('{')) {
           const parsed = JSON.parse(err.message);
           if (parsed.error && (parsed.error.includes('permission-denied') || parsed.error.includes('Missing or insufficient permissions'))) {
-            errMsg = 'A gravação foi rejeitada devido a regras de segurança do banco de dados (Firestore). Verifique sua autenticação.';
+            errMsg = 'A gravação foi rejeitada pelas regras do banco de dados. Verifique sua autenticação.';
           } else {
             errMsg = parsed.error || errMsg;
           }
         } else if (err.message) {
           errMsg = err.message;
         }
-      } catch (e) {}
+      } catch {}
 
       setSubmitStatus({
         success: false,
@@ -409,28 +398,73 @@ export default function ApplicationsSection({
     }
   };
 
+  const renderDeleteButton = (colName: string, id: string, label = 'Excluir') => {
+    if (confirmDeleteAppId === id) {
+      return (
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button
+            type="button"
+            onClick={async () => {
+              triggerAudio('tap');
+              try {
+                await deleteDoc(doc(db, colName, id));
+                setConfirmDeleteAppId(null);
+                setAdminFeedback({ success: true, message: 'Registro removido com sucesso.' });
+                fetchAllApplications();
+              } catch (err: any) {
+                setAdminFeedback({ success: false, message: err.message || 'Erro ao excluir.' });
+              }
+            }}
+            className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-bold cursor-pointer"
+          >
+            Confirmar
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteAppId(null)}
+            className="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+          >
+            Cancelar
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          triggerAudio('tap');
+          setConfirmDeleteAppId(id);
+        }}
+        className="px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1 ml-auto"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+        <span>{label}</span>
+      </button>
+    );
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6 px-4 py-8 relative" id="applications-area-wrapper">
-      
-      {/* Upper navigation row */}
+    <div className="max-w-4xl mx-auto space-y-6 px-4 py-8 relative text-slate-900" id="applications-area-wrapper">
+      {/* Upper Navigation Row */}
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <button
           onClick={() => {
             triggerAudio('tap');
             onBackToHub();
           }}
-          className="px-3 sm:px-4 py-2 sm:py-2.5 bg-zinc-900/85 hover:bg-purple-950 text-purple-300 hover:text-white rounded-xl border border-purple-500/30 transition-all duration-150 cursor-pointer flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-black uppercase tracking-wider shadow-md"
+          className="pkxd-btn-outline px-4 py-2 rounded-2xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider cursor-pointer"
         >
-          <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span>Voltar <span className="hidden xs:inline">à Central</span></span>
+          <ArrowLeft className="w-4 h-4" />
+          <span>Voltar à Central</span>
         </button>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 sm:gap-1.5 bg-purple-900/40 p-1.5 px-2.5 sm:px-3 rounded-full border border-purple-500/20">
-            <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-300" />
-            <span className="text-[9px] sm:text-[10px] text-gray-300 font-bold uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 bg-amber-50 py-1.5 px-3 rounded-full border-2 border-amber-200">
+            <Trophy className="w-4 h-4 text-amber-600" />
+            <span className="text-xs text-slate-700 font-bold uppercase tracking-wider">
               <span className="hidden sm:inline">Inscrição = </span>
-              <strong className="text-yellow-300">+150 XP</strong>
+              <strong className="text-amber-800">+150 XP</strong>
             </span>
           </div>
 
@@ -439,22 +473,23 @@ export default function ApplicationsSection({
               triggerAudio('tap');
               setShowAdminDashboard(!showAdminDashboard);
               setSubmitStatus(null);
+              setAdminFeedback(null);
             }}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r rounded-xl border font-sans text-[10px] sm:text-[11px] font-black uppercase tracking-wider transition-all duration-150 cursor-pointer flex items-center gap-1.5 shadow-md ${
+            className={`px-4 py-2 rounded-2xl font-display text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1.5 ${
               showAdminDashboard
-                ? 'from-rose-600 to-red-600 text-white border-rose-500 hover:brightness-110'
-                : 'from-amber-450 to-yellow-500 text-black border-yellow-400 hover:brightness-110'
+                ? 'bg-rose-600 text-white border-b-4 border-rose-800'
+                : 'pkxd-btn-gold'
             }`}
           >
             {showAdminDashboard ? (
               <>
-                <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                <span><span className="hidden xs:inline">Enviar </span>Inscrição</span>
+                <Eye className="w-4 h-4" />
+                <span>Enviar Inscrição</span>
               </>
             ) : (
               <>
-                <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                <span><span className="hidden xs:inline">Área do </span>Admin 🔑</span>
+                <Lock className="w-4 h-4" />
+                <span>Área do Admin</span>
               </>
             )}
           </button>
@@ -463,39 +498,32 @@ export default function ApplicationsSection({
 
       {showAdminDashboard ? (
         <>
-          {/* Header card for Admin */}
-          <div className="bg-gradient-to-r from-slate-900 via-zinc-950 to-indigo-950 border-2 border-yellow-500/40 rounded-3xl p-6 sm:p-8 text-left shadow-[0_12px_30px_rgba(234,179,8,0.15)] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full filter blur-2xl pointer-events-none" />
-            <div className="absolute bottom-0 left-1/4 w-32 h-32 bg-indigo-500/5 rounded-full filter blur-2xl pointer-events-none" />
-            
-            <div className="relative z-10 space-y-3">
-              <div className="inline-flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 px-3.5 py-1 rounded-full text-yellow-300 font-mono text-[10px] font-black uppercase tracking-widest animate-pulse">
-                <Lock className="w-3.5 h-3.5" />
-                Painel do Administrador (Inscrições)
-              </div>
-              <h2 className="font-sans font-black text-2xl sm:text-4xl tracking-tight text-white uppercase leading-none">
-                CURADORIA DE <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-400">INSCRIÇÕES</span>
-              </h2>
-              <p className="font-sans text-xs sm:text-sm text-gray-300 leading-relaxed max-w-2xl">
-                Gerencie todas as solicitações enviadas pelos fás do fã-clube. Aprove posts direto para o portal ou entre em contato com novos candidatos a moderador!
-              </p>
+          <div className="pkxd-glass border-amber-300/80 rounded-3xl p-6 sm:p-8 text-left space-y-2.5">
+            <div className="inline-flex items-center gap-2 bg-amber-100 border border-amber-300 px-3.5 py-1 rounded-full text-amber-900 text-xs font-bold uppercase tracking-wider">
+              <Lock className="w-3.5 h-3.5" />
+              Painel do Administrador (Inscrições)
             </div>
+            <h2 className="font-display font-bold text-2xl sm:text-4xl tracking-tight text-slate-900">
+              Curadoria de <span className="text-amber-600">Inscrições</span>
+            </h2>
+            <p className="font-sans text-sm text-slate-600 leading-relaxed max-w-2xl">
+              Gerencie todas as solicitações enviadas pelos membros. Aprove conteúdos direto para o portal ou entre em contato com candidatos a administrador.
+            </p>
           </div>
 
           {!isComponentAdmin ? (
-            /* Passcode Entry Form */
-            <div className="bg-zinc-900/60 border border-white/5 rounded-3xl p-6 sm:p-8 text-center relative overflow-hidden">
-              <div className="max-w-md mx-auto py-8 space-y-5">
-                <div className="mx-auto w-14 h-14 rounded-2xl bg-zinc-950 border border-white/10 flex items-center justify-center text-yellow-400 shadow-inner">
-                  <Lock className="w-7 h-7 animate-pulse" />
+            <div className="pkxd-glass rounded-3xl p-6 sm:p-8 text-center">
+              <div className="max-w-md mx-auto py-6 space-y-5">
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-50 border-2 border-amber-200 flex items-center justify-center text-amber-600">
+                  <Lock className="w-7 h-7" />
                 </div>
 
                 <div className="space-y-1">
-                  <h3 className="font-sans font-black text-lg text-white uppercase tracking-wider">
-                    🔐 ACESSO RESTRITO (CÓDIGO ADMIN)
+                  <h3 className="font-display font-bold text-xl text-slate-900">
+                    Acesso Restrito (Código Admin)
                   </h3>
-                  <p className="font-sans text-xs text-gray-400 leading-relaxed">
-                    Insira uma senha de acesso autorizada para visualizar os dados de contato e inscrições feitas na central.
+                  <p className="font-sans text-xs text-slate-600 leading-relaxed">
+                    Insira uma senha de acesso autorizada para visualizar as inscrições feitas na central.
                   </p>
                 </div>
 
@@ -508,31 +536,43 @@ export default function ApplicationsSection({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handlePasscodeUnlock();
                     }}
-                    className="bg-zinc-950 text-white placeholder-zinc-600 text-xs px-4 py-3 rounded-xl border border-white/10 focus:outline-none focus:border-yellow-500 w-full font-mono text-center"
+                    className="bg-slate-50 text-slate-900 placeholder-slate-400 text-sm px-4 py-3 rounded-xl border-2 border-slate-200 focus:outline-none focus:border-amber-500 w-full font-mono text-center"
                   />
                   <button
                     onClick={handlePasscodeUnlock}
-                    className="bg-yellow-400 hover:bg-yellow-350 text-black py-3 rounded-xl text-xs font-black font-sans tracking-wide cursor-pointer w-full uppercase shadow-md transition-all"
+                    className="pkxd-btn-gold py-3 rounded-2xl text-xs font-display font-bold tracking-wider cursor-pointer w-full uppercase"
                   >
-                    Desbloquear Painel 🔓
+                    Desbloquear Painel
                   </button>
                   {passcodeError && (
-                    <p className="text-red-400 text-xs font-sans font-bold pt-1">{passcodeError}</p>
+                    <p className="text-rose-600 text-xs font-bold pt-1">{passcodeError}</p>
                   )}
                 </div>
               </div>
             </div>
           ) : (
-            /* Unlocked Admin Dashboard */
             <div className="space-y-6">
-              {/* Admin Subtabs Row */}
+              {adminFeedback && (
+                <div
+                  className={`p-3.5 rounded-2xl border-2 text-xs font-bold flex items-center gap-2 ${
+                    adminFeedback.success
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}
+                >
+                  {adminFeedback.success ? <CheckCircle className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                  <span>{adminFeedback.message}</span>
+                </div>
+              )}
+
+              {/* Admin Subtabs */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 <button
                   onClick={() => { triggerAudio('tap'); setAdminActiveSubTab('panel'); }}
-                  className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-1.5 shadow-md ${
+                  className={`p-3.5 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
                     adminActiveSubTab === 'panel'
-                      ? 'bg-gradient-to-b from-purple-800 to-purple-950 text-white border-purple-500'
-                      : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:text-gray-250'
+                      ? 'bg-violet-600 text-white border-violet-700 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
                   }`}
                 >
                   <Video className="w-4 h-4" />
@@ -541,10 +581,10 @@ export default function ApplicationsSection({
 
                 <button
                   onClick={() => { triggerAudio('tap'); setAdminActiveSubTab('shorts'); }}
-                  className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-1.5 shadow-md ${
+                  className={`p-3.5 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
                     adminActiveSubTab === 'shorts'
-                      ? 'bg-gradient-to-b from-cyan-800 to-cyan-950 text-white border-cyan-500'
-                      : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:text-gray-250'
+                      ? 'bg-sky-600 text-white border-sky-700 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300'
                   }`}
                 >
                   <Smartphone className="w-4 h-4" />
@@ -553,10 +593,10 @@ export default function ApplicationsSection({
 
                 <button
                   onClick={() => { triggerAudio('tap'); setAdminActiveSubTab('theory'); }}
-                  className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-1.5 shadow-md ${
+                  className={`p-3.5 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
                     adminActiveSubTab === 'theory'
-                      ? 'bg-gradient-to-b from-pink-850 to-pink-950 text-white border-pink-500'
-                      : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:text-gray-250'
+                      ? 'bg-pink-600 text-white border-pink-700 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-pink-300'
                   }`}
                 >
                   <Sparkles className="w-4 h-4" />
@@ -565,10 +605,10 @@ export default function ApplicationsSection({
 
                 <button
                   onClick={() => { triggerAudio('tap'); setAdminActiveSubTab('admin'); }}
-                  className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-1.5 shadow-md ${
+                  className={`p-3.5 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
                     adminActiveSubTab === 'admin'
-                      ? 'bg-gradient-to-b from-yellow-800 to-yellow-950 text-white border-yellow-500'
-                      : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:text-gray-250'
+                      ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
                   }`}
                 >
                   <UserCheck className="w-4 h-4" />
@@ -576,23 +616,22 @@ export default function ApplicationsSection({
                 </button>
               </div>
 
-              {/* Data Content Box */}
-              <div className="bg-zinc-900/60 border border-white/5 rounded-3xl p-6 sm:p-8 text-left relative overflow-hidden">
-                
-                {/* Refresh Trigger */}
-                <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
-                  <h3 className="font-sans font-black text-xs sm:text-sm uppercase tracking-wider text-yellow-400 flex items-center gap-2">
-                    <span>📥 LISTA DE SOLICITAÇÕES: {
-                      adminActiveSubTab === 'panel' ? 'DESTAQUE DE VÍDEOS' :
-                      adminActiveSubTab === 'shorts' ? 'DESTAQUE DE SHORTS' :
-                      adminActiveSubTab === 'theory' ? 'TEORIAS ENVIADAS' :
-                      'CANDIDATURAS PARA ADMINISTRADOR'
-                    }</span>
+              <div className="pkxd-glass rounded-3xl p-6 sm:p-8 text-left">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                  <h3 className="font-display font-bold text-sm uppercase tracking-wider text-slate-900">
+                    Solicitações:{' '}
+                    {adminActiveSubTab === 'panel'
+                      ? 'Destaque de Vídeos'
+                      : adminActiveSubTab === 'shorts'
+                      ? 'Destaque de Shorts'
+                      : adminActiveSubTab === 'theory'
+                      ? 'Teorias Enviadas'
+                      : 'Candidaturas ADM'}
                   </h3>
                   <button
                     onClick={() => { triggerAudio('tap'); fetchAllApplications(); }}
                     disabled={isAppsLoading}
-                    className="p-2 px-3 bg-zinc-850 hover:bg-zinc-800 text-gray-300 hover:text-white rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 cursor-pointer border border-white/5"
+                    className="pkxd-btn-outline px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isAppsLoading ? 'animate-spin' : ''}`} />
                     <span>{isAppsLoading ? 'Atualizando...' : 'Atualizar'}</span>
@@ -600,48 +639,46 @@ export default function ApplicationsSection({
                 </div>
 
                 {isAppsLoading ? (
-                  <div className="py-12 text-center text-gray-500">
-                    <RefreshCw className="w-8 h-8 animate-spin mx-auto text-yellow-400 mb-3" />
+                  <div className="py-12 text-center text-slate-500">
+                    <RefreshCw className="w-8 h-8 animate-spin mx-auto text-violet-600 mb-3" />
                     <p className="font-sans text-xs">Acessando banco de dados...</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Render Category List */}
                     {adminActiveSubTab === 'panel' && (
                       appsPanel.length === 0 ? (
-                        <p className="py-8 text-center text-gray-500 text-xs">Nenhum pedido de destaque de vídeo pendente.</p>
+                        <p className="py-8 text-center text-slate-500 text-xs">Nenhum pedido de destaque de vídeo pendente.</p>
                       ) : (
                         appsPanel.map((item) => (
-                          <div key={item.id} className="p-4 bg-zinc-950/70 border border-white/5 rounded-2xl space-y-3 relative">
-                            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/5 pb-3">
+                          <div key={item.id} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
                               <div className="flex items-center gap-3">
                                 {item.creatorPhoto ? (
-                                  <img 
-                                    src={item.creatorPhoto} 
-                                    alt={item.creator} 
-                                    className="w-12 h-12 rounded-2xl object-cover border border-purple-500/40 shadow-md bg-zinc-900 flex-shrink-0"
+                                  <img
+                                    src={item.creatorPhoto}
+                                    alt={item.creator}
+                                    className="w-12 h-12 rounded-2xl object-cover border-2 border-violet-300 bg-white shrink-0"
                                     onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                                   />
                                 ) : (
-                                  <div className="w-12 h-12 rounded-2xl bg-purple-950/50 border border-purple-500/30 flex items-center justify-center text-purple-300 font-black text-sm flex-shrink-0">
-                                    {item.creator?.charAt(0)?.toUpperCase() || '👤'}
+                                  <div className="w-12 h-12 rounded-2xl bg-violet-100 border-2 border-violet-200 flex items-center justify-center text-violet-700 font-bold text-base shrink-0">
+                                    {item.creator?.charAt(0)?.toUpperCase() || 'C'}
                                   </div>
                                 )}
                                 <div>
-                                  <span className="text-[10px] text-purple-400 font-bold uppercase block">CRIADOR INDICADO</span>
-                                  <h4 className="font-sans font-black text-sm text-white">{item.creator}</h4>
-                                  <span className="text-[9px] font-mono text-gray-500">{new Date(item.createdAt).toLocaleString()}</span>
+                                  <span className="text-[11px] text-violet-700 font-bold uppercase block">Criador Indicado</span>
+                                  <h4 className="font-display font-bold text-base text-slate-900">{item.creator}</h4>
+                                  <span className="text-[10px] font-mono text-slate-500">{new Date(item.createdAt).toLocaleString()}</span>
                                 </div>
                               </div>
 
-                              {/* Social Badges */}
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {item.instagram && (
                                   <a
                                     href={item.instagram.startsWith('http') ? item.instagram : `https://instagram.com/${item.instagram.replace('@', '')}`}
                                     target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pink-500/15 border border-pink-500/30 text-pink-300 text-[10px] font-bold hover:bg-pink-500/25 transition-colors"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pink-50 border border-pink-200 text-pink-700 text-[11px] font-bold"
                                   >
                                     <Instagram className="w-3 h-3" />
                                     <span>{item.instagram.startsWith('@') ? item.instagram : `@${item.instagram.replace('https://instagram.com/', '')}`}</span>
@@ -651,19 +688,18 @@ export default function ApplicationsSection({
                                   <a
                                     href={item.tiktok.startsWith('http') ? item.tiktok : `https://tiktok.com/@${item.tiktok.replace('@', '')}`}
                                     target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold hover:bg-cyan-500/25 transition-colors"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-bold"
                                   >
-                                    <span className="font-black text-[10px]">TikTok:</span>
-                                    <span>{item.tiktok.startsWith('@') ? item.tiktok : `@${item.tiktok.replace('https://tiktok.com/@', '')}`}</span>
+                                    <span>TikTok: {item.tiktok.startsWith('@') ? item.tiktok : `@${item.tiktok.replace('https://tiktok.com/@', '')}`}</span>
                                   </a>
                                 )}
                                 {item.youtube && (
                                   <a
                                     href={item.youtube.startsWith('http') ? item.youtube : `https://youtube.com/@${item.youtube.replace('@', '')}`}
                                     target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-[10px] font-bold hover:bg-red-500/25 transition-colors"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold"
                                   >
                                     <Youtube className="w-3 h-3" />
                                     <span>{item.youtube.startsWith('@') ? item.youtube : item.youtube.replace('https://youtube.com/@', '')}</span>
@@ -673,87 +709,73 @@ export default function ApplicationsSection({
                             </div>
 
                             <div className="space-y-1.5 text-xs">
-                              <p className="text-gray-300 leading-normal font-sans"><span className="text-purple-300 font-semibold">Descrição:</span> {item.description}</p>
-                              <p className="font-mono text-[10px] text-cyan-400 break-all select-all bg-black/40 p-2 rounded-lg flex items-center justify-between gap-2">
+                              <p className="text-slate-700"><strong className="text-slate-900">Descrição:</strong> {item.description}</p>
+                              <div className="font-mono text-[11px] text-sky-800 break-all bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                                 <span>{item.url}</span>
-                                <a href={item.url} target="_blank" rel="noreferrer" className="text-white hover:text-cyan-300 flex-shrink-0">
-                                  <ExternalLink className="w-3.5 h-3.5" />
+                                <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-900 shrink-0">
+                                  <ExternalLink className="w-4 h-4" />
                                 </a>
-                              </p>
+                              </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2 pt-2">
+                            <div className="flex flex-wrap gap-2 pt-1">
                               <button
                                 onClick={async () => {
                                   triggerAudio('tap');
                                   if (!onAddFeaturedVideo) {
-                                    alert('Erro: onAddFeaturedVideo não está disponível.');
+                                    setAdminFeedback({ success: false, message: 'Ação onAddFeaturedVideo indisponível.' });
                                     return;
                                   }
                                   try {
                                     onAddFeaturedVideo({
-                                      title: item.description || `Destaque de ${item.creator}! 🎬`,
+                                      title: item.description || `Destaque de ${item.creator}!`,
                                       youtubeUrl: item.url,
                                       type: 'game_highlight',
                                       author: item.creator
                                     });
                                     await deleteDoc(doc(db, 'applications_panel', item.id));
                                     triggerAudio('success');
+                                    setAdminFeedback({ success: true, message: 'Aprovado no Painel Super Destaques!' });
                                     fetchAllApplications();
                                   } catch (err: any) {
-                                    alert('Erro ao aprovar no Painel: ' + err.message);
+                                    setAdminFeedback({ success: false, message: 'Erro ao aprovar: ' + err.message });
                                   }
                                 }}
-                                className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-black font-sans cursor-pointer flex items-center gap-1 shadow-lg transition-all active:scale-95"
+                                className="pkxd-btn-gold px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5"
                               >
-                                <Star className="w-3.5 h-3.5 fill-current text-black" />
-                                <span>Aprovar no PAINEL 🌟</span>
+                                <Star className="w-3.5 h-3.5 fill-current" />
+                                <span>Aprovar no Painel</span>
                               </button>
 
                               <button
                                 onClick={async () => {
                                   triggerAudio('tap');
                                   if (!onAddFeaturedVideo) {
-                                    alert('Erro: onAddFeaturedVideo não está disponível.');
+                                    setAdminFeedback({ success: false, message: 'Ação onAddFeaturedVideo indisponível.' });
                                     return;
                                   }
                                   try {
                                     onAddFeaturedVideo({
-                                      title: item.description || `Vídeo de ${item.creator}! 🎬`,
+                                      title: item.description || `Vídeo de ${item.creator}!`,
                                       youtubeUrl: item.url,
                                       type: 'panel_video',
                                       author: item.creator
                                     });
                                     await deleteDoc(doc(db, 'applications_panel', item.id));
                                     triggerAudio('success');
+                                    setAdminFeedback({ success: true, message: 'Aprovado na aba Comunidade!' });
                                     fetchAllApplications();
                                   } catch (err: any) {
-                                    alert('Erro ao aprovar na Comunidade: ' + err.message);
+                                    setAdminFeedback({ success: false, message: 'Erro ao aprovar: ' + err.message });
                                   }
                                 }}
-                                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black font-sans cursor-pointer flex items-center gap-1 shadow transition-all active:scale-95"
+                                className="pkxd-btn-primary px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5"
                               >
-                                <CheckCircle className="w-3.5 h-3.5 text-white" />
-                                <span>Aprovar na COMUNIDADE 👥</span>
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                <span>Aprovar na Comunidade</span>
                               </button>
 
-                              <button
-                                onClick={async () => {
-                                  triggerAudio('tap');
-                                  if (confirm('Deseja excluir esta inscrição permanentemente?')) {
-                                    try {
-                                      await deleteDoc(doc(db, 'applications_panel', item.id));
-                                      fetchAllApplications();
-                                    } catch (err: any) {
-                                      alert(err.message);
-                                    }
-                                  }
-                                }}
-                                className="px-3 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center gap-1 transition-all active:scale-95 ml-auto"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Excluir</span>
-                              </button>
+                              {renderDeleteButton('applications_panel', item.id)}
                             </div>
                           </div>
                         ))
@@ -762,118 +784,64 @@ export default function ApplicationsSection({
 
                     {adminActiveSubTab === 'shorts' && (
                       appsShorts.length === 0 ? (
-                        <p className="py-8 text-center text-gray-500 text-xs">Nenhum pedido de destaque de shorts pendente.</p>
+                        <p className="py-8 text-center text-slate-500 text-xs">Nenhum pedido de destaque de shorts pendente.</p>
                       ) : (
                         appsShorts.map((item) => (
-                          <div key={item.id} className="p-4 bg-zinc-950/70 border border-white/5 rounded-2xl space-y-3">
-                            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/5 pb-3">
+                          <div key={item.id} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
                               <div className="flex items-center gap-3">
                                 {item.creatorPhoto ? (
-                                  <img 
-                                    src={item.creatorPhoto} 
-                                    alt={item.creator} 
-                                    className="w-12 h-12 rounded-2xl object-cover border border-cyan-500/40 shadow-md bg-zinc-900 flex-shrink-0"
+                                  <img
+                                    src={item.creatorPhoto}
+                                    alt={item.creator}
+                                    className="w-12 h-12 rounded-2xl object-cover border-2 border-sky-300 bg-white shrink-0"
                                     onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                                   />
                                 ) : (
-                                  <div className="w-12 h-12 rounded-2xl bg-cyan-950/50 border border-cyan-500/30 flex items-center justify-center text-cyan-300 font-black text-sm flex-shrink-0">
-                                    {item.creator?.charAt(0)?.toUpperCase() || '📱'}
+                                  <div className="w-12 h-12 rounded-2xl bg-sky-100 border-2 border-sky-200 flex items-center justify-center text-sky-700 font-bold text-base shrink-0">
+                                    {item.creator?.charAt(0)?.toUpperCase() || 'S'}
                                   </div>
                                 )}
                                 <div>
-                                  <span className="text-[10px] text-cyan-400 font-bold uppercase block">CANAL / CRIADOR</span>
-                                  <h4 className="font-sans font-black text-sm text-white">{item.creator}</h4>
-                                  <span className="text-[9px] font-mono text-gray-500">{new Date(item.createdAt).toLocaleString()}</span>
+                                  <span className="text-[11px] text-sky-700 font-bold uppercase block">Canal / Criador</span>
+                                  <h4 className="font-display font-bold text-base text-slate-900">{item.creator}</h4>
+                                  <span className="text-[10px] font-mono text-slate-500">{new Date(item.createdAt).toLocaleString()}</span>
                                 </div>
-                              </div>
-
-                              {/* Social Badges */}
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {item.instagram && (
-                                  <a
-                                    href={item.instagram.startsWith('http') ? item.instagram : `https://instagram.com/${item.instagram.replace('@', '')}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pink-500/15 border border-pink-500/30 text-pink-300 text-[10px] font-bold hover:bg-pink-500/25 transition-colors"
-                                  >
-                                    <Instagram className="w-3 h-3" />
-                                    <span>{item.instagram.startsWith('@') ? item.instagram : `@${item.instagram.replace('https://instagram.com/', '')}`}</span>
-                                  </a>
-                                )}
-                                {item.tiktok && (
-                                  <a
-                                    href={item.tiktok.startsWith('http') ? item.tiktok : `https://tiktok.com/@${item.tiktok.replace('@', '')}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold hover:bg-cyan-500/25 transition-colors"
-                                  >
-                                    <span className="font-black text-[10px]">TikTok:</span>
-                                    <span>{item.tiktok.startsWith('@') ? item.tiktok : `@${item.tiktok.replace('https://tiktok.com/@', '')}`}</span>
-                                  </a>
-                                )}
-                                {item.youtube && (
-                                  <a
-                                    href={item.youtube.startsWith('http') ? item.youtube : `https://youtube.com/@${item.youtube.replace('@', '')}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-[10px] font-bold hover:bg-red-500/25 transition-colors"
-                                  >
-                                    <Youtube className="w-3 h-3" />
-                                    <span>{item.youtube.startsWith('@') ? item.youtube : item.youtube.replace('https://youtube.com/@', '')}</span>
-                                  </a>
-                                )}
                               </div>
                             </div>
 
                             <div className="space-y-1.5 text-xs">
-                              <p className="text-gray-300 font-sans"><span className="text-cyan-300 font-semibold">Título do Short:</span> {item.title}</p>
-                              <p className="font-mono text-[10px] text-cyan-400 break-all select-all bg-black/40 p-2 rounded-lg flex items-center justify-between gap-2">
+                              <p className="text-slate-700"><strong className="text-slate-900">Título do Short:</strong> {item.title}</p>
+                              <div className="font-mono text-[11px] text-sky-800 break-all bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                                 <span>{item.url}</span>
-                                <a href={item.url} target="_blank" rel="noreferrer" className="text-white hover:text-cyan-300 flex-shrink-0">
-                                  <ExternalLink className="w-3.5 h-3.5" />
+                                <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-900 shrink-0">
+                                  <ExternalLink className="w-4 h-4" />
                                 </a>
-                              </p>
+                              </div>
                             </div>
 
-                            <div className="flex gap-2 pt-2">
+                            <div className="flex flex-wrap gap-2 pt-1">
                               <button
                                 onClick={async () => {
                                   triggerAudio('tap');
                                   if (!onAddShort) return;
                                   try {
-                                    onAddShort({
-                                      title: item.title,
-                                      youtubeUrl: item.url
-                                    });
+                                    onAddShort({ title: item.title, youtubeUrl: item.url });
                                     await deleteDoc(doc(db, 'applications_shorts', item.id));
                                     triggerAudio('success');
+                                    setAdminFeedback({ success: true, message: 'Short aprovado!' });
                                     fetchAllApplications();
                                   } catch (err: any) {
-                                    alert('Erro ao aprovar: ' + err.message);
+                                    setAdminFeedback({ success: false, message: 'Erro ao aprovar: ' + err.message });
                                   }
                                 }}
-                                className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-black font-black rounded-xl text-xs font-sans cursor-pointer flex items-center gap-1.5 shadow transition-all active:scale-95"
+                                className="pkxd-btn-cyan px-4 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5"
                               >
                                 <CheckCircle className="w-3.5 h-3.5" />
                                 <span>Aprovar Shorts</span>
                               </button>
-                              <button
-                                onClick={async () => {
-                                  triggerAudio('tap');
-                                  if (confirm('Deseja excluir esta inscrição permanentemente?')) {
-                                    try {
-                                      await deleteDoc(doc(db, 'applications_shorts', item.id));
-                                      fetchAllApplications();
-                                    } catch (err: any) {
-                                      alert(err.message);
-                                    }
-                                  }
-                                }}
-                                className="px-3 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center gap-1 transition-all active:scale-95"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Excluir</span>
-                              </button>
+
+                              {renderDeleteButton('applications_shorts', item.id)}
                             </div>
                           </div>
                         ))
@@ -882,24 +850,24 @@ export default function ApplicationsSection({
 
                     {adminActiveSubTab === 'theory' && (
                       appsTheories.length === 0 ? (
-                        <p className="py-8 text-center text-gray-500 text-xs">Nenhuma teoria enviada pendente.</p>
+                        <p className="py-8 text-center text-slate-500 text-xs">Nenhuma teoria enviada pendente.</p>
                       ) : (
                         appsTheories.map((item) => (
-                          <div key={item.id} className="p-4 bg-zinc-950/70 border border-white/5 rounded-2xl space-y-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+                          <div key={item.id} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
                               <div>
-                                <span className="text-[10px] text-pink-400 font-bold uppercase block">AUTOR / TÍTULO</span>
-                                <h4 className="font-sans font-black text-xs text-white">{item.title}</h4>
-                                <p className="text-[10px] text-gray-400">Por: {item.author}</p>
+                                <span className="text-[11px] text-pink-700 font-bold uppercase block">Autor / Título</span>
+                                <h4 className="font-display font-bold text-sm text-slate-900">{item.title}</h4>
+                                <p className="text-xs text-slate-600">Por: {item.author}</p>
                               </div>
-                              <span className="text-[9px] font-mono text-gray-500">{new Date(item.createdAt).toLocaleString()}</span>
+                              <span className="text-[10px] font-mono text-slate-500">{new Date(item.createdAt).toLocaleString()}</span>
                             </div>
 
-                            <div className="text-xs bg-black/30 p-3 rounded-xl border border-white/5 max-h-40 overflow-y-auto">
-                              <p className="text-gray-300 leading-relaxed whitespace-pre-wrap font-sans">{item.content}</p>
+                            <div className="text-xs bg-white p-3 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
+                              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{item.content}</p>
                             </div>
 
-                            <div className="flex gap-2 pt-2">
+                            <div className="flex flex-wrap gap-2 pt-1">
                               <button
                                 onClick={async () => {
                                   triggerAudio('tap');
@@ -912,33 +880,19 @@ export default function ApplicationsSection({
                                     });
                                     await deleteDoc(doc(db, 'applications_theories', item.id));
                                     triggerAudio('success');
+                                    setAdminFeedback({ success: true, message: 'Teoria aprovada no mural!' });
                                     fetchAllApplications();
                                   } catch (err: any) {
-                                    alert('Erro ao aprovar: ' + err.message);
+                                    setAdminFeedback({ success: false, message: 'Erro ao aprovar: ' + err.message });
                                   }
                                 }}
-                                className="px-3.5 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center gap-1.5 shadow transition-all active:scale-95"
+                                className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5"
                               >
                                 <CheckCircle className="w-3.5 h-3.5" />
                                 <span>Aprovar Teoria</span>
                               </button>
-                              <button
-                                onClick={async () => {
-                                  triggerAudio('tap');
-                                  if (confirm('Deseja excluir esta teoria permanentemente?')) {
-                                    try {
-                                      await deleteDoc(doc(db, 'applications_theories', item.id));
-                                      fetchAllApplications();
-                                    } catch (err: any) {
-                                      alert(err.message);
-                                    }
-                                  }
-                                }}
-                                className="px-3 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center gap-1 transition-all active:scale-95"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Excluir</span>
-                              </button>
+
+                              {renderDeleteButton('applications_theories', item.id)}
                             </div>
                           </div>
                         ))
@@ -947,55 +901,40 @@ export default function ApplicationsSection({
 
                     {adminActiveSubTab === 'admin' && (
                       appsAdmin.length === 0 ? (
-                        <p className="py-8 text-center text-gray-500 text-xs">Nenhuma candidatura de administrador pendente.</p>
+                        <p className="py-8 text-center text-slate-500 text-xs">Nenhuma candidatura de administrador pendente.</p>
                       ) : (
                         appsAdmin.map((item) => (
-                          <div key={item.id} className="p-4 bg-zinc-950/70 border border-white/5 rounded-2xl space-y-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+                          <div key={item.id} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
                               <div>
-                                <span className="text-[10px] text-yellow-400 font-bold uppercase block">CANDIDATO</span>
-                                <h4 className="font-sans font-black text-xs text-white">{item.name} ({item.age} anos)</h4>
-                                <p className="text-[10px] text-gray-400">Contato: <strong className="text-white select-all">{item.contact}</strong></p>
+                                <span className="text-[11px] text-amber-700 font-bold uppercase block">Candidato</span>
+                                <h4 className="font-display font-bold text-sm text-slate-900">{item.name} ({item.age} anos)</h4>
+                                <p className="text-xs text-slate-600">Contato: <strong className="text-slate-900 select-all">{item.contact}</strong></p>
                               </div>
-                              <span className="text-[9px] font-mono text-gray-500">{new Date(item.createdAt).toLocaleString()}</span>
+                              <span className="text-[10px] font-mono text-slate-500">{new Date(item.createdAt).toLocaleString()}</span>
                             </div>
 
                             <div className="space-y-2 text-xs">
-                              <p className="text-gray-300 font-sans"><span className="text-yellow-300 font-semibold">Disponibilidade:</span> {item.hours}</p>
-                              <div className="text-gray-300 leading-relaxed font-sans bg-black/30 p-3 rounded-xl border border-white/5">
-                                <span className="text-yellow-300 font-semibold block mb-1">Por que quer ser Admin?</span>
+                              <p className="text-slate-700"><strong className="text-slate-900">Disponibilidade:</strong> {item.hours}</p>
+                              <div className="text-slate-700 leading-relaxed bg-white p-3 rounded-xl border border-slate-200">
+                                <strong className="text-slate-900 block mb-1">Por que quer ser Admin?</strong>
                                 {item.reason}
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2 pt-2">
+                            <div className="flex flex-wrap gap-2 pt-1">
                               <a
                                 href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(item.contact)}`}
                                 target="_blank"
-                                rel="noreferrer"
+                                rel="noopener noreferrer"
                                 onClick={() => triggerAudio('tap')}
-                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center gap-1.5 shadow transition-all active:scale-95"
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
                                 <span>Contatar via WhatsApp</span>
                               </a>
-                              <button
-                                onClick={async () => {
-                                  triggerAudio('tap');
-                                  if (confirm('Deseja excluir esta candidatura permanentemente?')) {
-                                    try {
-                                      await deleteDoc(doc(db, 'applications_admin', item.id));
-                                      fetchAllApplications();
-                                    } catch (err: any) {
-                                      alert(err.message);
-                                    }
-                                  }
-                                }}
-                                className="px-3 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center gap-1 transition-all active:scale-95"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Excluir Candidatura</span>
-                              </button>
+
+                              {renderDeleteButton('applications_admin', item.id, 'Excluir Candidatura')}
                             </div>
                           </div>
                         ))
@@ -1009,39 +948,34 @@ export default function ApplicationsSection({
         </>
       ) : (
         <>
-          {/* Header card */}
-          <div className="bg-gradient-to-r from-purple-900/80 via-zinc-950/95 to-slate-900 border-2 border-purple-500/40 rounded-3xl p-6 sm:p-8 text-left shadow-[0_12px_30px_rgba(147,51,234,0.15)] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full filter blur-2xl pointer-events-none" />
-            <div className="absolute bottom-0 left-1/4 w-32 h-32 bg-cyan-500/5 rounded-full filter blur-2xl pointer-events-none" />
-            
-            <div className="relative z-10 space-y-3">
-              <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3.5 py-1 rounded-full text-purple-300 font-mono text-[10px] font-black uppercase tracking-widest animate-pulse">
-                <Compass className="w-3.5 h-3.5 animate-spin-slow" />
-                Portal de Recrutamento & Destaques
-              </div>
-              <h2 className="font-sans font-black text-2xl sm:text-4xl tracking-tight text-white uppercase leading-none">
-                ÁREA DE <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400">INSCRIÇÕES</span> DO SITE
-              </h2>
-              <p className="font-sans text-xs sm:text-sm text-gray-300 leading-relaxed max-w-2xl">
-                Bem-vindo à central do site! Aqui você pode se inscrever para aparecer em destaque nas seções do site, enviar suas teorias exclusivas de PK XD ou se candidatar para fazer parte da nossa equipe oficial de administradores!
-              </p>
+          {/* Hero Header Card */}
+          <div className="pkxd-glass rounded-3xl p-6 sm:p-8 text-left space-y-3">
+            <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200 px-3.5 py-1 rounded-full text-violet-800 text-xs font-bold uppercase tracking-wider">
+              <Compass className="w-4 h-4" />
+              Portal de Recrutamento & Destaques
             </div>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl tracking-tight text-slate-900">
+              Área de <span className="text-violet-700">Inscrições</span>
+            </h2>
+            <p className="font-sans text-sm text-slate-600 leading-relaxed max-w-2xl">
+              Inscreva-se para aparecer em destaque no portal, envie suas teorias exclusivas de PK XD ou candidate-se para a equipe de moderadores.
+            </p>
           </div>
 
           {/* Creator Progress Analyzer Callout */}
-          <div 
+          <div
             id="applications-creator-analyzer-callout"
-            className="bg-gradient-to-r from-purple-950/70 via-zinc-900 to-indigo-950/70 border border-purple-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md"
+            className="pkxd-glass-violet rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3"
           >
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300">
-                <Sparkles className="w-5 h-5 animate-pulse" />
+              <div className="p-2.5 rounded-2xl bg-white border border-violet-200 text-violet-700 shrink-0">
+                <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs sm:text-sm font-bold text-white">
+                <h4 className="text-sm font-bold text-slate-900">
                   Quer saber quanto falta para se tornar Creator Oficial do PK XD?
                 </h4>
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-xs text-slate-600">
                   Calcule seus inscritos, vídeos e métricas automaticamente com base nos requisitos oficiais.
                 </p>
               </div>
@@ -1055,21 +989,21 @@ export default function ApplicationsSection({
                   window.dispatchEvent(new PopStateEvent('popstate'));
                 }
               }}
-              className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 shrink-0 cursor-pointer"
+              className="pkxd-btn-primary px-4 py-2 rounded-2xl font-display font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
             >
               <span>Ver Meu Progresso</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Tabs list (Beautiful solid visual blocks) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          {/* 4 Category Selector Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <button
               onClick={() => handleTabChange('panel')}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md ${
+              className={`p-4 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
                 activeTab === 'panel'
-                  ? 'bg-gradient-to-b from-purple-800 to-purple-950 text-white border-purple-500 shadow-[0_4px_15px_rgba(168,85,247,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-purple-500/30 hover:text-gray-205'
+                  ? 'bg-violet-600 text-white border-violet-700 shadow-sm'
+                  : 'bg-white/75 backdrop-blur-md text-slate-700 border-white/80 hover:border-violet-300'
               }`}
             >
               <Video className="w-5 h-5" />
@@ -1078,10 +1012,10 @@ export default function ApplicationsSection({
 
             <button
               onClick={() => handleTabChange('shorts')}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md ${
+              className={`p-4 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
                 activeTab === 'shorts'
-                  ? 'bg-gradient-to-b from-cyan-800 to-cyan-950 text-white border-cyan-500 shadow-[0_4px_15px_rgba(6,182,212,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-cyan-500/30 hover:text-gray-205'
+                  ? 'bg-sky-600 text-white border-sky-700 shadow-sm'
+                  : 'bg-white/75 backdrop-blur-md text-slate-700 border-white/80 hover:border-sky-300'
               }`}
             >
               <Smartphone className="w-5 h-5" />
@@ -1090,10 +1024,10 @@ export default function ApplicationsSection({
 
             <button
               onClick={() => handleTabChange('theory')}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md ${
+              className={`p-4 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
                 activeTab === 'theory'
-                  ? 'bg-gradient-to-b from-pink-850 to-pink-950 text-white border-pink-500 shadow-[0_4px_15px_rgba(236,72,153,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-pink-500/30 hover:text-gray-205'
+                  ? 'bg-pink-600 text-white border-pink-700 shadow-sm'
+                  : 'bg-white/75 backdrop-blur-md text-slate-700 border-white/80 hover:border-pink-300'
               }`}
             >
               <Sparkles className="w-5 h-5" />
@@ -1102,10 +1036,10 @@ export default function ApplicationsSection({
 
             <button
               onClick={() => handleTabChange('admin')}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-[11px] uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md ${
+              className={`p-4 rounded-2xl border-2 font-display font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
                 activeTab === 'admin'
-                  ? 'bg-gradient-to-b from-yellow-800 to-yellow-950 text-white border-yellow-500 shadow-[0_4px_15px_rgba(234,179,8,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-yellow-500/30 hover:text-gray-205'
+                  ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-sm'
+                  : 'bg-white/75 backdrop-blur-md text-slate-700 border-white/80 hover:border-amber-300'
               }`}
             >
               <UserCheck className="w-5 h-5" />
@@ -1113,92 +1047,89 @@ export default function ApplicationsSection({
             </button>
           </div>
 
-          {/* Form area */}
-          <div className="bg-zinc-900/60 border border-white/5 rounded-3xl p-6 sm:p-8 text-left relative overflow-hidden">
-            
-            {/* Status Messages */}
+          {/* Form Area */}
+          <div className="pkxd-glass rounded-3xl p-6 sm:p-8 text-left">
             {submitStatus && (
-              <div className={`p-4 rounded-2xl mb-6 flex items-start gap-3 border ${
-                submitStatus.success 
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                  : 'bg-red-500/10 text-red-400 border-red-500/30'
-              }`}>
-                {submitStatus.success ? <Check className="w-5 h-5 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
-                <span className="font-sans text-xs leading-relaxed">{submitStatus.message}</span>
+              <div
+                className={`p-4 rounded-2xl mb-6 flex items-start gap-3 border-2 ${
+                  submitStatus.success
+                    ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                    : 'bg-rose-50 text-rose-900 border-rose-200'
+                }`}
+              >
+                {submitStatus.success ? <Check className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" /> : <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />}
+                <span className="font-sans text-xs font-semibold leading-relaxed">{submitStatus.message}</span>
               </div>
             )}
 
             {!user?.email && (
-              <div className="p-4 rounded-2xl mb-6 flex items-start gap-3 border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-400" />
-                <div className="space-y-1">
-                  <p className="font-sans text-xs font-bold leading-normal">Você está enviando como Visitante</p>
-                  <p className="font-sans text-[11px] text-gray-400 leading-normal">
-                    Para que seu e-mail fique salvo na nuvem e você receba os bônus de XP diretamente na sua conta de Fã, por favor faça login na aba <strong className="text-amber-300 font-bold">Nível de Fã 👑</strong> antes de enviar sua inscrição!
+              <div className="p-4 rounded-2xl mb-6 flex items-start gap-3 border-2 bg-amber-50 text-amber-900 border-amber-200">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+                <div className="space-y-0.5">
+                  <p className="font-sans text-xs font-bold">Você está enviando como Visitante</p>
+                  <p className="font-sans text-xs text-amber-800">
+                    Para salvar o histórico na sua conta e receber XP na nuvem, faça login antes de enviar sua inscrição.
                   </p>
                 </div>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              
               {activeTab === 'panel' && (
                 <div className="space-y-5">
-                  <div className="border-b border-white/5 pb-2">
-                    <h3 className="font-sans font-black text-base uppercase text-purple-300">
-                      🎥 Sugestão & Indicação de Criador / Destaque de Vídeo
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-display font-bold text-lg text-violet-800">
+                      Indicação de Criador / Destaque de Vídeo
                     </h3>
-                    <p className="text-[11px] text-gray-400 font-sans leading-normal">
-                      Indique seu canal ou sugira um criador talentoso de PK XD para entrar nos destaques oficiais da nossa Central!
+                    <p className="text-xs text-slate-600">
+                      Indique seu canal ou sugira um criador talentoso de PK XD para entrar nos destaques do portal.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-300 uppercase tracking-wider font-mono">Nome do Indicado / Criador *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Nome do Indicado / Criador *</label>
                       <input
                         type="text"
                         required
                         value={panelCreator}
                         onChange={(e) => setPanelCreator(e.target.value)}
                         placeholder="Ex: JogadorEstrela_PKXD"
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-purple-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-violet-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-300 uppercase tracking-wider font-mono">Link do Vídeo / Live / Canal *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Link do Vídeo / Live / Canal *</label>
                       <input
                         type="url"
                         required
                         value={panelUrl}
                         onChange={(e) => setPanelUrl(e.target.value)}
                         placeholder="https://www.youtube.com/watch?v=..."
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-purple-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-violet-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
                   </div>
 
-                  {/* Real Photo of Nominee */}
-                  <div className="p-4 rounded-2xl bg-zinc-950/60 border border-purple-500/20 space-y-3">
+                  <div className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
-                        <label className="text-[11px] font-bold text-purple-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                          <ImageIcon className="w-3.5 h-3.5 text-purple-400" />
-                          <span>Foto Real do Indicado (Opcional - Sem fotos falsas!)</span>
+                        <label className="text-xs font-bold text-violet-800 uppercase flex items-center gap-1.5">
+                          <ImageIcon className="w-4 h-4" />
+                          <span>Foto Real do Indicado (Opcional)</span>
                         </label>
-                        <p className="text-[10px] text-gray-400 font-sans">
-                          Envie uma foto real do avatar ou canal do indicado do seu aparelho ou cole o link direto da imagem.
+                        <p className="text-[11px] text-slate-600">
+                          Envie uma foto do avatar/canal ou cole o link direto da imagem.
                         </p>
                       </div>
 
-                      {/* Input type switch */}
-                      <div className="flex items-center bg-black/50 p-1 rounded-xl border border-white/5 text-[10px] font-bold font-mono">
+                      <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
                         <button
                           type="button"
                           onClick={() => setPanelPhotoInputType('upload')}
-                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                            panelPhotoInputType === 'upload' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                          className={`px-3 py-1 rounded-lg cursor-pointer ${
+                            panelPhotoInputType === 'upload' ? 'bg-violet-600 text-white' : 'text-slate-600'
                           }`}
                         >
                           Upload Foto
@@ -1206,8 +1137,8 @@ export default function ApplicationsSection({
                         <button
                           type="button"
                           onClick={() => setPanelPhotoInputType('url')}
-                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                            panelPhotoInputType === 'url' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                          className={`px-3 py-1 rounded-lg cursor-pointer ${
+                            panelPhotoInputType === 'url' ? 'bg-violet-600 text-white' : 'text-slate-600'
                           }`}
                         >
                           Colar Link
@@ -1216,49 +1147,41 @@ export default function ApplicationsSection({
                     </div>
 
                     {panelPhotoInputType === 'upload' ? (
-                      <div>
-                        <label className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-zinc-800 hover:border-purple-500/50 rounded-xl bg-black/30 cursor-pointer transition-all">
-                          <Upload className="w-5 h-5 text-purple-400 mb-1" />
-                          <span className="text-xs font-bold text-gray-300">Clique para selecionar foto do celular / PC</span>
-                          <span className="text-[10px] text-gray-500 font-mono">PNG, JPG, WEBP (Max 5MB)</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageFileChange(e, setPanelCreatorPhoto)}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
+                      <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 hover:border-violet-400 rounded-xl bg-white cursor-pointer">
+                        <Upload className="w-5 h-5 text-violet-600 mb-1" />
+                        <span className="text-xs font-bold text-slate-700">Clique para selecionar foto (Max 5MB)</span>
                         <input
-                          type="url"
-                          value={panelCreatorPhoto}
-                          onChange={(e) => setPanelCreatorPhoto(e.target.value)}
-                          placeholder="https://exemplo.com/foto_do_indicado.png"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-purple-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageFileChange(e, setPanelCreatorPhoto)}
+                          className="hidden"
                         />
-                      </div>
+                      </label>
+                    ) : (
+                      <input
+                        type="url"
+                        value={panelCreatorPhoto}
+                        onChange={(e) => setPanelCreatorPhoto(e.target.value)}
+                        placeholder="https://exemplo.com/foto.png"
+                        className="w-full bg-white border-2 border-slate-200 focus:border-violet-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
+                      />
                     )}
 
-                    {/* Preview real photo */}
                     {panelCreatorPhoto && (
-                      <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-purple-500/30">
+                      <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-violet-200">
                         <img
                           src={panelCreatorPhoto}
                           alt="Foto do Indicado"
-                          className="w-12 h-12 rounded-xl object-cover border border-purple-500/50 bg-zinc-900 flex-shrink-0"
+                          className="w-12 h-12 rounded-xl object-cover border border-violet-300 shrink-0"
                           onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-white truncate">Foto do indicado anexada com sucesso!</p>
-                          <p className="text-[10px] text-purple-300 font-mono">Foto real selecionada</p>
+                          <p className="text-xs font-bold text-slate-900 truncate">Foto anexada com sucesso!</p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setPanelCreatorPhoto('')}
-                          className="p-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg cursor-pointer transition-colors"
-                          title="Remover foto"
+                          className="p-1.5 bg-rose-50 text-rose-600 rounded-lg cursor-pointer"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -1266,28 +1189,23 @@ export default function ApplicationsSection({
                     )}
                   </div>
 
-                  {/* Social Networks of Nominee - At least 1 mandatory */}
-                  <div className="p-4 rounded-2xl bg-zinc-950/60 border border-white/5 space-y-3">
-                    <div className="border-b border-white/5 pb-2 flex items-center justify-between flex-wrap gap-2">
+                  <div className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-3">
+                    <div className="border-b border-slate-200 pb-2 flex items-center justify-between flex-wrap gap-2">
                       <div>
-                        <label className="text-[11px] font-bold text-purple-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                          <Link2 className="w-3.5 h-3.5 text-purple-400" />
+                        <label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-1.5">
+                          <Link2 className="w-4 h-4 text-violet-700" />
                           <span>Redes Sociais do Indicado *</span>
                         </label>
-                        <p className="text-[10px] text-gray-400 font-sans">
-                          Você pode preencher as três, mas <strong className="text-purple-300">pelo menos uma (Instagram, TikTok ou YouTube) é obrigatória!</strong>
+                        <p className="text-[11px] text-slate-600">
+                          Pelo menos uma rede social (Instagram, TikTok ou YouTube) é obrigatória.
                         </p>
                       </div>
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono">
-                        Pelo menos 1 obrigatório
-                      </span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {/* Instagram */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-pink-400 uppercase tracking-wider font-mono flex items-center gap-1">
-                          <Instagram className="w-3 h-3 text-pink-400" />
+                        <label className="text-[11px] font-bold text-pink-700 uppercase flex items-center gap-1">
+                          <Instagram className="w-3.5 h-3.5" />
                           <span>Instagram</span>
                         </label>
                         <input
@@ -1295,14 +1213,13 @@ export default function ApplicationsSection({
                           value={panelInstagram}
                           onChange={(e) => setPanelInstagram(e.target.value)}
                           placeholder="@usuario ou link"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-pink-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                          className="w-full bg-white border-2 border-slate-200 focus:border-pink-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
                         />
                       </div>
 
-                      {/* TikTok */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider font-mono flex items-center gap-1">
-                          <Smartphone className="w-3 h-3 text-cyan-400" />
+                        <label className="text-[11px] font-bold text-sky-700 uppercase flex items-center gap-1">
+                          <Smartphone className="w-3.5 h-3.5" />
                           <span>TikTok</span>
                         </label>
                         <input
@@ -1310,14 +1227,13 @@ export default function ApplicationsSection({
                           value={panelTikTok}
                           onChange={(e) => setPanelTikTok(e.target.value)}
                           placeholder="@usuario ou link"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-cyan-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                          className="w-full bg-white border-2 border-slate-200 focus:border-sky-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
                         />
                       </div>
 
-                      {/* YouTube */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-red-400 uppercase tracking-wider font-mono flex items-center gap-1">
-                          <Youtube className="w-3 h-3 text-red-400" />
+                        <label className="text-[11px] font-bold text-rose-700 uppercase flex items-center gap-1">
+                          <Youtube className="w-3.5 h-3.5" />
                           <span>YouTube</span>
                         </label>
                         <input
@@ -1325,21 +1241,21 @@ export default function ApplicationsSection({
                           value={panelYouTube}
                           onChange={(e) => setPanelYouTube(e.target.value)}
                           placeholder="@canal ou link"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-red-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                          className="w-full bg-white border-2 border-slate-200 focus:border-rose-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
                         />
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-300 uppercase tracking-wider font-mono">Descrição / Motivo da Indicação *</label>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Descrição / Motivo da Indicação *</label>
                     <textarea
                       required
                       rows={3}
                       value={panelDescription}
                       onChange={(e) => setPanelDescription(e.target.value)}
-                      placeholder="Conte um pouco sobre o criador/vídeo, por que merece destaque no PKXD Central..."
-                      className="w-full bg-black/40 border border-zinc-800 focus:border-purple-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all resize-none"
+                      placeholder="Conte um pouco sobre o criador ou vídeo..."
+                      className="w-full bg-slate-50 border-2 border-slate-200 focus:border-violet-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none resize-none"
                     />
                   </div>
                 </div>
@@ -1347,61 +1263,53 @@ export default function ApplicationsSection({
 
               {activeTab === 'shorts' && (
                 <div className="space-y-5">
-                  <div className="border-b border-white/5 pb-2">
-                    <h3 className="font-sans font-black text-base uppercase text-cyan-300">
-                      📱 Sugestão & Indicação de Shorts
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-display font-bold text-lg text-sky-800">
+                      Indicação de Shorts
                     </h3>
-                    <p className="text-[11px] text-gray-400 font-sans leading-normal">
-                      Indique seus curtas ou os vídeos curtos mais legais de PK XD para entrar no nosso feed rotativo!
+                    <p className="text-xs text-slate-600">
+                      Indique seus curtas favoritos de PK XD para entrar no carrossel do portal!
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-300 uppercase tracking-wider font-mono">Nome do Canal / Indicado *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Nome do Canal / Indicado *</label>
                       <input
                         type="text"
                         required
                         value={shortsCreator}
                         onChange={(e) => setShortsCreator(e.target.value)}
                         placeholder="Nome do Criador ou Canal"
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-cyan-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-sky-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-300 uppercase tracking-wider font-mono">URL do Short (YouTube ou TikTok) *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">URL do Short *</label>
                       <input
                         type="url"
                         required
                         value={shortsUrl}
                         onChange={(e) => setShortsUrl(e.target.value)}
                         placeholder="https://www.youtube.com/shorts/..."
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-cyan-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-sky-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
                   </div>
 
-                  {/* Real Photo of Shorts Nominee */}
-                  <div className="p-4 rounded-2xl bg-zinc-950/60 border border-cyan-500/20 space-y-3">
+                  <div className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <label className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                          <ImageIcon className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Foto Real do Indicado (Opcional - Sem fotos falsas!)</span>
-                        </label>
-                        <p className="text-[10px] text-gray-400 font-sans">
-                          Envie uma foto real do avatar ou canal do indicado do seu aparelho ou cole o link direto da imagem.
-                        </p>
-                      </div>
-
-                      {/* Input type switch */}
-                      <div className="flex items-center bg-black/50 p-1 rounded-xl border border-white/5 text-[10px] font-bold font-mono">
+                      <label className="text-xs font-bold text-sky-800 uppercase flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4" />
+                        <span>Foto Real do Indicado (Opcional)</span>
+                      </label>
+                      <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
                         <button
                           type="button"
                           onClick={() => setShortsPhotoInputType('upload')}
-                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                            shortsPhotoInputType === 'upload' ? 'bg-cyan-600 text-black font-black shadow' : 'text-gray-400 hover:text-white'
+                          className={`px-3 py-1 rounded-lg cursor-pointer ${
+                            shortsPhotoInputType === 'upload' ? 'bg-sky-600 text-white' : 'text-slate-600'
                           }`}
                         >
                           Upload Foto
@@ -1409,8 +1317,8 @@ export default function ApplicationsSection({
                         <button
                           type="button"
                           onClick={() => setShortsPhotoInputType('url')}
-                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                            shortsPhotoInputType === 'url' ? 'bg-cyan-600 text-black font-black shadow' : 'text-gray-400 hover:text-white'
+                          className={`px-3 py-1 rounded-lg cursor-pointer ${
+                            shortsPhotoInputType === 'url' ? 'bg-sky-600 text-white' : 'text-slate-600'
                           }`}
                         >
                           Colar Link
@@ -1419,130 +1327,66 @@ export default function ApplicationsSection({
                     </div>
 
                     {shortsPhotoInputType === 'upload' ? (
-                      <div>
-                        <label className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-zinc-800 hover:border-cyan-500/50 rounded-xl bg-black/30 cursor-pointer transition-all">
-                          <Upload className="w-5 h-5 text-cyan-400 mb-1" />
-                          <span className="text-xs font-bold text-gray-300">Clique para selecionar foto do celular / PC</span>
-                          <span className="text-[10px] text-gray-500 font-mono">PNG, JPG, WEBP (Max 5MB)</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageFileChange(e, setShortsCreatorPhoto)}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
+                      <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 hover:border-sky-400 rounded-xl bg-white cursor-pointer">
+                        <Upload className="w-5 h-5 text-sky-600 mb-1" />
+                        <span className="text-xs font-bold text-slate-700">Clique para selecionar foto (Max 5MB)</span>
                         <input
-                          type="url"
-                          value={shortsCreatorPhoto}
-                          onChange={(e) => setShortsCreatorPhoto(e.target.value)}
-                          placeholder="https://exemplo.com/foto_do_indicado.png"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-cyan-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageFileChange(e, setShortsCreatorPhoto)}
+                          className="hidden"
                         />
-                      </div>
-                    )}
-
-                    {/* Preview real photo */}
-                    {shortsCreatorPhoto && (
-                      <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-cyan-500/30">
-                        <img
-                          src={shortsCreatorPhoto}
-                          alt="Foto do Indicado"
-                          className="w-12 h-12 rounded-xl object-cover border border-cyan-500/50 bg-zinc-900 flex-shrink-0"
-                          onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-white truncate">Foto do indicado anexada com sucesso!</p>
-                          <p className="text-[10px] text-cyan-300 font-mono">Foto real selecionada</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShortsCreatorPhoto('')}
-                          className="p-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg cursor-pointer transition-colors"
-                          title="Remover foto"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
+                      </label>
+                    ) : (
+                      <input
+                        type="url"
+                        value={shortsCreatorPhoto}
+                        onChange={(e) => setShortsCreatorPhoto(e.target.value)}
+                        placeholder="https://exemplo.com/foto.png"
+                        className="w-full bg-white border-2 border-slate-200 focus:border-sky-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
+                      />
                     )}
                   </div>
 
-                  {/* Social Networks of Nominee - At least 1 mandatory */}
-                  <div className="p-4 rounded-2xl bg-zinc-950/60 border border-white/5 space-y-3">
-                    <div className="border-b border-white/5 pb-2 flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <label className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                          <Link2 className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Redes Sociais do Indicado *</span>
-                        </label>
-                        <p className="text-[10px] text-gray-400 font-sans">
-                          Você pode preencher as três, mas <strong className="text-cyan-300">pelo menos uma (Instagram, TikTok ou YouTube) é obrigatória!</strong>
-                        </p>
-                      </div>
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
-                        Pelo menos 1 obrigatório
-                      </span>
-                    </div>
-
+                  <div className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-3">
+                    <label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-1.5">
+                      <Link2 className="w-4 h-4 text-sky-700" />
+                      <span>Redes Sociais do Indicado * (Mínimo 1)</span>
+                    </label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {/* Instagram */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-pink-400 uppercase tracking-wider font-mono flex items-center gap-1">
-                          <Instagram className="w-3 h-3 text-pink-400" />
-                          <span>Instagram</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={shortsInstagram}
-                          onChange={(e) => setShortsInstagram(e.target.value)}
-                          placeholder="@usuario ou link"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-pink-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
-                        />
-                      </div>
-
-                      {/* TikTok */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider font-mono flex items-center gap-1">
-                          <Smartphone className="w-3 h-3 text-cyan-400" />
-                          <span>TikTok</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={shortsTikTok}
-                          onChange={(e) => setShortsTikTok(e.target.value)}
-                          placeholder="@usuario ou link"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-cyan-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
-                        />
-                      </div>
-
-                      {/* YouTube */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-red-400 uppercase tracking-wider font-mono flex items-center gap-1">
-                          <Youtube className="w-3 h-3 text-red-400" />
-                          <span>YouTube</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={shortsYouTube}
-                          onChange={(e) => setShortsYouTube(e.target.value)}
-                          placeholder="@canal ou link"
-                          className="w-full bg-black/40 border border-zinc-800 focus:border-red-500 rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none transition-all"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        value={shortsInstagram}
+                        onChange={(e) => setShortsInstagram(e.target.value)}
+                        placeholder="Instagram (@usuario)"
+                        className="w-full bg-white border-2 border-slate-200 focus:border-pink-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={shortsTikTok}
+                        onChange={(e) => setShortsTikTok(e.target.value)}
+                        placeholder="TikTok (@usuario)"
+                        className="w-full bg-white border-2 border-slate-200 focus:border-sky-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={shortsYouTube}
+                        onChange={(e) => setShortsYouTube(e.target.value)}
+                        placeholder="YouTube (@canal)"
+                        className="w-full bg-white border-2 border-slate-200 focus:border-rose-500 rounded-xl p-2.5 text-xs text-slate-900 outline-none"
+                      />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-300 uppercase tracking-wider font-mono">Frase de Efeito ou Título do Short *</label>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Título do Short *</label>
                     <input
                       type="text"
                       required
                       value={shortsTitle}
                       onChange={(e) => setShortsTitle(e.target.value)}
-                      placeholder="Ex: MINHA NOVA ARMADURA DO PK XD SURPRESA! 🤖"
-                      className="w-full bg-black/40 border border-zinc-800 focus:border-cyan-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                      placeholder="Ex: MINHA NOVA ARMADURA DO PK XD!"
+                      className="w-full bg-slate-50 border-2 border-slate-200 focus:border-sky-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                     />
                   </div>
                 </div>
@@ -1550,50 +1394,50 @@ export default function ApplicationsSection({
 
               {activeTab === 'theory' && (
                 <div className="space-y-4">
-                  <div className="border-b border-white/5 pb-2">
-                    <h3 className="font-sans font-black text-base uppercase text-pink-300">
-                      🔮 Enviar Nova Teoria ao Mural do Site
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-display font-bold text-lg text-pink-700">
+                      Enviar Nova Teoria ao Mural
                     </h3>
-                    <p className="text-[11px] text-gray-400 font-sans leading-normal">
-                      Compartilhe suas ideias mais insanas e detalhadas sobre as próximas atualizações, mistérios e segredos do Admin!
+                    <p className="text-xs text-slate-600">
+                      Compartilhe suas teorias sobre as próximas atualizações e mistérios do universo PK XD.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Nome de Autor / Nickname *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Autor / Nickname *</label>
                       <input
                         type="text"
                         required
                         value={theoryAuthor}
                         onChange={(e) => setTheoryAuthor(e.target.value)}
                         placeholder="Seu nome de fã"
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-pink-550 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-pink-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Título da Teoria *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Título da Teoria *</label>
                       <input
                         type="text"
                         required
                         value={theoryTitle}
                         onChange={(e) => setTheoryTitle(e.target.value)}
                         placeholder="Ex: O Retorno Secreto da Nave Alienígena!"
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-pink-550 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-pink-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Sua Teoria Completa *</label>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Sua Teoria Completa *</label>
                     <textarea
                       required
                       rows={5}
                       value={theoryContent}
                       onChange={(e) => setTheoryContent(e.target.value)}
-                      placeholder="Descreva em detalhes a sua teoria aqui..."
-                      className="w-full bg-black/40 border border-zinc-800 focus:border-pink-550 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all resize-none"
+                      placeholder="Descreva em detalhes a sua teoria..."
+                      className="w-full bg-slate-50 border-2 border-slate-200 focus:border-pink-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none resize-none"
                     />
                   </div>
                 </div>
@@ -1601,107 +1445,101 @@ export default function ApplicationsSection({
 
               {activeTab === 'admin' && (
                 <div className="space-y-4">
-                  <div className="border-b border-white/5 pb-2">
-                    <h3 className="font-sans font-black text-base uppercase text-yellow-300">
-                      🔐 Candidatura para Administrador (ADM)
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-display font-bold text-lg text-amber-700">
+                      Candidatura para Administrador (ADM)
                     </h3>
-                    <p className="text-[11px] text-gray-400 font-sans leading-normal">
-                      Faça parte do time PKXD Central! Ajude a registrar spoilers, organizar publicações e moderar nossa vibrante comunidade de fã-clube!
+                    <p className="text-xs text-slate-600">
+                      Faça parte do time PKXD Central para organizar eventos, novidades e moderar a comunidade.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1 col-span-1 md:col-span-2">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Nome Completo / Nickname *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Nome Completo / Nickname *</label>
                       <input
                         type="text"
                         required
                         value={adminName}
                         onChange={(e) => setAdminName(e.target.value)}
                         placeholder="Seu nome"
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-yellow-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-amber-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
 
                     <div className="space-y-1 col-span-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Sua Idade *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Sua Idade *</label>
                       <input
                         type="number"
                         required
                         value={adminAge}
                         onChange={(e) => setAdminAge(e.target.value)}
                         placeholder="Ex: 14"
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-yellow-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-amber-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Contato (Discord, WhatsApp, E-mail) *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Contato (Discord, WhatsApp, E-mail) *</label>
                       <input
                         type="text"
                         required
                         value={adminContact}
                         onChange={(e) => setAdminContact(e.target.value)}
-                        placeholder="Seu ID do Discord ou número do WhatsApp"
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-yellow-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        placeholder="Seu ID do Discord ou WhatsApp"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-amber-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Horas Disponíveis por Semana *</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Horas Disponíveis por Semana *</label>
                       <input
                         type="text"
                         required
                         value={adminHours}
                         onChange={(e) => setAdminHours(e.target.value)}
-                        placeholder="Ex: 5 horas, 10 horas por semana..."
-                        className="w-full bg-black/40 border border-zinc-800 focus:border-yellow-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all"
+                        placeholder="Ex: 10 horas por semana"
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-amber-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Por que você quer ser Admin do PKXD Central? *</label>
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Por que quer ser Admin? *</label>
                     <textarea
                       required
                       rows={4}
                       value={adminReason}
                       onChange={(e) => setAdminReason(e.target.value)}
-                      placeholder="Escreva seus motivos, se você tem experiência prévia moderando outros grupos ou sites, e o que pode acrescentar ao nosso portal..."
-                      className="w-full bg-black/40 border border-zinc-800 focus:border-yellow-500 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none transition-all resize-none"
+                      placeholder="Conte sua experiência e o que gostaria de ajudar..."
+                      className="w-full bg-slate-50 border-2 border-slate-200 focus:border-amber-500 focus:bg-white rounded-xl p-3 text-xs text-slate-900 outline-none resize-none"
                     />
                   </div>
                 </div>
               )}
 
-              {/* Action button */}
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`w-full py-3 px-6 rounded-2xl font-sans font-black text-xs uppercase tracking-wider transition-all duration-150 flex items-center justify-center gap-2 border shadow-lg cursor-pointer ${
-                  isSubmitting 
-                    ? 'bg-zinc-800 text-zinc-500 border-zinc-850 cursor-not-allowed'
-                    : activeTab === 'panel'
-                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-550 border-purple-400/40 text-white'
+                className={`w-full py-3.5 px-6 rounded-2xl font-display font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer ${
+                  isSubmitting
+                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
                     : activeTab === 'shorts'
-                    ? 'bg-gradient-to-r from-cyan-500 to-teal-600 hover:from-cyan-400 hover:to-teal-550 border-cyan-400/40 text-black font-black'
-                    : activeTab === 'theory'
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-650 hover:from-pink-400 hover:to-purple-550 border-pink-400/40 text-white'
-                    : 'bg-gradient-to-r from-yellow-450 to-amber-500 hover:from-yellow-400 hover:to-amber-450 border-yellow-400/40 text-black font-black'
+                    ? 'pkxd-btn-cyan'
+                    : activeTab === 'admin'
+                    ? 'pkxd-btn-gold'
+                    : 'pkxd-btn-primary'
                 }`}
               >
                 <Send className="w-4 h-4" />
-                <span>{isSubmitting ? 'Enviando Dados...' : 'Enviar Inscrição Oficial 🚀'}</span>
+                <span>{isSubmitting ? 'Enviando Dados...' : 'Enviar Inscrição Oficial'}</span>
               </button>
-
             </form>
-
           </div>
         </>
       )}
-
     </div>
   );
 }

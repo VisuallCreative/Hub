@@ -52,18 +52,18 @@ export const OFFICIAL_CREATOR_REQUIREMENTS: CreatorRequirement[] = [
   },
   {
     id: 'views_3months_pkxd',
-    name: 'Visualizações de PK XD (Todas as Views)',
+    name: 'Visualizações de PK XD (Últimos 16 Shorts)',
     metricType: 'views_3months',
     category: 'admission',
     targetValue: 10000,
     unit: 'visualizações',
     isRequired: true,
-    description: 'Ter acumulado ao menos 10.000 visualizações de PK XD (contabiliza todas as visualizações dos vídeos do canal).',
+    description: 'Ter acumulado ao menos 10.000 visualizações somando somente os últimos 16 Shorts publicados no canal.',
     officialSourceUrl: 'https://playpkxd.com',
     lastUpdated: '2025-12-01',
     autoVerifiable: true,
     applicableFormat: 'both',
-    notes: 'Contabiliza todas as visualizações dos vídeos de PK XD acumuladas no canal.'
+    notes: 'Contabiliza exclusivamente a soma de visualizações dos 16 Shorts mais recentes do canal (não inclui vídeos antigos nem o total geral).'
   },
   {
     id: 'monthly_frequency_long',
@@ -306,6 +306,15 @@ export function getStoredRequirements(): CreatorRequirement[] {
                 ...r,
                 targetValue: 10000,
                 description: 'No mínimo 10.000 inscritos para criadores de YouTube Shorts no Tier Rising Star.'
+              };
+            }
+            // Migrate legacy "Todas as Views" requirement to last 16 Shorts rule
+            if (r.id === 'views_3months_pkxd') {
+              return {
+                ...r,
+                name: 'Visualizações de PK XD (Últimos 16 Shorts)',
+                description: 'Ter acumulado ao menos 10.000 visualizações somando somente os últimos 16 Shorts publicados no canal.',
+                notes: 'Contabiliza exclusivamente a soma de visualizações dos 16 Shorts mais recentes do canal (não inclui vídeos antigos nem o total geral).'
               };
             }
             return r;

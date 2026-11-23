@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { INITIAL_NEWS } from './components/initialNews';
-import { NewsItem, FeaturedVideo, Theory, ShortItem, PastSpoiler, AppNotification } from './types';
+import { NewsItem, FeaturedVideo, Theory, ShortItem, PastSpoiler, AppNotification, ServerXPProfile } from './types';
 import { loadFromCache, saveToCache } from './utils/cache';
+import { getPersistentUserKey, fetchServerXPProfile, awardServerXP, saveServerIdentity } from './utils/xpClient';
 import CountdownWidget from './components/CountdownWidget';
-import GiftCountdown from './components/GiftCountdown';
-import WhatsAppPromo from './components/WhatsAppPromo';
-import PartnerChannelPromo from './components/PartnerChannelPromo';
 import AdminPanel from './components/AdminPanel';
-import UpcomingStreamsSection from './components/UpcomingStreamsSection';
-import FeaturedVideos from './components/FeaturedVideos';
+import AdminEcosystemPanel from './components/AdminEcosystemPanel';
 import TheoriesSection from './components/TheoriesSection';
-import BestShorts from './components/BestShorts';
 import FanLevelSection from './components/FanLevelSection';
-import PastSpoilersSection from './components/PastSpoilersSection';
 import ApplicationsSection from './components/ApplicationsSection';
-import CreatorProgressAnalyzer from './components/CreatorProgressAnalyzer';
 import SocialSection from './components/SocialSection';
 import MissionsSection from './components/MissionsSection';
 import ArtesSection from './components/ArtesSection';
 import PollsSection from './components/PollsSection';
 import EventsSection from './components/EventsSection';
 import PassportSection from './components/PassportSection';
+import Navbar2, { NavRouteKey } from './components/Navbar2';
+import PKXDHomeView from './components/PKXDHomeView';
+import NewsSectionView from './components/NewsSectionView';
+import NotificationsPageView from './components/NotificationsPageView';
+import UserProfileView from './components/UserProfileView';
 import PWAInstaller from './components/PWAInstaller';
+import CreatorsHubView from './components/CreatorsHubView';
+import CommunityFeedbackSection from './components/CommunityFeedbackSection';
 import AuthModal, { AuthMode } from './components/AuthModal';
 import CookieBanner from './components/privacy/CookieBanner';
 import CookiePreferencesModal from './components/privacy/CookiePreferencesModal';
@@ -29,55 +30,31 @@ import UserDataRequestModal from './components/privacy/UserDataRequestModal';
 import PrivacyPolicyView from './components/privacy/PrivacyPolicyView';
 import TermsOfUseView from './components/privacy/TermsOfUseView';
 import PrivacyCenterView from './components/privacy/PrivacyCenterView';
-import WelcomeGuideCard from './components/WelcomeGuideCard';
 import { DataRequestType } from './types/privacy';
-import { 
-  Sparkles, 
-  Settings, 
-  MessageCircle, 
-  ExternalLink, 
-  Gamepad2, 
-  Volume2, 
-  VolumeX, 
-  Star, 
-  Info, 
-  Trophy, 
+import {
+  Sparkles,
+  Settings,
+  Volume2,
+  VolumeX,
   Users,
   BellRing,
   Lock,
   LogOut,
-  Flame,
-  Award,
-  Compass,
-  Menu,
-  ChevronRight,
   AlertTriangle,
   Trash2,
   ThumbsUp,
   ThumbsDown,
-  Mail,
   ShieldCheck,
-  Home,
   Calendar,
   Target,
   Palette,
-  Zap,
-  Globe,
-  Key,
-  KeyRound,
-  Bell,
-  Clock,
-  Video,
-  TrendingUp,
-  CheckCircle2,
-  FileText,
-  Radio,
-  Check,
-  X
+  MessageSquarePlus,
+  ExternalLink,
+  X,
+  ArrowLeft,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { playTapSound, playLevelUpSound, playSuccessSound } from './utils/audio';
-import { motion, AnimatePresence } from 'motion/react';
 
 // Import Firebase config & helpers
 import { auth, db, googleProvider, OperationType, handleFirestoreError } from './firebase';
@@ -112,9 +89,9 @@ export default function App() {
 
   const [spoilerTitle, setSpoilerTitle] = useState(() => {
     try {
-      return localStorage.getItem('pkxd_spoiler_title') || 'Aguardando Próximos Spoilers! 🔮';
+      return localStorage.getItem('pkxd_spoiler_title') || 'Aguardando Próximos Spoilers!';
     } catch (e) {
-      return 'Aguardando Próximos Spoilers! 🔮';
+      return 'Aguardando Próximos Spoilers!';
     }
   });
 
@@ -182,12 +159,12 @@ export default function App() {
   });
 
   // State for alternative/extra countdown timer
-  const [extraCountdownTitle, setExtraCountdownTitle] = useState('Spoiler Surpresa! 🔥');
+  const [extraCountdownTitle, setExtraCountdownTitle] = useState('Spoiler Surpresa!');
   const [extraCountdownDate, setExtraCountdownDate] = useState('');
   const [extraCountdownEnabled, setExtraCountdownEnabled] = useState(false);
 
   // State for gift countdown release timer
-  const [giftCountdownTitle, setGiftCountdownTitle] = useState('🎁 PRESENTE SURPRESA!');
+  const [giftCountdownTitle, setGiftCountdownTitle] = useState('PRESENTE SURPRESA!');
   const [giftCountdownDate, setGiftCountdownDate] = useState('');
   const [giftCountdownEnabled, setGiftCountdownEnabled] = useState(false);
   const [giftCountdownContent, setGiftCountdownContent] = useState('');
@@ -213,7 +190,8 @@ export default function App() {
     } catch (e) {}
     return false;
   });
-  const [activeTab, setActiveTab] = useState<'inicio' | 'eventos' | 'comunidade' | 'missoes' | 'artes'>('inicio');
+  const [activeTab, setActiveTab] = useState<'inicio' | 'eventos' | 'criadores' | 'comunidade' | 'passaporte' | 'missoes' | 'artes'>('inicio');
+  const [communitySubTab, setCommunitySubTab] = useState<'mural' | 'pkxd-id' | 'missoes' | 'artes' | 'ouvidoria'>('mural');
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(() => {
     try {
       return localStorage.getItem('pkxd_welcome_guide_dismissed') !== 'true';
@@ -326,6 +304,38 @@ export default function App() {
     return 0;
   });
 
+  const [xpProfile, setXpProfile] = useState<ServerXPProfile | null>(null);
+  const [showInstallAppModal, setShowInstallAppModal] = useState(false);
+  const [autoOpenEventCreate, setAutoOpenEventCreate] = useState(false);
+
+  // Sync server-validated XP profile on mount & user auth change
+  useEffect(() => {
+    let active = true;
+    const userKey = getPersistentUserKey(user);
+    fetchServerXPProfile(userKey).then((profile) => {
+      if (!active || !profile) return;
+      setXpProfile(profile);
+      if (profile.totalXp > 0) {
+        const levelXp = profile.totalXp % 100;
+        setFanLevel(profile.level);
+        setFanXP(levelXp);
+        try {
+          localStorage.setItem('pkxd_fan_level', String(profile.level));
+          localStorage.setItem('pkxd_fan_xp', String(levelXp));
+        } catch {}
+      }
+      if (profile.playerTag && isTagConfigured(profile.playerTag)) {
+        setCurrentPlayerTag(profile.playerTag);
+        try {
+          localStorage.setItem('pkxd_player_tag', profile.playerTag);
+        } catch {}
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
   // Simple robust state-based path router supporting browser navigation and deep linking (pathname + hash + search fallback)
   const [showCreatorAnalyzer, setShowCreatorAnalyzer] = useState(false);
   const [currentPath, setCurrentPath] = useState(() => {
@@ -348,68 +358,108 @@ export default function App() {
       const pLower = path.toLowerCase();
 
       if (isGitHubPages) {
-        // On GitHub Pages, preserve the repository prefix subdirectory
         const segments = window.location.pathname.split('/');
-        const base = segments[1]; // E.g., repo name
-        const specialRoutes = ['admin', 'inscricoes', 'progresso-creator', 'progresso', 'creator', 'artes', 'eventos', 'passaporte', 'pkxd-id', 'comunidade', 'missoes', 'login', 'createaccount', 'register', 'resetpassword', 'recuperarsenha', 'privacidade', 'termos-de-uso', 'termos', 'direitos', 'privacidade-e-direitos'];
+        const base = segments[1];
+        const specialRoutes = ['admin', 'inscricoes', 'criadores', 'progresso-creator', 'progresso', 'creator', 'artes', 'eventos', 'minha-agenda', 'criar-evento', 'noticias', 'notificacoes', 'perfil', 'passaporte', 'pkxd-id', 'comunidade', 'missoes', 'login', 'createaccount', 'register', 'resetpassword', 'recuperarsenha', 'privacidade', 'termos-de-uso', 'termos', 'direitos', 'privacidade-e-direitos'];
         const baseIsSpecial = base && specialRoutes.some(r => base.toLowerCase() === r);
+        const prefix = baseIsSpecial || !base ? '' : `/${base}`;
 
         if (pLower.includes('cookies')) {
           setIsCookiePreferencesOpen(true);
           return;
         } else if (pLower.includes('admin')) {
-          targetPath = baseIsSpecial ? `/admin/${hashSuffix}` : (base ? `/${base}/admin/${hashSuffix}` : `/admin/${hashSuffix}`);
+          targetPath = `${prefix}/admin/${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('notificacoes') || pLower.includes('notificações')) {
+          targetPath = `${prefix}/notificacoes/${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('perfil')) {
+          targetPath = `${prefix}/perfil/${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('minha-agenda')) {
+          targetPath = `${prefix}/minha-agenda/${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('criar-evento')) {
+          targetPath = `${prefix}/criar-evento/${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('/noticias/')) {
+          const articlePart = path.replace(/^.*\/noticias\//i, '').split('#')[0].replace(/\/$/, '');
+          targetPath = `${prefix}/noticias/${articlePart}${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('noticias') || pLower.includes('notícias')) {
+          targetPath = `${prefix}/noticias/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('direitos') || pLower.includes('privacidade-e-direitos')) {
-          targetPath = baseIsSpecial ? `/privacidade-e-direitos/${hashSuffix}` : (base ? `/${base}/privacidade-e-direitos/${hashSuffix}` : `/privacidade-e-direitos/${hashSuffix}`);
+          targetPath = `${prefix}/privacidade-e-direitos/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('privacidade') || pLower.includes('politica')) {
-          targetPath = baseIsSpecial ? `/privacidade/${hashSuffix}` : (base ? `/${base}/privacidade/${hashSuffix}` : `/privacidade/${hashSuffix}`);
+          targetPath = `${prefix}/privacidade/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('termos')) {
-          targetPath = baseIsSpecial ? `/termos-de-uso/${hashSuffix}` : (base ? `/${base}/termos-de-uso/${hashSuffix}` : `/termos-de-uso/${hashSuffix}`);
+          targetPath = `${prefix}/termos-de-uso/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('inscric')) {
-          targetPath = baseIsSpecial ? `/inscricoes/${hashSuffix}` : (base ? `/${base}/inscricoes/${hashSuffix}` : `/inscricoes/${hashSuffix}`);
+          targetPath = `${prefix}/inscricoes/${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('criadores')) {
+          targetPath = `${prefix}/criadores/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('progresso') || pLower.includes('creator') || pLower.includes('analyzer')) {
-          targetPath = baseIsSpecial ? `/progresso-creator/${hashSuffix}` : (base ? `/${base}/progresso-creator/${hashSuffix}` : `/progresso-creator/${hashSuffix}`);
+          targetPath = `${prefix}/progresso-creator/${hashSuffix}`;
           setShowCreatorAnalyzer(true);
         } else if (pLower.includes('createaccount') || pLower.includes('create-account') || pLower.includes('cadastro') || pLower.includes('register') || pLower.includes('criar-conta')) {
-          targetPath = baseIsSpecial ? `/createaccount/${hashSuffix}` : (base ? `/${base}/createaccount/${hashSuffix}` : `/createaccount/${hashSuffix}`);
+          targetPath = `${prefix}/createaccount/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('resetpassword') || pLower.includes('reset-password') || pLower.includes('esquecisenha') || pLower.includes('recuperarsenha') || pLower.includes('esqueci-senha')) {
-          targetPath = baseIsSpecial ? `/resetpassword/${hashSuffix}` : (base ? `/${base}/resetpassword/${hashSuffix}` : `/resetpassword/${hashSuffix}`);
+          targetPath = `${prefix}/resetpassword/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('login') || pLower.includes('entrar')) {
-          targetPath = baseIsSpecial ? `/login/${hashSuffix}` : (base ? `/${base}/login/${hashSuffix}` : `/login/${hashSuffix}`);
+          targetPath = `${prefix}/login/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('passaporte') || pLower.includes('pkxd-id') || pLower.includes('pkxdid')) {
-          targetPath = baseIsSpecial ? `/pkxd-id/${hashSuffix}` : (base ? `/${base}/pkxd-id/${hashSuffix}` : `/pkxd-id/${hashSuffix}`);
+          targetPath = `${prefix}/pkxd-id/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('artes')) {
-          targetPath = baseIsSpecial ? `/artes/${hashSuffix}` : (base ? `/${base}/artes/${hashSuffix}` : `/artes/${hashSuffix}`);
+          targetPath = `${prefix}/artes/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('evento')) {
-          targetPath = baseIsSpecial ? `/eventos/${hashSuffix}` : (base ? `/${base}/eventos/${hashSuffix}` : `/eventos/${hashSuffix}`);
+          targetPath = `${prefix}/eventos/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('comunidade')) {
-          targetPath = baseIsSpecial ? `/comunidade/${hashSuffix}` : (base ? `/${base}/comunidade/${hashSuffix}` : `/comunidade/${hashSuffix}`);
+          targetPath = `${prefix}/comunidade/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('missoes')) {
-          targetPath = baseIsSpecial ? `/missoes/${hashSuffix}` : (base ? `/${base}/missoes/${hashSuffix}` : `/missoes/${hashSuffix}`);
+          targetPath = `${prefix}/missoes/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else {
-          targetPath = baseIsSpecial ? `/${hashSuffix}` : (base ? `/${base}/${hashSuffix}` : `/${hashSuffix}`);
+          targetPath = `${prefix}/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         }
       } else {
-        // Standard environments
         if (pLower.includes('cookies')) {
           setIsCookiePreferencesOpen(true);
           return;
         } else if (pLower.includes('admin')) {
           targetPath = `/admin${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('notificacoes') || pLower.includes('notificações')) {
+          targetPath = `/notificacoes${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('perfil')) {
+          targetPath = `/perfil${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('minha-agenda')) {
+          targetPath = `/minha-agenda${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('criar-evento')) {
+          targetPath = `/criar-evento${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('/noticias/')) {
+          const articlePart = path.replace(/^.*\/noticias\//i, '').split('#')[0].replace(/\/$/, '');
+          targetPath = `/noticias/${articlePart}${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('noticias') || pLower.includes('notícias')) {
+          targetPath = `/noticias${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('direitos') || pLower.includes('privacidade-e-direitos')) {
           targetPath = `/privacidade-e-direitos${hashSuffix}`;
@@ -422,6 +472,9 @@ export default function App() {
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('inscric')) {
           targetPath = `/inscricoes${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('criadores')) {
+          targetPath = `/criadores${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('progresso') || pLower.includes('creator') || pLower.includes('analyzer')) {
           targetPath = `/progresso-creator${hashSuffix}`;
@@ -516,7 +569,7 @@ export default function App() {
         const combined = `${p} ${h} ${s}`;
         setCurrentPath(combined);
         const cLower = combined.toLowerCase();
-        if (cLower.includes('progresso') || cLower.includes('creator') || cLower.includes('analyzer')) {
+        if (!cLower.includes('criadores') && (cLower.includes('progresso') || cLower.includes('creator') || cLower.includes('analyzer'))) {
           setShowCreatorAnalyzer(true);
         } else {
           setShowCreatorAnalyzer(false);
@@ -525,7 +578,7 @@ export default function App() {
         const combined = `${window.location.pathname} ${window.location.hash} ${window.location.search}`;
         setCurrentPath(combined);
         const cLower = combined.toLowerCase();
-        if (cLower.includes('progresso') || cLower.includes('creator') || cLower.includes('analyzer')) {
+        if (!cLower.includes('criadores') && (cLower.includes('progresso') || cLower.includes('creator') || cLower.includes('analyzer'))) {
           setShowCreatorAnalyzer(true);
         } else {
           setShowCreatorAnalyzer(false);
@@ -536,7 +589,7 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Sync currentPath with activeTab
+  // Sync currentPath with activeTab & communitySubTab
   useEffect(() => {
     document.documentElement.lang = 'pt-BR';
     document.documentElement.classList.add('notranslate');
@@ -547,15 +600,25 @@ export default function App() {
 
     if (pLower.includes('artes')) {
       setActiveTab('artes');
+      setCommunitySubTab('artes');
     } else if (pLower.includes('evento')) {
       setActiveTab('eventos');
+    } else if (pLower.includes('criadores') || pLower.includes('progresso') || pLower.includes('creator') || pLower.includes('analyzer')) {
+      setActiveTab('criadores');
     } else if (hasIdParam || pLower.includes('passaporte') || pLower.includes('pkxd-id') || pLower.includes('pkxdid') || pLower.includes('/id')) {
       setActiveTab('passaporte');
-    } else if (pLower.includes('comunidade') || pLower.includes('mural')) {
+      setCommunitySubTab('pkxd-id');
+    } else if (pLower.includes('comunidade') || pLower.includes('mural') || pLower.includes('ouvidoria') || pLower.includes('feedback') || pLower.includes('denuncias')) {
       setActiveTab('comunidade');
+      if (pLower.includes('ouvidoria') || pLower.includes('feedback') || pLower.includes('denuncias')) {
+        setCommunitySubTab('ouvidoria');
+      } else {
+        setCommunitySubTab('mural');
+      }
     } else if (pLower.includes('missoes') || pLower.includes('missao')) {
       setActiveTab('missoes');
-    } else if (!pLower.includes('admin') && !pLower.includes('inscric') && !pLower.includes('progresso') && !pLower.includes('creator') && !pLower.includes('analyzer') && !showCreatorAnalyzer) {
+      setCommunitySubTab('missoes');
+    } else if (!pLower.includes('admin') && !pLower.includes('inscric') && !showCreatorAnalyzer) {
       setActiveTab('inicio');
     }
   }, [currentPath, showCreatorAnalyzer]);
@@ -620,13 +683,25 @@ export default function App() {
 
   // Dynamic scroll position state to make alert notifications scroll position responsive!
   const [scrollY, setScrollY] = useState(0);
+  const isMyAgendaRoute = currentPath.toLowerCase().includes('minha-agenda');
+  const isCreateEventRoute = currentPath.toLowerCase().includes('criar-evento');
+  const isNewsRoute = currentPath.toLowerCase().includes('/noticias');
+  const isNotificationsRoute = currentPath.toLowerCase().includes('/notificacoes') || currentPath.toLowerCase().includes('/notificações');
+  const isProfileRoute = currentPath.toLowerCase().includes('/perfil');
+
+  const newsArticleMatch = currentPath.match(/\/noticias\/([^/\s#?]+)/i);
+  const selectedNewsArticleId = newsArticleMatch ? newsArticleMatch[1] : null;
+
   const isApplicationsRoute = currentPath.toLowerCase().includes('inscric') || 
                                currentPath.toLowerCase().includes('inscriç') || 
                                currentPath.toLowerCase().includes('inscricao');
-  const isCreatorProgressRoute = showCreatorAnalyzer ||
+  const isCreatorsDirRoute = currentPath.toLowerCase().includes('criadores');
+  const isCreatorProgressRoute = !isCreatorsDirRoute && (
+                                 showCreatorAnalyzer ||
                                  currentPath.toLowerCase().includes('progresso') ||
                                  currentPath.toLowerCase().includes('creator') ||
-                                 currentPath.toLowerCase().includes('analyzer');
+                                 currentPath.toLowerCase().includes('analyzer'));
+  const isCreatorsSectionRoute = isCreatorsDirRoute || isCreatorProgressRoute;
   const isPrivacyCenterRoute = currentPath.toLowerCase().includes('direitos') || 
                                currentPath.toLowerCase().includes('privacidade-e-direitos') || 
                                currentPath.toLowerCase().includes('privacidade-central');
@@ -640,6 +715,16 @@ export default function App() {
     try {
       if (isAdminRoute) {
         document.title = "PKXD Central - Painel Admin";
+      } else if (isNewsRoute) {
+        document.title = "PKXD Central - Notícias PK XD";
+      } else if (isNotificationsRoute) {
+        document.title = "PKXD Central - Notificações";
+      } else if (isProfileRoute) {
+        document.title = "PKXD Central - Meu Perfil & XP";
+      } else if (isMyAgendaRoute) {
+        document.title = "PKXD Central - Minha Agenda PKXD";
+      } else if (isCreateEventRoute) {
+        document.title = "PKXD Central - Criar Novo Evento";
       } else if (isCreatorProgressRoute) {
         document.title = "PKXD Central - Creator Progress Analyzer";
       } else if (isApplicationsRoute) {
@@ -656,7 +741,7 @@ export default function App() {
     } catch (e) {
       console.warn(e);
     }
-  }, [isAdminRoute, isApplicationsRoute, isCreatorProgressRoute, isPrivacyCenterRoute, isPrivacyPolicyRoute, isTermsRoute]);
+  }, [isAdminRoute, isNewsRoute, isNotificationsRoute, isProfileRoute, isMyAgendaRoute, isCreateEventRoute, isApplicationsRoute, isCreatorProgressRoute, isPrivacyCenterRoute, isPrivacyPolicyRoute, isTermsRoute]);
   useEffect(() => {
     const handleScroll = () => {
       setScrollY(window.scrollY);
@@ -920,9 +1005,9 @@ export default function App() {
               localStorage.setItem('pkxd_gmail_token', credential.accessToken);
               localStorage.removeItem('pending_gmail_connect');
             } catch (e) {}
-            setNotifMessage(`🔌 Gmail do Admin conectado com sucesso via redirecionamento! 🎉`);
+            setNotifMessage(`Gmail do Admin conectado com sucesso via redirecionamento!`);
           } else {
-            setNotifMessage(`Bem-vindo, ${result.user.displayName || 'Admin'}! 🎉`);
+            setNotifMessage(`Bem-vindo, ${result.user.displayName || 'Admin'}!`);
           }
           
           setTimeout(() => setNotifMessage(null), 4000);
@@ -1016,7 +1101,7 @@ export default function App() {
   useEffect(() => {
     const settingsRef = doc(db, 'settings', 'app');
     const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
-      const defaultTitle = 'Aguardando Próximos Spoilers! 🔮';
+      const defaultTitle = 'Aguardando Próximos Spoilers!';
       const defaultDesc = 'Ainda não temos spoilers ativos para esta semana. Fique atento ao nosso canal no WhatsApp para novidades e acompanhe a contagem regressiva toda segunda às 17h30!';
 
       if (snapshot.exists()) {
@@ -1109,7 +1194,7 @@ export default function App() {
         setExtraCountdownEnabled(false);
         setIsDelayed(false);
         setDelayMessage('');
-        setGiftCountdownTitle('🎁 PRESENTE SURPRESA!');
+        setGiftCountdownTitle('PRESENTE SURPRESA!');
         setGiftCountdownDate('');
         setGiftCountdownEnabled(false);
         setGiftCountdownContent('');
@@ -1382,7 +1467,7 @@ export default function App() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       triggerAudio('success');
-      setNotifMessage(`Bem-vindo, ${result.user.displayName || 'Admin'}! 🎉`);
+      setNotifMessage(`Bem-vindo, ${result.user.displayName || 'Admin'}!`);
       setTimeout(() => setNotifMessage(null), 4000);
     } catch (error: any) {
       console.error("Login failed:", error);
@@ -1430,7 +1515,7 @@ export default function App() {
     try {
       const result = await signInWithEmailAndPassword(auth, email.trim(), pass);
       triggerAudio('success');
-      setNotifMessage(`Bem-vindo de volta! 🎉`);
+      setNotifMessage(`Bem-vindo de volta!`);
       setTimeout(() => setNotifMessage(null), 4000);
     } catch (error: any) {
       console.error("Email login failed:", error);
@@ -1519,7 +1604,7 @@ export default function App() {
       setPendingEmailVerification(null);
       setVerificationCodeInput('');
       triggerAudio('levelUp');
-      setNotifMessage(`🎉 E-mail verificado! Conta criada com sucesso com sua Tag PK XD ${fullTag}! 🚀`);
+      setNotifMessage(`E-mail verificado! Conta criada com sucesso com sua Tag PK XD ${fullTag}!`);
       setTimeout(() => setNotifMessage(null), 5000);
     } catch (error: any) {
       console.error("Email register failed:", error);
@@ -1555,6 +1640,29 @@ export default function App() {
       return;
     }
 
+    const res = await saveIdentityCore(cleanName, cleanNumber);
+    if (!res.ok) {
+      setTagSetupError(res.error || 'Erro ao salvar sua tag.');
+      return;
+    }
+
+    setShowTagSetupModal(false);
+    setTagBannerDismissed(true);
+    try {
+      sessionStorage.setItem('pkxd_tag_banner_dismissed', 'true');
+    } catch (e) {}
+  };
+
+  const saveIdentityCore = async (rawName: string, rawNumber: string): Promise<{ ok: boolean; error?: string }> => {
+    const cleanName = rawName.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    const cleanNumber = rawNumber.trim().replace(/[^0-9]/g, '');
+    if (cleanName.length < 2) {
+      return { ok: false, error: 'Informe seu Nome no PK XD (mínimo 2 caracteres).' };
+    }
+    if (cleanNumber.length < 1) {
+      return { ok: false, error: 'Informe o número da sua # (ex: 245).' };
+    }
+
     const fullTag = `${cleanName}#${cleanNumber}`;
     try {
       localStorage.setItem('pkxd_player_tag', fullTag);
@@ -1563,7 +1671,6 @@ export default function App() {
       localStorage.setItem('pkxd_username_nickname', fullTag);
       setCurrentPlayerTag(fullTag);
 
-      // Update local passport data
       const pRaw = localStorage.getItem('pkxd_passport_data');
       if (pRaw) {
         try {
@@ -1572,10 +1679,9 @@ export default function App() {
           p.nickname = cleanName;
           p.updatedAt = Date.now();
           localStorage.setItem('pkxd_passport_data', JSON.stringify(p));
-        } catch (err) {}
+        } catch {}
       }
 
-      // Sync to firestore if user is logged in
       if (db && user?.uid && user.uid !== 'guest_user') {
         const cleanKey = encodeURIComponent(fullTag.trim().toLowerCase().replace(/[.#$/[\]]/g, '_'));
         setDoc(doc(db, 'pkxd_passports', user.uid), {
@@ -1593,17 +1699,34 @@ export default function App() {
       console.warn('Erro ao salvar tag:', err);
     }
 
-    handleAddFanXP(25, 'Cadastrou Nome e # do PK XD');
-    setShowTagSetupModal(false);
-    setTagBannerDismissed(true);
-    try {
-      sessionStorage.setItem('pkxd_tag_banner_dismissed', 'true');
-    } catch (e) {}
+    // Server-validated identity save + one-time +25 XP reward
+    const userKey = getPersistentUserKey(user);
+    const serverRes = await saveServerIdentity({
+      userKey,
+      pkxdName: cleanName,
+      pkxdNumber: cleanNumber,
+      displayName: user?.displayName || cleanName,
+    });
+    if (serverRes.success && serverRes.profile) {
+      const levelXp = serverRes.profile.totalXp % 100;
+      setXpProfile(serverRes.profile);
+      setFanLevel(serverRes.profile.level);
+      setFanXP(levelXp);
+      try {
+        localStorage.setItem('pkxd_fan_level', String(serverRes.profile.level));
+        localStorage.setItem('pkxd_fan_xp', String(levelXp));
+      } catch {}
+    }
 
     triggerAudio('levelUp');
-    confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-    setNotifMessage(`🎉 Tag do PK XD vinculada com sucesso: ${fullTag}! (+25 XP) Suas festas agora terão preenchimento automático! 🚀`);
-    setTimeout(() => setNotifMessage(null), 7000);
+    if (serverRes.xpAwarded && serverRes.xpAwarded > 0) {
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+      setNotifMessage(`Identidade PK XD salva: ${fullTag}! (+25 XP GRÁTIS) Preenchimento automático ativado!`);
+    } else {
+      setNotifMessage(`Identidade PK XD atualizada para ${fullTag}!`);
+    }
+    setTimeout(() => setNotifMessage(null), 6500);
+    return { ok: true };
   };
 
   const handleEmailRegister = async (email: string, pass: string, nickname: string) => {
@@ -1624,7 +1747,7 @@ export default function App() {
         displayName: 'Kawanyuri (Admin)',
       } as any);
       triggerAudio('success');
-      setNotifMessage("Senha de Admin correta! Acesso liberado! 🎉");
+      setNotifMessage("Senha de Admin correta! Acesso liberado!");
       setInputPasscode('');
       setPasscodeError('');
       setUseBackupPasscode(false);
@@ -2410,9 +2533,41 @@ export default function App() {
     setTimeout(() => setNotifMessage(null), 4000);
   };
 
-  const handleAddFanXP = (amount: number, reason: string) => {
+  const handleAddFanXP = (amount: number, reason: string, rewardKey?: string) => {
+    const userKey = getPersistentUserKey(user);
+
+    // If this is a server-guarded one-time reward, validate strictly with backend first
+    if (rewardKey) {
+      awardServerXP({
+        userKey,
+        amount,
+        reason,
+        rewardKey,
+        displayName: user?.displayName || currentPlayerTag || undefined,
+        playerTag: currentPlayerTag || undefined,
+      }).then((res) => {
+        if (res.alreadyClaimed || !res.awarded) {
+          return;
+        }
+        if (res.profile) {
+          const levelXp = res.profile.totalXp % 100;
+          setXpProfile(res.profile);
+          setFanLevel(res.profile.level);
+          setFanXP(levelXp);
+          try {
+            localStorage.setItem('pkxd_fan_level', String(res.profile.level));
+            localStorage.setItem('pkxd_fan_xp', String(levelXp));
+          } catch {}
+        }
+        triggerAudio('levelUp');
+        setNotifMessage(`+${res.awardedAmount || amount} XP ganho: ${reason}!`);
+        setTimeout(() => setNotifMessage(null), 4500);
+      });
+      return;
+    }
+
     let nextXp = fanXP + amount;
-    setNotifMessage(`+${amount} XP ganho: ${reason}! ⚡`);
+    setNotifMessage(`+${amount} XP ganho: ${reason}!`);
     setTimeout(() => setNotifMessage(null), 4000);
 
     let levelsGained = 0;
@@ -2426,7 +2581,7 @@ export default function App() {
       setFanLevel(finalLevel);
       localStorage.setItem('pkxd_fan_level', finalLevel.toString());
       triggerAudio('levelUp');
-      setNotifMessage(`LEVEL UP x${levelsGained}! Você subiu para o Nível de Fã ${finalLevel}! 🌟`);
+      setNotifMessage(`LEVEL UP x${levelsGained}! Você subiu para o Nível de Fã ${finalLevel}!`);
       setTimeout(() => setNotifMessage(null), 4000);
     } else {
       triggerAudio('success');
@@ -2434,7 +2589,19 @@ export default function App() {
     setFanXP(nextXp);
     localStorage.setItem('pkxd_fan_xp', nextXp.toString());
 
-    // Also synchronize pkxd_passport_data in local storage
+    // Persist in server XP ledger asynchronously
+    awardServerXP({
+      userKey,
+      amount,
+      reason,
+      displayName: user?.displayName || currentPlayerTag || undefined,
+      playerTag: currentPlayerTag || undefined,
+    }).then((res) => {
+      if (res.profile) {
+        setXpProfile(res.profile);
+      }
+    }).catch(() => {});
+
     try {
       const pRaw = localStorage.getItem('pkxd_passport_data');
       if (pRaw) {
@@ -2502,61 +2669,177 @@ export default function App() {
   const unreadNotifications = notificationList.filter(n => !seenNotifIds.includes(n.id));
   const unreadCount = unreadNotifications.length;
 
-  return (
-    <div id="pkxd-app-root" className="theme-dark min-h-screen bg-[#0B0817] text-[#F8F7FF] font-sans selection:bg-[#F5C542] selection:text-[#0B0817] pb-16 relative overflow-x-hidden">
-      
-      {/* Upper Micro banner for System Alerts/Gamer Levels */}
-      <div className="bg-[#15102A] py-2 px-4 text-center text-[#F8F7FF] text-xs font-bold leading-tight flex flex-wrap items-center justify-center gap-3 relative z-30 select-none border-b border-[#7C3AED]/40">
-        <span className="flex items-center gap-2">
-          <Trophy className="w-4 h-4 text-[#F5C542] fill-[#F5C542]" />
-          <span className="text-[#B8B2CC]">Nível de Explorador:</span>
-          <strong className="text-[#F8F7FF] font-black">Fã Lvl {fanLevel}</strong>
-          <span className="text-[#C4B5FD] px-2 py-0.5 rounded-full bg-[#251B46] font-mono text-[10px] font-bold border border-[#7C3AED]/30">
-            {fanXP}% XP
-          </span>
-        </span>
-        <span className="text-[#716A83] font-mono hidden md:inline">•</span>
-        <span className="hidden md:inline text-[11px] font-medium text-[#B8B2CC]">
-          Notícias atualizadas em tempo real para fãs do PK XD
-        </span>
-      </div>
+  const totalXpDisplay = xpProfile?.totalXp ?? ((fanLevel - 1) * 100 + fanXP);
 
-      {/* Floating interactive alerts display (Positioned cleanly at bottom without scroll-dependent jumping bugs!) */}
+  const activeNavKey: NavRouteKey = isAdminRoute
+    ? 'admin'
+    : isNewsRoute
+    ? 'noticias'
+    : isNotificationsRoute
+    ? 'notificacoes'
+    : isProfileRoute
+    ? 'perfil'
+    : isMyAgendaRoute
+    ? 'minha-agenda'
+    : isCreateEventRoute
+    ? 'criar-evento'
+    : isCreatorProgressRoute
+    ? 'progresso-creator'
+    : isCreatorsSectionRoute
+    ? 'criadores'
+    : isApplicationsRoute
+    ? 'oportunidades'
+    : activeTab === 'eventos'
+    ? 'eventos'
+    : activeTab === 'passaporte'
+    ? 'pkxd-id'
+    : activeTab === 'artes'
+    ? 'artes'
+    : activeTab === 'comunidade' || activeTab === 'missoes'
+    ? 'comunidade'
+    : 'inicio';
+
+  const isCommunityViewActive =
+    !isAdminRoute &&
+    !isNewsRoute &&
+    !isNotificationsRoute &&
+    !isProfileRoute &&
+    !isMyAgendaRoute &&
+    !isCreateEventRoute &&
+    !isCreatorsSectionRoute &&
+    !isApplicationsRoute &&
+    !isPrivacyCenterRoute &&
+    !isPrivacyPolicyRoute &&
+    !isTermsRoute &&
+    (activeTab === 'comunidade' ||
+      activeTab === 'passaporte' ||
+      activeTab === 'missoes' ||
+      activeTab === 'artes');
+
+  const markNotificationRead = (id: string) => {
+    setSeenNotifIds((prev) => {
+      const unique = Array.from(new Set([...prev, id]));
+      try {
+        localStorage.setItem('seen_notification_ids', JSON.stringify(unique));
+      } catch {}
+      return unique;
+    });
+  };
+
+  const markAllNotificationsRead = () => {
+    const allIds = notificationList.map((n) => n.id);
+    setSeenNotifIds((prev) => {
+      const unique = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem('seen_notification_ids', JSON.stringify(unique));
+      } catch {}
+      return unique;
+    });
+  };
+
+  const handleEnableBrowserPush = async () => {
+    if (!('Notification' in window)) {
+      setNotifMessage('Este navegador não suporta notificações de sistema.');
+      setTimeout(() => setNotifMessage(null), 5000);
+      return;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      setHasNotificationPermission(perm === 'granted');
+      if (perm === 'granted') {
+        triggerAudio('success');
+        setTimeout(() => subscribeUserToPush(), 200);
+        setNotifMessage('Notificações push ativadas com sucesso!');
+        setTimeout(() => setNotifMessage(null), 4000);
+      }
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  const openTagSetupFlow = () => {
+    triggerAudio('tap');
+    if (isTagConfigured(currentPlayerTag)) {
+      const [n, num] = currentPlayerTag.split('#');
+      setTagSetupName(n || '');
+      setTagSetupNumber(num || '');
+    } else {
+      setTagSetupName(modalPkxdName || '');
+      setTagSetupNumber(modalPkxdNumber || '');
+    }
+    setTagSetupError('');
+    setShowTagSetupModal(true);
+  };
+
+  return (
+    <div id="pkxd-app-root" className="min-h-screen pkxd-band-purple text-white font-sans selection:bg-[#F9C826] selection:text-[#120624] relative overflow-x-hidden flex flex-col">
+      {/* Main Top Navigation + Mobile Bottom Tab Bar */}
+      <Navbar2
+        activeRoute={activeNavKey}
+        siteLogoUrl={siteLogoUrl}
+        user={user}
+        isAdmin={isAdmin}
+        fanLevel={fanLevel}
+        totalXp={totalXpDisplay}
+        playerTag={currentPlayerTag}
+        unreadCount={unreadCount}
+        onNavigate={navigateTo}
+        onOpenNotifications={() => {
+          navigateTo('/notificacoes');
+        }}
+        onOpenAuth={(mode) => {
+          setExplicitAuthMode(mode || 'login');
+          setExplicitAuthModalOpen(true);
+        }}
+        onLogout={handleLogout}
+        triggerAudio={triggerAudio}
+      />
+
+      {/* Global PWA Installer Modal Controller */}
+      <PWAInstaller
+        hideInlineBanner={true}
+        forceOpenModal={showInstallAppModal}
+        onCloseModal={() => setShowInstallAppModal(false)}
+        onAddXP={handleAddFanXP}
+        triggerAudio={triggerAudio}
+      />
+
+      {/* Floating Toast Notification */}
       {notifMessage && (
-        <div 
-          id="floating-celebration" 
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 z-50 w-[92%] max-w-md bg-zinc-950/95 border-2 border-pink-500/85 shadow-[0_8px_30px_rgba(236,72,153,0.3)] backdrop-blur-md text-white p-4 rounded-2xl transition-all duration-300 text-left flex items-start gap-3 overflow-hidden animate-slide-up animate-fade-in"
+        <div
+          id="floating-celebration"
+          role="status"
+          className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 z-50 w-[92%] max-w-md pkxd-pop-card p-4 flex items-start gap-3 animate-slide-up"
         >
-          {/* Neon side indicator */}
-          <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-gradient-to-b from-pink-500 via-rose-500 to-yellow-300" />
-          
-          <div className="p-1.5 border rounded-xl flex-shrink-0 animate-pulse bg-pink-500/10 text-pink-400 border-pink-500/20">
-            <BellRing className="w-5 h-5 animate-swing" />
+          <div className="p-2 rounded-xl bg-[#F9C826] border-2 border-[#120624] text-[#120624] shrink-0">
+            <BellRing className="w-5 h-5" />
           </div>
-          <div className="flex-1 space-y-0.5 text-left pl-1">
-            <h5 className="text-[10px] sm:text-[11px] font-mono tracking-widest font-extrabold uppercase flex items-center justify-between text-pink-400">
-              <span>ALERTA CENTRAL PK XD</span>
-              <span className="text-[9px] text-gray-500 font-normal">AGORA</span>
-            </h5>
-            <p className="text-xs sm:text-xs font-sans font-black text-gray-150 leading-relaxed">{notifMessage}</p>
+          <div className="flex-1 space-y-0.5 text-left">
+            <p className="text-[11px] font-black uppercase tracking-wider text-[#7C3AED]">
+              Aviso PKXD Central
+            </p>
+            <p className="text-xs sm:text-sm font-bold text-[#120624] leading-relaxed">
+              {notifMessage}
+            </p>
           </div>
-          <button 
+          <button
+            type="button"
             onClick={() => setNotifMessage(null)}
-            className="text-gray-400 hover:text-white text-xs pl-1.5 cursor-pointer font-bold active:scale-95 flex-shrink-0"
-            title="Fechar Notificação"
+            className="text-slate-500 hover:text-[#120624] p-1 cursor-pointer shrink-0"
+            aria-label="Fechar aviso"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Floating Sound Controller Utility */}
-      <div className="fixed bottom-6 left-6 z-40">
-        <button 
+      {/* Floating Sound Utility Button (above mobile tab bar) */}
+      <div className="fixed bottom-20 md:bottom-6 left-3 sm:left-6 z-40">
+        <button
+          type="button"
           onClick={() => {
             setSoundEnabled(!soundEnabled);
             if (!soundEnabled) {
-              // Immediately test audio if turning on
               try {
                 const actx = new (window.AudioContext || (window as any).webkitAudioContext)();
                 const osc = actx.createOscillator();
@@ -2564,1062 +2847,530 @@ export default function App() {
                 osc.frequency.setValueAtTime(440, actx.currentTime);
                 osc.start();
                 osc.stop(actx.currentTime + 0.1);
-              } catch(e) {}
+              } catch (e) {}
             }
           }}
-          className={`p-3 rounded-full hover:scale-105 active:scale-95 duration-100 transition-all shadow-[0_8px_24px_rgba(0,0,0,0.4)] backdrop-blur-md cursor-pointer border ${
-            soundEnabled 
-              ? 'bg-[#7C3AED]/80 hover:bg-[#7C3AED] text-white border-white/20' 
-              : 'bg-[#1D1638]/75 hover:bg-[#251B46]/80 text-[#B8B2CC] border-white/10'
+          className={`w-11 h-11 rounded-full border-[3px] border-[#120624] shadow-[0_4px_0_#16032E] flex items-center justify-center cursor-pointer transition-colors ${
+            soundEnabled
+              ? 'bg-[#F9C826] text-[#120624]'
+              : 'bg-white text-[#120624] hover:bg-[#FFF8DB]'
           }`}
-          title={soundEnabled ? "Desativar efeitos sonoros" : "Ativar efeitos sonoros"}
+          title={soundEnabled ? 'Desativar efeitos sonoros' : 'Ativar efeitos sonoros'}
+          aria-label={soundEnabled ? 'Desativar efeitos sonoros' : 'Ativar efeitos sonoros'}
         >
           {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
         </button>
       </div>
 
-      {/* Navigation Header - Fully responsive and accessible PK XD Central Header */}
-      <nav id="nav-header" className="sticky top-0 z-40 bg-[#15102A]/75 border-b border-white/[0.08] select-none py-2.5 px-3 sm:px-6 shadow-[0_4px_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-3 w-full">
-          
-          {/* Brand Name & Logo with Click to Home */}
-          <button
-            id="brand-home-btn"
-            onClick={() => {
-              triggerAudio('tap');
-              navigateTo('/');
-            }}
-            className="text-left flex items-center gap-2 group cursor-pointer focus:outline-none shrink-0"
-            title="Ir para o Início do PKXD Central"
-          >
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-[14px] bg-[#251B46]/80 backdrop-blur-md border border-[#7C3AED]/40 text-[#F5C542] flex items-center justify-center font-black text-base sm:text-lg group-hover:scale-105 transition-transform shrink-0 shadow-sm">
-              ⚡
-            </div>
-            <div className="flex flex-col justify-center">
-              <h1 className="font-sans font-black text-sm xs:text-base sm:text-xl tracking-tight text-[#F8F7FF] uppercase flex items-center gap-1.5 leading-none">
-                <span>PKXD</span>
-                <span className="text-[#F5C542]">Central</span>
-              </h1>
-              <p className="font-sans text-[7px] sm:text-[9px] text-[#B8B2CC] font-bold uppercase tracking-widest leading-tight hidden md:block">
-                Notícias, Spoilers e Códigos!
-              </p>
-            </div>
-          </button>
-
-          {/* Action Links & Controls (Optimized for Mobile and Desktop) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 max-w-[calc(100%-110px)] sm:max-w-none overflow-x-auto no-scrollbar py-0.5">
-
-            {/* 1. Notification Center Bell */}
-            <button 
-              id="nav-notifications-btn"
-              type="button"
-              onClick={() => {
-                triggerAudio('tap');
-                const nextState = !isNotifOverlayOpen;
-                setIsNotifOverlayOpen(nextState);
-                if (nextState) {
-                  const currentIds = notificationList.map(n => n.id);
-                  setSeenNotifIds(prev => {
-                    const unique = Array.from(new Set([...prev, ...currentIds]));
-                    try {
-                      localStorage.setItem('seen_notification_ids', JSON.stringify(unique));
-                    } catch (e) {}
-                    return unique;
-                  });
-                }
-              }}
-              className="h-8 sm:h-9 w-8 sm:w-9 rounded-[14px] bg-[#1D1638]/70 hover:bg-[#251B46]/80 backdrop-blur-md border border-white/[0.08] text-[#B8B2CC] hover:text-[#F8F7FF] transition-all cursor-pointer relative flex items-center justify-center text-xs font-bold shadow-sm active:scale-95 shrink-0"
-              title="Central de Notificações"
-            >
-              <BellRing className="w-4 h-4 animate-swing" />
-              {unreadCount > 0 && (
-                <span className="bg-[#E83EBC] text-white text-[8px] font-black px-1.5 py-0.2 rounded-full absolute -top-1 -right-1 shadow">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* Creator Progress Analyzer Navigation Tab */}
-            <button
-              id="nav-progresso-creator-btn"
-              onClick={() => {
-                triggerAudio('tap');
-                if (isCreatorProgressRoute) {
-                  setShowCreatorAnalyzer(false);
-                  navigateTo('/Hub/');
-                } else {
-                  setShowCreatorAnalyzer(true);
-                  navigateTo('/progresso-creator');
-                }
-              }}
-              className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded-[14px] border font-sans text-[10px] sm:text-xs font-bold tracking-wide uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 whitespace-nowrap backdrop-blur-md ${
-                isCreatorProgressRoute
-                  ? 'bg-[#9B5CFF] text-white border-white/40 shadow-sm'
-                  : 'bg-[#7C3AED]/80 hover:bg-[#9B5CFF] text-[#FFFFFF] border-white/20'
-              }`}
-              title={isCreatorProgressRoute ? 'Voltar ao Hub' : 'Ver meu progresso para Creator'}
-            >
-              <Award className="w-3.5 h-3.5 shrink-0 text-[#F5C542]" />
-              <span className="hidden xs:inline">{isCreatorProgressRoute ? 'Voltar' : 'Progresso Creator'}</span>
-              <span className="xs:hidden text-[10px] font-bold">{isCreatorProgressRoute ? 'Hub' : 'Creator'}</span>
-            </button>
-
-            {/* 2. Inscrições Page Navigation Tab (Secondary action) */}
-            <button
-              id="nav-inscricoes-btn"
-              onClick={() => {
-                triggerAudio('tap');
-                if (isApplicationsRoute) {
-                  navigateTo('/Hub/');
-                } else {
-                  navigateTo('/inscricoes');
-                }
-              }}
-              className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded-[14px] border font-sans text-[10px] sm:text-xs font-bold tracking-wide uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 whitespace-nowrap backdrop-blur-md ${
-                isApplicationsRoute
-                  ? 'bg-[#251B46]/85 text-[#22D3EE] border-[#22D3EE]/40 shadow-sm'
-                  : 'bg-[#1D1638]/70 hover:bg-[#251B46]/80 text-[#B8B2CC] hover:text-[#F8F7FF] border-white/[0.08]'
-              }`}
-              title={isApplicationsRoute ? 'Voltar ao Hub' : 'Inscrições Oficiais'}
-            >
-              <Compass className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden xs:inline">{isApplicationsRoute ? 'Voltar' : 'Inscrições'}</span>
-              <span className="xs:hidden text-[10px] font-bold">{isApplicationsRoute ? 'Hub' : 'Inscr.'}</span>
-            </button>
-
-            {/* 3. Quick Passport / PKXD ID Tab */}
-            <button
-              id="nav-pkxd-id-btn"
-              onClick={() => {
-                triggerAudio('tap');
-                navigateTo('/pkxd-id');
-              }}
-              className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded-[14px] border font-sans text-[10px] sm:text-xs font-bold tracking-wide uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 whitespace-nowrap backdrop-blur-md ${
-                activeTab === 'passaporte'
-                  ? 'bg-[#251B46]/85 text-[#F5C542] border-[#F5C542]/40 shadow-sm'
-                  : 'bg-[#1D1638]/70 hover:bg-[#251B46]/80 text-[#B8B2CC] hover:text-[#F8F7FF] border-white/[0.08]'
-              }`}
-              title="Acessar PKXD ID e Perfil"
-            >
-              <Sparkles className="w-3.5 h-3.5 shrink-0 text-[#F5C542]" />
-              <span className="hidden sm:inline">PKXD ID</span>
-              <span className="bg-[#15102A]/80 text-[#C4B5FD] text-[8px] sm:text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full border border-white/10">
-                Lv.{fanLevel}
-              </span>
-            </button>
-
-            {/* 4. Login / Profile Button */}
-            {user ? (
-              <button
-                id="nav-user-profile-btn"
-                onClick={() => {
-                  triggerAudio('tap');
-                  navigateTo('/pkxd-id');
-                }}
-                className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-[14px] border font-sans text-[10px] sm:text-xs font-bold tracking-wide uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm bg-[#123225]/80 hover:bg-[#184232] border-[#25D366]/40 text-[#25D366] active:scale-95 shrink-0 whitespace-nowrap backdrop-blur-md"
-                title={`Conectado como ${user.displayName || user.email}`}
-              >
-                <div className="w-4 h-4 rounded-full bg-[#25D366]/20 border border-[#25D366]/40 flex items-center justify-center text-[9px] shrink-0">
-                  👤
-                </div>
-                <span className="hidden sm:inline truncate max-w-[70px]">
-                  {user.displayName?.split('#')[0] || 'Perfil'}
-                </span>
-              </button>
-            ) : (
-              <button
-                id="nav-login-btn"
-                onClick={() => {
-                  triggerAudio('tap');
-                  setExplicitAuthModalOpen(true);
-                }}
-                className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-[14px] border font-sans text-[10px] sm:text-xs font-bold tracking-wide uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 bg-gradient-to-r from-[#7C3AED] to-[#9B5CFF] text-[#FFFFFF] border-white/20 hover:brightness-110 shrink-0 whitespace-nowrap backdrop-blur-md"
-                title="Fazer Login ou Criar Conta"
-              >
-                <KeyRound className="w-3.5 h-3.5 shrink-0" />
-                <span>Entrar</span>
-              </button>
-            )}
-
-            {/* 5. Admin Toggle Button */}
-            <button
-              id="nav-admin-btn"
-              onClick={() => {
-                triggerAudio('tap');
-                setShowAdminPanel(!showAdminPanel);
-              }}
-              className={`h-8 sm:h-9 px-2 sm:px-2.5 rounded-[14px] border font-sans text-[10px] sm:text-xs font-bold tracking-wide uppercase transition-all cursor-pointer flex items-center gap-1 shadow-sm active:scale-95 shrink-0 whitespace-nowrap backdrop-blur-md ${
-                showAdminPanel 
-                ? 'bg-[#251B46]/85 text-[#F5C542] border-[#F5C542]/40 shadow-sm' 
-                : 'bg-[#1D1638]/70 hover:bg-[#251B46]/80 text-[#B8B2CC] hover:text-[#F8F7FF] border-white/[0.08]'
-              }`}
-              title={showAdminPanel ? 'Fechar Painel Admin' : 'Painel de Administração'}
-            >
-              <Settings className={`w-3.5 h-3.5 shrink-0 ${showAdminPanel ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{showAdminPanel ? 'Fechar' : 'Admin'}</span>
-            </button>
-          </div>
-
-        </div>
-      </nav>
-
-      {/* Banner de Notificação para Usuários que ainda não cadastraram Nome e # do PK XD */}
-      {!isTagConfigured(currentPlayerTag) && !tagBannerDismissed && (
-        <div className="bg-[#1D1638]/75 border-b border-white/[0.08] px-3 sm:px-6 py-2.5 backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 text-left z-20 sticky top-[53px] sm:top-[61px] shadow-[0_4px_20px_rgba(0,0,0,0.25)] animate-fade-in">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-[#251B46]/80 border border-[#7C3AED]/40 rounded-[12px] text-[#F5C542] flex-shrink-0 backdrop-blur-md">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-[#F8F7FF] flex items-center gap-1.5 flex-wrap">
-                <span>🎮 Complete sua Identidade PK XD!</span>
-                <span className="text-[10px] bg-[#251B46]/80 text-[#F5C542] border border-[#F5C542]/30 font-mono px-2 py-0.5 rounded-full font-bold shadow-sm">
-                  +25 XP GRÁTIS
-                </span>
-              </p>
-              <p className="text-[11px] text-[#B8B2CC]">
-                Cadastre seu <strong>Nome e # do PK XD</strong> (ex: <span className="text-[#F5C542] font-mono font-bold">LUNA#245</span>) para ter <strong>preenchimento automático</strong> em todas as festas e eventos!
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => {
-                triggerAudio('tap');
-                setTagSetupName(modalPkxdName || '');
-                setTagSetupNumber(modalPkxdNumber || '');
-                setTagSetupError('');
-                setShowTagSetupModal(true);
-              }}
-              className="px-4 py-1.5 bg-gradient-to-r from-[#7C3AED] to-[#9B5CFF] hover:brightness-110 text-[#FFFFFF] text-xs font-bold uppercase tracking-wider rounded-[14px] shadow-sm cursor-pointer transition-all active:scale-95 border border-white/20"
-            >
-              Cadastrar Tag ⚡
-            </button>
-            <button
-              onClick={() => {
-                setTagBannerDismissed(true);
-                try {
-                  sessionStorage.setItem('pkxd_tag_banner_dismissed', 'true');
-                } catch (e) {}
-              }}
-              className="p-1.5 text-[#716A83] hover:text-[#F8F7FF] rounded-lg hover:bg-white/5 transition-colors"
-              title="Lembrar mais tarde"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Hero Header Area */}
-      {!isApplicationsRoute && !isAdminRoute && !isCreatorProgressRoute && !isPrivacyCenterRoute && !isPrivacyPolicyRoute && !isTermsRoute && activeTab !== 'artes' && (
-        <header id="masthead-hero" className="relative overflow-hidden py-12 md:py-16 px-4 bg-gradient-to-b from-[#15102A] to-[#0B0817] border-b border-[#34275A]/60 select-none">
-          <div className="max-w-3xl mx-auto text-center space-y-4 relative z-10">
-            
-            {/* Logo badge / Floating decoration */}
-            <div className="inline-flex items-center gap-2 bg-[#251B46] border border-[#7C3AED]/40 px-3.5 py-1 rounded-full text-[#B8B2CC] font-mono text-[11px] font-bold uppercase tracking-widest">
-              <Gamepad2 className="w-3.5 h-3.5 text-[#7C3AED]" />
-              Parceiro Fã Clube Oficial
-            </div>
-
-            {/* Headline Display */}
-            <h2 className="font-sans font-black text-3xl sm:text-5xl md:text-6xl tracking-tight text-[#F8F7FF] uppercase leading-[1.1]">
-              O Universo de PK XD <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#22D3EE] via-[#9B5CFF] to-[#E83EBC]">
-                Na Velocidade Máxima!
-              </span>
-            </h2>
-
-            {/* WhatsApp Direct CTA mini-badge */}
-            <div className="pt-2 flex flex-wrap justify-center gap-3">
-              <a 
-                href={WHATSAPP_CHANNEL_URL}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => triggerAudio('levelUp')}
-                className="inline-flex items-center gap-2 bg-[#123225] border border-[#25D366] text-[#25D366] font-sans font-bold text-xs p-2.5 px-5 rounded-full hover:bg-[#184232] transition-all cursor-pointer shadow-sm active:scale-95"
-              >
-                <MessageCircle className="w-4 h-4 fill-[#25D366]" />
-                Acessar Canal no WhatsApp
-              </a>
-            </div>
-
-          </div>
-        </header>
-      )}
-
-      {/* Main Grid Area */}
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 space-y-8 pt-4">
-        
-        {/* Admin Panel / Google Login Area */}
-        {showAdminPanel && (
-          <div className="animate-scale-up duration-150" id="admin-panel">
-            {isAdminRoute && (
-              <div className="mb-6 flex flex-col md:flex-row items-center justify-between gap-4 bg-purple-950/45 p-6 rounded-3xl border-2 border-purple-500/40 shadow-xl">
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wider flex items-center gap-2">
-                    <span className="p-1.5 bg-yellow-400/10 border border-yellow-400/30 rounded-xl">
-                      <Settings className="w-5 h-5 text-yellow-400 animate-spin-slow" />
-                    </span>
-                    Painel Administrativo PKXD Central
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Espaço reservado para gerenciamento oficial de novidades, spoilers, teorias e fã-clube.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    triggerAudio('tap');
-                    navigateTo('/');
-                  }}
-                  className="px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:brightness-110 active:scale-95 text-white font-sans font-black text-[11px] uppercase tracking-wider rounded-2xl shadow-lg transition-all cursor-pointer border border-pink-400 flex items-center gap-1.5"
-                >
-                  ← Voltar ao Hub
-                </button>
+      {/* MAIN VIEW ROUTER */}
+      <main id="main-content" className="relative z-10 flex-1 w-full">
+        {showAdminPanel ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6" id="admin-panel">
+            <div className="pkxd-glass rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wider text-violet-700">
+                  Administração
+                </p>
+                <h1 className="font-display font-bold text-2xl sm:text-3xl text-slate-900 flex items-center gap-2.5">
+                  <Settings className="w-6 h-6 text-violet-700" />
+                  <span>Painel Administrativo PKXD Central</span>
+                </h1>
+                <p className="text-sm text-slate-600">
+                  Gerencie notícias, spoilers semanais, vídeos em destaque, transmissões, artes e alertas da comunidade.
+                </p>
               </div>
-            )}
-            {isAdmin ? (
-              <div className="space-y-4 text-left">
-                {/* Admin Welcome Badge */}
-                {user?.uid === 'admin_fallback' ? (
-                  <div className="bg-emerald-500/10 border-2 border-emerald-500/30 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left shadow-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black animate-pulse">
-                        PIN
-                      </div>
-                      <div>
-                        <h4 className="font-sans font-black text-emerald-400 text-sm sm:text-base uppercase tracking-wide flex items-center gap-1.5">
-                          ⚡ PORTAL ADMIN SINCRONIZADO (MODO PIN)
-                        </h4>
-                        <p className="font-sans text-[11px] text-zinc-300 leading-normal max-w-2xl">
-                          Você acessou usando o Código PIN de emergência. Seus posts, códigos de vídeos e spoilers criados aqui <strong>são sincronizados e gravados na nuvem do Firestore em tempo real</strong> para todos os jogadores do PK XD! 🚀
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-red-400/20 hover:bg-red-400/30 text-red-350 hover:text-white rounded-xl text-xs font-black uppercase transition-all tracking-wider border border-red-500/30 cursor-pointer whitespace-nowrap"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sair do PIN</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-emerald-500/10 border-2 border-emerald-500/30 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left shadow-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
-                        OK
-                      </div>
-                      <div>
-                        <h4 className="font-sans font-black text-white text-sm sm:text-base uppercase tracking-wide">
-                          PAINEL DE CONTROLE CENTRAL ATIVO (NUVEM REAL)
-                        </h4>
-                        <p className="font-sans text-[11px] text-emerald-300">
-                          Acesso autorizado via Login Google! Suas publicações estão sincronizadas em tempo real com todo o fã-clube.
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-red-400/20 hover:bg-red-400/30 text-red-300 hover:text-white rounded-xl text-xs font-black uppercase transition-all tracking-wider border border-red-500/30 cursor-pointer"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sair</span>
-                    </button>
-                  </div>
-                )}
-
-                <AdminPanel 
-                  user={user}
-                  onAddNews={handleAddNews}
-                  onUpdateSpoiler={handleUpdateSpoilerSettings}
-                  activeSpoilerTitle={spoilerTitle}
-                  activeSpoilerDesc={spoilerDesc}
-                  activeSpoilerImage={spoilerImage}
-                  activeSpoilerForceReveal={forceReveal}
-                  onResetToDefaults={handleResetToDefaults}
-                  newsToEdit={newsToEdit}
-                  onCancelEdit={() => setNewsToEdit(null)}
-                  onSaveEdit={handleSaveEdit}
-                  siteLogoUrl={siteLogoUrl}
-                  onUpdateLogo={handleUpdateLogoSettings}
-                  // Added features handlers
-                  onAddFeaturedVideo={handleAddFeaturedVideo}
-                  onAddTheory={handleAddTheory}
-                  onAddShort={handleAddShort}
-                  onUpdateExtraCountdown={handleUpdateExtraCountdown}
-                  activeExtraCountdownTitle={extraCountdownTitle}
-                  activeExtraCountdownDate={extraCountdownDate}
-                  activeExtraCountdownEnabled={extraCountdownEnabled}
-                  // Past spoiler editing support
-                  pastSpoilerToEdit={pastSpoilerToEdit}
-                  onSaveEditPastSpoiler={handleSaveEditPastSpoiler}
-                  onCancelEditPastSpoiler={() => setPastSpoilerToEdit(null)}
-                  // Delay & notification managers
-                  isDelayed={isDelayed}
-                  delayMessage={delayMessage}
-                  onUpdateDelay={handleUpdateDelay}
-                  onSendCustomNotification={handleSendCustomNotification}
-                  onDirectArchivePastSpoiler={handleDirectArchivePastSpoiler}
-                  onArchiveAndClearActiveSpoiler={handleArchiveAndClearActiveSpoiler}
-                  onDeleteActiveSpoiler={handleDeleteActiveSpoiler}
-                  // Gift countdown support
-                  activeGiftCountdownTitle={giftCountdownTitle}
-                  activeGiftCountdownDate={giftCountdownDate}
-                  activeGiftCountdownEnabled={giftCountdownEnabled}
-                  activeGiftCountdownContent={giftCountdownContent}
-                  onUpdateGiftCountdown={handleUpdateGiftCountdown}
-                />
-              </div>
-            ) : (
-              <div className="bg-zinc-900/90 border-2 border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 text-center relative overflow-hidden shadow-2xl text-left">
-                {/* Light animations & neon decorations */}
-                <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full filter blur-xl" />
-                <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-500/10 rounded-full filter blur-xl" />
-
-                <div className="relative z-10 space-y-5 max-w-xl mx-auto text-center">
-                  <div className="mx-auto w-16 h-16 rounded-2xl bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 shadow-inner">
-                    <Lock className="w-8 h-8 animate-pulse" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="font-sans font-black text-xl sm:text-2xl text-white uppercase tracking-wider">
-                      🔑 MODO ADMINISTRADOR (CONEXÃO CLOUD)
-                    </h3>
-                  </div>
-
-                  {user ? (
-                    <div className="bg-red-500/15 border border-red-500/30 p-4 rounded-2xl text-left space-y-2 text-xs text-red-200">
-                      <p className="font-bold">
-                        ⚠️ Conta de Fã Detectada!
-                      </p>
-                      <p>
-                        Você está autenticado como leitor de email <span className="font-mono text-white underline">{maskEmail(user.email)}</span>, mas seu usuário não possui permissão de escrita de administrador no sistema. 
-                      </p>
-                      <p className="text-gray-400">
-                        Se você for o proprietário deste portal, por favor faça login com o endereço de email do Administrador do PKXD Central correspondente.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="font-sans text-xs text-gray-400 leading-relaxed">
-                      Clique no botão para fazer login seguro com a conta Google PK XD oficial para gerenciar spoilers, shorts, novidades de transmissão e as teorias da semana!
-                    </p>
-                  )}
-
-                  <div className="pt-2 w-full max-w-2xl mx-auto space-y-5">
-                    {user ? (
-                      <button
-                        onClick={handleLogout}
-                        className="w-full sm:w-auto px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-sans font-black text-xs uppercase tracking-wider cursor-pointer border border-zinc-700"
-                      >
-                        Sair da Conta (Logout)
-                      </button>
-                    ) : (
-                      <div className="w-full space-y-4">
-                        {/* Selector Tabs */}
-                        <div className="flex bg-zinc-950/80 p-1 rounded-2xl border border-white/5 max-w-md mx-auto">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              triggerAudio('tap');
-                              setAdminAuthTab('email');
-                              setGoogleAuthError(null);
-                            }}
-                            className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                              adminAuthTab === 'email' ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
-                            }`}
-                          >
-                            🔐 E-mail & Senha
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              triggerAudio('tap');
-                              setAdminAuthTab('google');
-                              setGoogleAuthError(null);
-                            }}
-                            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                              adminAuthTab === 'google' ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
-                            }`}
-                          >
-                            🌐 Google
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              triggerAudio('tap');
-                              setAdminAuthTab('pin');
-                              setGoogleAuthError(null);
-                            }}
-                            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                              adminAuthTab === 'pin' ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
-                            }`}
-                          >
-                            🔑 PIN
-                          </button>
-                        </div>
-
-                        {/* Rendering active tab form */}
-                        {adminAuthTab === 'email' && (
-                          <form
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              handleEmailLogin(adminEmail, adminPassword);
-                            }}
-                            className="bg-zinc-950/60 p-5 rounded-2xl border border-white/5 space-y-4 text-left max-w-md mx-auto"
-                          >
-                            <div className="space-y-1">
-                              <h5 className="text-[11px] font-black text-indigo-400 uppercase tracking-widest pl-0.5">
-                                LOGIN COM CONTA ADMINISTRADORA REAL
-                              </h5>
-                              <p className="text-[10px] text-zinc-400 leading-normal pl-0.5">
-                                Conecte-se com seu e-mail do Firebase para obter token real. Isso habilita sincronização na nuvem oficial para todo fã-clube!
-                              </p>
-                            </div>
-                            <div className="space-y-2.5">
-                              <input
-                                type="email"
-                                required
-                                placeholder="E-mail do Administrador"
-                                value={adminEmail}
-                                onChange={(e) => setAdminEmail(e.target.value)}
-                                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500 transition-all font-mono"
-                              />
-                              <input
-                                type="password"
-                                required
-                                minLength={6}
-                                placeholder="Senha da Conta"
-                                value={adminPassword}
-                                onChange={(e) => setAdminPassword(e.target.value)}
-                                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500 transition-all font-mono"
-                              />
-                            </div>
-                            
-                            <button
-                              type="submit"
-                              disabled={isAuthenticating}
-                              className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-550 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md transition-all flex items-center justify-center gap-1.5"
-                            >
-                              <span>{isAuthenticating ? 'CONECTANDO...' : 'ENTRAR COMO PORTAL ADMIN CLOUD 🔓'}</span>
-                            </button>
-                          </form>
-                        )}
-
-                        {adminAuthTab === 'google' && (
-                          <div className="bg-zinc-950/60 p-5 rounded-2xl border border-white/5 space-y-4 max-w-md mx-auto text-center">
-                            <p className="text-xs text-zinc-300">
-                              Entre com sua conta Google oficial como administrador.
-                            </p>
-                            <div className="flex flex-col gap-2.5">
-                              <button
-                                onClick={handleLogin}
-                                disabled={isAuthenticating}
-                                className="w-full px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-sans font-black text-xs sm:text-sm rounded-xl border-b-4 border-indigo-900 active:border-b-0 cursor-pointer shadow-lg transition-all flex items-center justify-center gap-2"
-                              >
-                                <Lock className="w-4 h-4" />
-                                <span>{isAuthenticating ? 'ENTRANDO...' : '🔐 LOGIN VIA POPUP'}</span>
-                              </button>
-
-                              <button
-                                onClick={handleLoginRedirect}
-                                disabled={isAuthenticating}
-                                className="w-full px-5 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-sans font-black text-xs sm:text-sm rounded-xl border-b-4 border-cyan-900 active:border-b-0 cursor-pointer shadow-lg transition-all flex items-center justify-center gap-2"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                                <span>{isAuthenticating ? 'ENTRANDO...' : '📱 LOGIN REDIRECIONAR (CELULAR)'}</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {adminAuthTab === 'pin' && (
-                          <div className="bg-zinc-950/60 p-5 rounded-2xl border border-white/5 space-y-3 max-w-md mx-auto text-left">
-                            <p className="text-zinc-350 text-[11px] font-sans">
-                              ✅ <strong>Modo PIN Sincronizado:</strong> O login por PIN de backup agora <strong>suporta sincronização total na nuvem real</strong>. Posts e configurações que você criar aqui atualizarão instantaneamente em tempo real para os outros aparelhos! 🚀
-                            </p>
-                            <div className="flex gap-2 pt-1">
-                              <input
-                                type="password"
-                                placeholder="Senha PIN de admin"
-                                value={inputPasscode}
-                                onChange={(e) => setInputPasscode(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handlePasscodeLogin();
-                                }}
-                                className="bg-zinc-900 text-white placeholder-zinc-650 text-xs px-3 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-indigo-500 w-full font-mono"
-                              />
-                              <button
-                                onClick={handlePasscodeLogin}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold font-sans cursor-pointer whitespace-nowrap"
-                              >
-                                Entrar PIN
-                              </button>
-                            </div>
-                            {passcodeError && (
-                              <p className="text-red-400 text-[11px] font-sans pr-1">{passcodeError}</p>
-                            )}
-                          </div>
-                        )}
-
-                        {googleAuthError && (
-                          <div className="max-w-md mx-auto p-4 bg-red-950/40 border border-red-500/30 rounded-2xl text-left space-y-2">
-                            <div className="flex items-center gap-2 text-red-400 font-extrabold text-xs uppercase">
-                              <AlertTriangle className="w-4 h-4" />
-                              <span>Erro de Conexão</span>
-                            </div>
-                            <p className="text-gray-300 text-xs font-sans leading-relaxed whitespace-pre-wrap bg-black/40 border border-red-500/10 p-3 rounded-xl">
-                              {googleAuthError}
-                            </p>
-                            <p className="text-[11px] text-indigo-400 font-sans leading-relaxed mt-1">
-                              💡 <strong>Caso use E-mail/Senha:</strong> Registre-se primeiro no formulário na seção <strong>"Fã Level"</strong> abaixo usando seu e-mail de admin cadastrado. Depois, faça o login dele aqui no painel usando e-mail e senha correspondentes!
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isAdminRoute ? null : isPrivacyCenterRoute ? (
-          <PrivacyCenterView
-            onBack={() => navigateTo('/')}
-            onNavigateToPolicy={() => navigateTo('/privacidade')}
-            onNavigateToTerms={() => navigateTo('/termos-de-uso')}
-            onOpenCookiePreferences={() => setIsCookiePreferencesOpen(true)}
-            onOpenDataRequest={() => {
-              setUserDataRequestInitialType('access');
-              setIsUserDataRequestOpen(true);
-            }}
-            onOpenDataDeletion={() => {
-              setUserDataRequestInitialType('deletion');
-              setIsUserDataRequestOpen(true);
-            }}
-            triggerAudio={triggerAudio}
-          />
-        ) : isPrivacyPolicyRoute ? (
-          <PrivacyPolicyView
-            onBack={() => navigateTo('/privacidade-e-direitos')}
-            onOpenCookiePreferences={() => setIsCookiePreferencesOpen(true)}
-            onOpenDataRequest={() => {
-              setUserDataRequestInitialType('access');
-              setIsUserDataRequestOpen(true);
-            }}
-            triggerAudio={triggerAudio}
-          />
-        ) : isTermsRoute ? (
-          <TermsOfUseView
-            onBack={() => navigateTo('/privacidade-e-direitos')}
-            triggerAudio={triggerAudio}
-          />
-        ) : isCreatorProgressRoute ? (
-          <CreatorProgressAnalyzer 
-            onBackToHub={() => {
-              setShowCreatorAnalyzer(false);
-              navigateTo('/Hub/');
-            }}
-            soundEnabled={soundEnabled}
-            triggerAudio={triggerAudio}
-            user={user}
-            onAddXP={handleAddFanXP}
-            onOpenAuthModal={(mode) => {
-              setExplicitAuthMode(mode || 'login');
-              setExplicitAuthModalOpen(true);
-            }}
-          />
-        ) : isApplicationsRoute ? (
-          <ApplicationsSection 
-            onBackToHub={() => {
-              setShowCreatorAnalyzer(false);
-              navigateTo('/Hub/');
-            }}
-            onOpenCreatorAnalyzer={() => {
-              setShowCreatorAnalyzer(true);
-              navigateTo('/progresso-creator');
-            }}
-            onAddXP={handleAddFanXP}
-            soundEnabled={soundEnabled}
-            user={user}
-            isAdmin={isAdmin}
-            onAddNews={handleAddNews}
-            onAddShort={handleAddShort}
-            onAddTheory={handleAddTheory}
-            onAddFeaturedVideo={handleAddFeaturedVideo}
-          />
-        ) : (
-          <>
-            {/* PWA Installer & Offline Notification Bar */}
-            <div className="max-w-4xl mx-auto">
-              <PWAInstaller onAddXP={handleAddFanXP} triggerAudio={triggerAudio} />
-            </div>
-
-            {/* Visual Navigation Tab Bar - High-tier Responsive Navigation Dock */}
-            <div className="max-w-4xl mx-auto mb-8 bg-[#15102A]/75 backdrop-blur-xl p-1.5 sm:p-2 rounded-[20px] border border-white/[0.09] grid grid-cols-3 sm:grid-cols-6 gap-1 sm:gap-2 shadow-[0_12px_32px_rgba(0,0,0,0.38)] select-none sticky top-14 sm:top-16 z-20">
               <button
+                type="button"
                 onClick={() => {
                   triggerAudio('tap');
                   navigateTo('/');
                 }}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-1 sm:px-3 rounded-[14px] font-sans text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer active:scale-95 text-center ${
-                  activeTab === 'inicio'
-                    ? 'bg-[#7C3AED] text-[#FFFFFF] shadow-sm'
-                    : 'bg-transparent text-[#A9A3B7] hover:text-[#F8F7FF] hover:bg-white/[0.06]'
-                }`}
+                className="pkxd-btn-outline px-4 py-2.5 rounded-2xl text-sm font-bold inline-flex items-center gap-2 cursor-pointer self-start shrink-0"
               >
-                <Home className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === 'inicio' ? 'text-white' : 'text-[#8E879F]'}`} />
-                <span className="truncate">Início</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  triggerAudio('tap');
-                  navigateTo('/eventos');
-                }}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-1 sm:px-3 rounded-[14px] font-sans text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer active:scale-95 text-center ${
-                  activeTab === 'eventos'
-                    ? 'bg-[#7C3AED] text-[#FFFFFF] shadow-sm'
-                    : 'bg-transparent text-[#A9A3B7] hover:text-[#F8F7FF] hover:bg-white/[0.06]'
-                }`}
-              >
-                <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === 'eventos' ? 'text-white' : 'text-[#8E879F]'}`} />
-                <span className="truncate">Eventos</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  triggerAudio('tap');
-                  navigateTo('/pkxd-id');
-                }}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-1 sm:px-3 rounded-[14px] font-sans text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer active:scale-95 text-center relative ${
-                  activeTab === 'passaporte'
-                    ? 'bg-[#7C3AED] text-[#FFFFFF] shadow-sm'
-                    : 'bg-transparent text-[#A9A3B7] hover:text-[#F8F7FF] hover:bg-white/[0.06]'
-                }`}
-              >
-                <Sparkles className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === 'passaporte' ? 'text-white' : 'text-[#8E879F]'}`} />
-                <span className="truncate">PKXD ID</span>
-              </button>
-              
-              <button
-                onClick={() => {
-                  triggerAudio('tap');
-                  navigateTo('/comunidade');
-                }}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-1 sm:px-3 rounded-[14px] font-sans text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer active:scale-95 text-center ${
-                  activeTab === 'comunidade'
-                    ? 'bg-[#7C3AED] text-[#FFFFFF] shadow-sm'
-                    : 'bg-transparent text-[#A9A3B7] hover:text-[#F8F7FF] hover:bg-white/[0.06]'
-                }`}
-              >
-                <Users className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === 'comunidade' ? 'text-white' : 'text-[#8E879F]'}`} />
-                <span className="truncate">Mural</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  triggerAudio('tap');
-                  navigateTo('/missoes');
-                }}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-1 sm:px-3 rounded-[14px] font-sans text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer active:scale-95 text-center ${
-                  activeTab === 'missoes'
-                    ? 'bg-[#7C3AED] text-[#FFFFFF] shadow-sm'
-                    : 'bg-transparent text-[#A9A3B7] hover:text-[#F8F7FF] hover:bg-white/[0.06]'
-                }`}
-              >
-                <Target className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === 'missoes' ? 'text-white' : 'text-[#8E879F]'}`} />
-                <span className="truncate">Missões</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  triggerAudio('tap');
-                  navigateTo('/artes');
-                }}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-1 sm:px-3 rounded-[14px] font-sans text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer active:scale-95 text-center ${
-                  activeTab === 'artes'
-                    ? 'bg-[#7C3AED] text-[#FFFFFF] shadow-sm'
-                    : 'bg-transparent text-[#A9A3B7] hover:text-[#F8F7FF] hover:bg-white/[0.06]'
-                }`}
-              >
-                <Palette className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === 'artes' ? 'text-white' : 'text-[#8E879F]'}`} />
-                <span className="truncate">Artes</span>
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar ao Início</span>
               </button>
             </div>
 
-            {activeTab === 'inicio' && (
-              <div className="space-y-8 sm:space-y-10 animate-fade-in">
-                {/* Clean First Access Guide */}
-                {showWelcomeGuide && (
-                  <WelcomeGuideCard
-                    onNavigateToPassport={() => {
-                      if (triggerAudio) triggerAudio('tap');
-                      navigateTo('/pkxd-id');
-                    }}
-                    onNavigateToSpoilers={() => {
-                      if (triggerAudio) triggerAudio('tap');
-                      const el = document.getElementById('countdown-card-root');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    onNavigateToCreator={() => {
-                      if (triggerAudio) triggerAudio('tap');
-                      setShowCreatorAnalyzer(true);
-                      navigateTo('/progresso-creator');
-                    }}
-                    triggerAudio={triggerAudio}
-                    isCompactMode={isCompactHomeMode}
-                    onToggleCompactMode={() => {
-                      const next = !isCompactHomeMode;
-                      setIsCompactHomeMode(next);
-                      try {
-                        localStorage.setItem('pkxd_compact_home_mode', String(next));
-                      } catch (e) {}
-                    }}
-                    onDismiss={() => {
-                      setShowWelcomeGuide(false);
-                      try {
-                        localStorage.setItem('pkxd_welcome_guide_dismissed', 'true');
-                      } catch (e) {}
-                    }}
-                  />
-                )}
-
-                {/* Creator Progress Analyzer Quick Banner */}
-                <div 
-                  id="creator-analyzer-home-banner"
-                  className="bg-[#15102A]/72 backdrop-blur-xl border border-white/[0.09] rounded-[20px] p-5 sm:p-6 shadow-[0_8px_32px_rgba(0,0,0,0.35)] flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-[14px] bg-[#251B46]/80 backdrop-blur-md border border-[#7C3AED]/40 flex items-center justify-center text-[#7C3AED] shrink-0 shadow-sm">
-                      <Sparkles className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#3A1947]/80 backdrop-blur-sm text-[#E83EBC] border border-[#E83EBC]/30">
-                          Novo Recurso
-                        </span>
-                        <h3 className="text-base sm:text-lg font-black text-[#F8F7FF] uppercase">
-                          Creator Progress Analyzer
-                        </h3>
-                      </div>
-                      <p className="text-xs sm:text-sm text-[#B8B2CC] mt-0.5">
-                        Descubra quanto falta para você atingir os requisitos oficiais para se tornar Creator do PK XD!
-                      </p>
-                    </div>
+            {isAdmin ? (
+              <div className="space-y-6">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h2 className="font-display font-bold text-lg text-emerald-900">
+                      {user?.uid === 'admin_fallback'
+                        ? 'Acesso Administrativo Ativo (Modo PIN)'
+                        : 'Acesso Administrativo Ativo (Conta Google)'}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-emerald-800 max-w-2xl">
+                      Todas as alterações feitas aqui são sincronizadas em tempo real no Firestore para toda a comunidade.
+                    </p>
                   </div>
                   <button
-                    id="banner-view-progress-btn"
-                    onClick={() => {
-                      triggerAudio('tap');
-                      setShowCreatorAnalyzer(true);
-                      navigateTo('/progresso-creator');
-                    }}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-[14px] bg-gradient-to-r from-[#7C3AED] to-[#9B5CFF] hover:brightness-110 text-[#FFFFFF] text-xs font-bold uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 shrink-0 transition-all active:scale-95 cursor-pointer border border-[#9B5CFF]/30"
+                    type="button"
+                    onClick={handleLogout}
+                    className="px-4 py-2.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer self-start shrink-0"
                   >
-                    <span>Ver Meu Progresso</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <LogOut className="w-4 h-4" />
+                    <span>{user?.uid === 'admin_fallback' ? 'Sair do PIN' : 'Sair'}</span>
                   </button>
                 </div>
 
-                {/* Dynamic Countdown clock Widget with optional alternative timer */}
-                {(() => {
-                  // Check if the current spoiler highlight is active
-                  const isSpoilerActive = (() => {
-                    if (forceReveal) {
-                      if (revealedAt && Date.now() - revealedAt >= 60 * 60 * 1000) {
-                        return false;
-                      }
-                      return true;
-                    }
+                {/* Unified Admin Ecosystem + Content CMS */}
+                <AdminEcosystemPanel initialSection="stats">
+                  <div className="bg-[#15102A] text-white rounded-3xl p-4 sm:p-6 border-[3px] border-[#120624] shadow-[0_6px_0_#16032E]">
+                    <AdminPanel
+                      user={user}
+                      onAddNews={handleAddNews}
+                      onUpdateSpoiler={handleUpdateSpoilerSettings}
+                      activeSpoilerTitle={spoilerTitle}
+                      activeSpoilerDesc={spoilerDesc}
+                      activeSpoilerImage={spoilerImage}
+                      activeSpoilerForceReveal={forceReveal}
+                      onResetToDefaults={handleResetToDefaults}
+                      newsToEdit={newsToEdit}
+                      onCancelEdit={() => setNewsToEdit(null)}
+                      onSaveEdit={handleSaveEdit}
+                      siteLogoUrl={siteLogoUrl}
+                      onUpdateLogo={handleUpdateLogoSettings}
+                      onAddFeaturedVideo={handleAddFeaturedVideo}
+                      onAddTheory={handleAddTheory}
+                      onAddShort={handleAddShort}
+                      onUpdateExtraCountdown={handleUpdateExtraCountdown}
+                      activeExtraCountdownTitle={extraCountdownTitle}
+                      activeExtraCountdownDate={extraCountdownDate}
+                      activeExtraCountdownEnabled={extraCountdownEnabled}
+                      pastSpoilerToEdit={pastSpoilerToEdit}
+                      onSaveEditPastSpoiler={handleSaveEditPastSpoiler}
+                      onCancelEditPastSpoiler={() => setPastSpoilerToEdit(null)}
+                      isDelayed={isDelayed}
+                      delayMessage={delayMessage}
+                      onUpdateDelay={handleUpdateDelay}
+                      onSendCustomNotification={handleSendCustomNotification}
+                      onDirectArchivePastSpoiler={handleDirectArchivePastSpoiler}
+                      onArchiveAndClearActiveSpoiler={handleArchiveAndClearActiveSpoiler}
+                      onDeleteActiveSpoiler={handleDeleteActiveSpoiler}
+                      activeGiftCountdownTitle={giftCountdownTitle}
+                      activeGiftCountdownDate={giftCountdownDate}
+                      activeGiftCountdownEnabled={giftCountdownEnabled}
+                      activeGiftCountdownContent={giftCountdownContent}
+                      onUpdateGiftCountdown={handleUpdateGiftCountdown}
+                    />
+                  </div>
+                </AdminEcosystemPanel>
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-10 max-w-xl mx-auto space-y-6 text-center shadow-sm">
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                  <Lock className="w-7 h-7" />
+                </div>
 
-                    const now = new Date();
-                    const mondayThisWeek = new Date(now);
-                    const dayOfWeek = now.getDay();
-                    const daysToMonday = (1 - dayOfWeek - 7) % 7;
-                    mondayThisWeek.setDate(now.getDate() + (dayOfWeek === 1 ? 0 : daysToMonday));
-                    mondayThisWeek.setHours(17, 30, 0, 0);
+                <div className="space-y-2">
+                  <h2 className="font-display font-bold text-2xl text-slate-900">
+                    Acesso de Administrador
+                  </h2>
+                  {user ? (
+                    <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl text-left space-y-1.5 text-xs text-rose-900">
+                      <p className="font-bold">Conta padrão detectada</p>
+                      <p>
+                        Você entrou como <span className="font-mono underline">{maskEmail(user.email)}</span>, que não possui permissão administrativa.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-600">
+                      Entre com sua conta administrativa autorizada ou utilize o código PIN de acesso.
+                    </p>
+                  )}
+                </div>
 
-                    const endWindow = new Date(mondayThisWeek);
-                    endWindow.setHours(18, 30, 0, 0); // exactly 1 hour window
-
-                    return now >= mondayThisWeek && now <= endWindow;
-                  })();
-
-                  // Do not filter out new/active spoilers so they appear instantly in Past Spoilers automatically
-                  const filteredPastSpoilers = pastSpoilers;
-
-                  return (
-                    <>
-                      {giftCountdownEnabled && (
-                        <GiftCountdown 
-                          title={giftCountdownTitle}
-                          targetDate={giftCountdownDate}
-                          enabled={giftCountdownEnabled}
-                          giftContent={giftCountdownContent}
-                        />
-                      )}
-
-                      <div className="max-w-4xl mx-auto" id="countdown-card-root">
-                        <CountdownWidget 
-                          spoilerTitle={spoilerTitle}
-                          spoilerDesc={spoilerDesc}
-                          spoilerImageUrl={spoilerImage}
-                          onReveal={() => triggerAudio('levelUp')}
-                          extraCountdownTitle={extraCountdownTitle}
-                          extraCountdownDate={extraCountdownDate}
-                          extraCountdownEnabled={extraCountdownEnabled}
-                          forceReveal={forceReveal}
-                          revealedAt={revealedAt}
-                          isDelayed={isDelayed}
-                          delayMessage={delayMessage}
-                          onOpenFullscreen={(title, desc, img) => {
-                            setFullscreenData({ title, desc, imageUrl: img || '' });
-                            setIsFullscreenOpen(true);
+                {user ? (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer"
+                  >
+                    Sair da Conta Atual
+                  </button>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex p-1 rounded-2xl bg-slate-100 border border-slate-200">
+                      {([
+                        { id: 'email', label: 'E-mail e Senha' },
+                        { id: 'google', label: 'Google' },
+                        { id: 'pin', label: 'PIN' },
+                      ] as const).map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => {
+                            triggerAudio('tap');
+                            setAdminAuthTab(tab.id);
+                            setGoogleAuthError(null);
                           }}
+                          className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                            adminAuthTab === tab.id
+                              ? 'bg-white text-violet-700 shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {adminAuthTab === 'email' && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleEmailLogin(adminEmail, adminPassword);
+                        }}
+                        className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 text-left"
+                      >
+                        <input
+                          type="email"
+                          required
+                          placeholder="E-mail do Administrador"
+                          value={adminEmail}
+                          onChange={(e) => setAdminEmail(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-violet-600"
                         />
-                      </div>
-
-                      {/* Previous Spoilers Archive History list */}
-                      <div className="max-w-4xl mx-auto" id="past-spoilers-history-section-wrapper">
-                        <PastSpoilersSection 
-                          spoilers={filteredPastSpoilers}
-                          isAdmin={isAdmin}
-                          onDelete={handleDeletePastSpoiler}
-                          onEdit={(spoil) => {
-                            setPastSpoilerToEdit(spoil);
-                            // Scroll up to admin panel to see editing state
-                            document.getElementById('admin-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          }}
-                          onRate={handleRatePastSpoiler}
-                          onReact={handleReactPastSpoiler}
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          placeholder="Senha"
+                          value={adminPassword}
+                          onChange={(e) => setAdminPassword(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-violet-600"
                         />
+                        <button
+                          type="submit"
+                          disabled={isAuthenticating}
+                          className="w-full pkxd-btn-primary py-3 rounded-xl text-sm font-bold cursor-pointer"
+                        >
+                          {isAuthenticating ? 'Conectando...' : 'Entrar no Painel'}
+                        </button>
+                      </form>
+                    )}
+
+                    {adminAuthTab === 'google' && (
+                      <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2.5">
+                        <button
+                          type="button"
+                          onClick={handleLogin}
+                          disabled={isAuthenticating}
+                          className="w-full pkxd-btn-primary py-3 rounded-xl text-sm font-bold cursor-pointer"
+                        >
+                          {isAuthenticating ? 'Entrando...' : 'Entrar com Google (Popup)'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleLoginRedirect}
+                          disabled={isAuthenticating}
+                          className="w-full pkxd-btn-outline py-3 rounded-xl text-sm font-bold cursor-pointer"
+                        >
+                          {isAuthenticating ? 'Entrando...' : 'Entrar com Google (Celular)'}
+                        </button>
                       </div>
+                    )}
 
-                      {/* Featured YouTube Videos Section - Placed exactly under the spoilers section */}
-                      <div className="max-w-4xl mx-auto" id="featured-videos-section-wrapper">
-                        <FeaturedVideos 
-                          videos={featuredList}
-                          isAdmin={isAdmin}
-                          currentUser={user}
-                          onDelete={handleDeleteFeaturedVideo}
-                          onAddXP={handleAddFanXP}
-                          onNavigate={navigateTo}
-                        />
-                      </div>
-
-                      {/* CANDIDATAR-SE A ADMIN BANNER - Placed exactly below the spoiler and featured videos section */}
-                      {!isCompactHomeMode && (
-                        <div className="max-w-4xl mx-auto mt-8 mb-6 px-4 sm:px-0" id="admin-application-banner-under-spoilers">
-                          <div className="bg-gradient-to-r from-purple-900/60 via-indigo-950/70 to-zinc-900 border-2 border-purple-500/30 rounded-2xl p-6 shadow-[0_4px_25px_rgba(139,92,246,0.15)] hover:shadow-[0_4px_35px_rgba(139,92,246,0.25)] hover:border-purple-500/50 transition-all duration-300 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-                            {/* Glowing neon side effect */}
-                            <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-pink-500 to-purple-600" />
-                            
-                            <div className="space-y-2 text-center md:text-left">
-                              <h4 className="font-sans font-black text-lg text-white uppercase tracking-tight flex items-center gap-2 justify-center md:justify-start font-bold">
-                                <span>✨ Quer fazer parte da equipe PKXD Central?</span>
-                              </h4>
-                              <p className="font-sans text-xs text-gray-300 max-w-xl leading-relaxed">
-                                Estamos recrutando novos administradores focados, criativos e cheios de energia! Se você ama o PK XD, quer ajudar a organizar spoilers, posts de novidades e gerenciar o fã-clube oficial do site, inscreva-se agora mesmo!
-                              </p>
-                            </div>
-
-                            <button 
-                              onClick={() => {
-                                triggerAudio('tap');
-                                navigateTo('/inscricoes#admin');
-                              }}
-                              className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-650 hover:from-pink-400 hover:to-indigo-550 active:scale-[0.98] text-white font-sans font-black text-xs uppercase tracking-wider rounded-xl shadow-lg border border-white/20 cursor-pointer flex items-center justify-center gap-2 transition-all flex-shrink-0 animate-pulse hover:animate-none"
-                            >
-                              <span>🔐 Candidatar para Admin 🌟</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* PRÓXIMOS VÍDEOS/LIVES COM CÓDIGOS SECTION */}
-                      <div className="max-w-4xl mx-auto" id="upcoming-streams-section-wrapper">
-                        <UpcomingStreamsSection 
-                          isAdmin={isAdmin}
-                          currentUser={user}
-                          onAddXP={handleAddFanXP}
-                          triggerAudio={triggerAudio}
-                        />
-                      </div>
-
-                      {/* Best Shorts of the Week Section */}
-                      <div className="max-w-4xl mx-auto" id="best-shorts-section-wrapper">
-                        <BestShorts 
-                          shorts={shortsList}
-                          isAdmin={isAdmin}
-                          onDelete={handleDeleteShort}
-                          onNavigate={navigateTo}
-                        />
-                      </div>
-
-                      {/* Theories & PK XD News Publication Area */}
-                      {!isCompactHomeMode && (
-                        <div className="max-w-4xl mx-auto" id="theories-section-wrapper">
-                          <TheoriesSection 
-                            theories={theoriesList}
-                            isAdmin={isAdmin}
-                            currentUser={user}
-                            onDelete={handleDeleteTheory}
-                            onLike={handleLikeTheory}
-                            onAddXP={handleAddFanXP}
-                            onNavigate={navigateTo}
+                    {adminAuthTab === 'pin' && (
+                      <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 text-left">
+                        <p className="text-xs text-slate-600">
+                          Digite o código PIN de administrador para acessar o gerenciamento em nuvem.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            placeholder="Código PIN de admin"
+                            value={inputPasscode}
+                            onChange={(e) => setInputPasscode(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handlePasscodeLogin();
+                            }}
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-violet-600 font-mono"
                           />
+                          <button
+                            type="button"
+                            onClick={handlePasscodeLogin}
+                            className="pkxd-btn-primary px-5 py-2.5 rounded-xl text-sm font-bold cursor-pointer whitespace-nowrap"
+                          >
+                            Entrar PIN
+                          </button>
                         </div>
-                      )}
+                        {passcodeError && (
+                          <p className="text-xs font-semibold text-rose-600">{passcodeError}</p>
+                        )}
+                      </div>
+                    )}
 
-                      {/* WhatsApp Channel Promo Feature banner */}
-                      <WhatsAppPromo channelUrl={WHATSAPP_CHANNEL_URL} onAddXP={handleAddFanXP} />
+                    {googleAuthError && (
+                      <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-left space-y-1.5 text-xs text-rose-900">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <AlertTriangle className="w-4 h-4 text-rose-600" />
+                          <span>Erro de Conexão</span>
+                        </div>
+                        <p className="whitespace-pre-wrap leading-relaxed">{googleAuthError}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : isPrivacyCenterRoute ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+            <PrivacyCenterView
+              onBack={() => navigateTo('/')}
+              onNavigateToPolicy={() => navigateTo('/privacidade')}
+              onNavigateToTerms={() => navigateTo('/termos-de-uso')}
+              onOpenCookiePreferences={() => setIsCookiePreferencesOpen(true)}
+              onOpenDataRequest={() => {
+                setUserDataRequestInitialType('access');
+                setIsUserDataRequestOpen(true);
+              }}
+              onOpenDataDeletion={() => {
+                setUserDataRequestInitialType('deletion');
+                setIsUserDataRequestOpen(true);
+              }}
+              triggerAudio={triggerAudio}
+            />
+          </div>
+        ) : isPrivacyPolicyRoute ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+            <PrivacyPolicyView
+              onBack={() => navigateTo('/privacidade-e-direitos')}
+              onOpenCookiePreferences={() => setIsCookiePreferencesOpen(true)}
+              onOpenDataRequest={() => {
+                setUserDataRequestInitialType('access');
+                setIsUserDataRequestOpen(true);
+              }}
+              triggerAudio={triggerAudio}
+            />
+          </div>
+        ) : isTermsRoute ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+            <TermsOfUseView
+              onBack={() => navigateTo('/privacidade-e-direitos')}
+              triggerAudio={triggerAudio}
+            />
+          </div>
+        ) : isCreatorsSectionRoute ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+            <CreatorsHubView
+              videos={featuredList}
+              shorts={shortsList}
+              isAdmin={isAdmin}
+              currentUser={user}
+              initialSubTab={isCreatorProgressRoute ? 'analisador' : 'vitrine'}
+              soundEnabled={soundEnabled}
+              onDeleteVideo={handleDeleteFeaturedVideo}
+              onDeleteShort={handleDeleteShort}
+              onAddXP={handleAddFanXP}
+              onNavigate={navigateTo}
+              onOpenAuthModal={(mode) => {
+                setExplicitAuthMode(mode || 'login');
+                setExplicitAuthModalOpen(true);
+              }}
+              triggerAudio={triggerAudio}
+            />
+          </div>
+        ) : isApplicationsRoute ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6">
+            <div className="pkxd-glass rounded-[34px] p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-violet-700">
+                  Oportunidades e Seleções
+                </p>
+                <h1 className="font-display font-bold text-3xl text-slate-900">
+                  Inscrições e Programas da Comunidade
+                </h1>
+                <p className="text-sm text-slate-600 max-w-2xl">
+                  Escolha um projeto aberto para enviar seus vídeos, teorias ou se candidatar à equipe da PKXD Central.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerAudio('tap');
+                  navigateTo('/');
+                }}
+                className="pkxd-btn-outline px-4 py-2.5 rounded-full text-sm font-bold inline-flex items-center gap-2 cursor-pointer self-start shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar ao Início</span>
+              </button>
+            </div>
 
-                      {/* Official Partner Channel Area - Alertas PK XD */}
-                      {!isCompactHomeMode && (
-                        <PartnerChannelPromo onAddXP={handleAddFanXP} />
-                      )}
-                    </>
+            <ApplicationsSection
+              onBackToHub={() => {
+                setShowCreatorAnalyzer(false);
+                navigateTo('/');
+              }}
+              onOpenCreatorAnalyzer={() => {
+                setShowCreatorAnalyzer(true);
+                navigateTo('/progresso-creator');
+              }}
+              onAddXP={handleAddFanXP}
+              soundEnabled={soundEnabled}
+              user={user}
+              isAdmin={isAdmin}
+              onAddNews={handleAddNews}
+              onAddShort={handleAddShort}
+              onAddTheory={handleAddTheory}
+              onAddFeaturedVideo={handleAddFeaturedVideo}
+            />
+          </div>
+        ) : isNewsRoute ? (
+          <NewsSectionView
+            newsList={newsList}
+            selectedArticleId={selectedNewsArticleId}
+            isAdmin={isAdmin}
+            onSelectArticle={(articleId) => {
+              if (articleId) {
+                navigateTo(`/noticias/${articleId}`);
+              } else {
+                navigateTo('/noticias');
+              }
+            }}
+            onEditNews={(item) => {
+              handleEditNewsRequest(item);
+              navigateTo('/admin');
+            }}
+            onDeleteNews={handleDeleteNews}
+            onNavigate={navigateTo}
+            triggerAudio={triggerAudio}
+          />
+        ) : isNotificationsRoute ? (
+          <NotificationsPageView
+            notifications={notificationList}
+            seenIds={seenNotifIds}
+            isAdmin={isAdmin}
+            hasPushPermission={hasNotificationPermission}
+            onMarkRead={markNotificationRead}
+            onMarkAllRead={markAllNotificationsRead}
+            onDeleteNotification={handleDeleteNotification}
+            onEnablePush={handleEnableBrowserPush}
+            onNavigate={navigateTo}
+            triggerAudio={triggerAudio}
+          />
+        ) : isProfileRoute ? (
+          <UserProfileView
+            user={user}
+            playerTag={currentPlayerTag}
+            xpProfile={xpProfile}
+            fanLevel={fanLevel}
+            fanXP={fanXP}
+            onSaveIdentity={saveIdentityCore}
+            onOpenInstallApp={() => setShowInstallAppModal(true)}
+            onOpenAuth={(mode) => {
+              setExplicitAuthMode(mode || 'login');
+              setExplicitAuthModalOpen(true);
+            }}
+            onLogout={handleLogout}
+            onNavigate={navigateTo}
+            triggerAudio={triggerAudio}
+          />
+        ) : activeTab === 'eventos' || isMyAgendaRoute || isCreateEventRoute ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6" id="events-section-wrapper">
+            <EventsSection
+              isAdmin={isAdmin}
+              currentUser={user}
+              playerTag={currentPlayerTag}
+              soundEnabled={soundEnabled}
+              initialAgendaTab={isMyAgendaRoute ? 'minha_agenda' : 'todos'}
+              autoOpenCreate={isCreateEventRoute || autoOpenEventCreate}
+              onCloseAutoCreate={() => {
+                setAutoOpenEventCreate(false);
+                if (isCreateEventRoute) {
+                  navigateTo('/eventos');
+                }
+              }}
+              triggerAudio={triggerAudio}
+              onAddXP={handleAddFanXP}
+            />
+          </div>
+        ) : isCommunityViewActive ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
+            {/* Community Hub Header */}
+            <div className="pkxd-glass rounded-[34px] p-6 sm:p-8 space-y-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                    Comunidade PK XD Central
+                  </p>
+                  <h1 className="font-display font-bold text-3xl text-slate-900">
+                    Espaço dos Membros, Perfil e Participação
+                  </h1>
+                  <p className="text-sm text-slate-600 max-w-2xl">
+                    Interaja no mural social, personalize seu cartão PKXD ID, complete missões, baixe artes e envie sugestões ou denúncias.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  {user ? (
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="px-4 py-2.5 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Sair da Conta</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerAudio('tap');
+                        setExplicitAuthMode('login');
+                        setExplicitAuthModalOpen(true);
+                      }}
+                      className="pkxd-btn-primary px-5 py-2.5 rounded-full text-sm font-bold cursor-pointer"
+                    >
+                      Entrar ou Criar Conta
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Community Sub-Navigation */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                {([
+                  { id: 'mural', label: 'Mural e Enquetes', icon: Users, path: '/comunidade' },
+                  { id: 'pkxd-id', label: 'PKXD ID e Perfil', icon: Sparkles, path: '/pkxd-id' },
+                  { id: 'missoes', label: 'Missões e Nível', icon: Target, path: '/missoes' },
+                  { id: 'artes', label: 'Artes e Downloads', icon: Palette, path: '/artes' },
+                  { id: 'ouvidoria', label: 'Feedback e Denúncias', icon: MessageSquarePlus, path: '/comunidade#ouvidoria' },
+                ] as const).map((tab) => {
+                  const Icon = tab.icon;
+                  const active = communitySubTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        triggerAudio('tap');
+                        setCommunitySubTab(tab.id);
+                        navigateTo(tab.path);
+                      }}
+                      className={`px-4 py-2.5 rounded-full text-sm font-bold inline-flex items-center gap-2 transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-violet-700 text-white'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{tab.label}</span>
+                    </button>
                   );
-                })()}
+                })}
               </div>
-            )}
+            </div>
 
-            {activeTab === 'eventos' && (
-              <div className="max-w-4xl mx-auto animate-fade-in" id="events-section-wrapper">
-                <EventsSection 
-                  isAdmin={isAdmin}
-                  currentUser={user}
-                  soundEnabled={soundEnabled}
-                  triggerAudio={triggerAudio}
-                  onAddXP={handleAddFanXP}
-                />
-              </div>
-            )}
-
-            {activeTab === 'passaporte' && (
-              <div className="max-w-4xl mx-auto animate-fade-in" id="passport-section-wrapper">
-                <PassportSection 
-                  currentUser={user}
-                  isAdmin={isAdmin}
-                  fanXP={fanXP}
-                  fanLevel={fanLevel}
-                  onAddXP={handleAddFanXP}
-                  triggerAudio={triggerAudio}
-                />
-              </div>
-            )}
-
-            {activeTab === 'comunidade' && (
-              <div className="max-w-4xl mx-auto space-y-8 animate-fade-in" id="social-feed-section-wrapper">
-                <PollsSection 
-                  onAddXP={handleAddFanXP}
-                  isAdmin={isAdmin}
-                />
-
-                <SocialSection 
+            {/* Active Community Panel */}
+            {communitySubTab === 'mural' && (
+              <div className="space-y-8 animate-fade-in" id="social-feed-section-wrapper">
+                <PollsSection onAddXP={handleAddFanXP} isAdmin={isAdmin} />
+                <SocialSection
                   currentUser={user}
                   isAdmin={isAdmin}
                   onAddXP={handleAddFanXP}
@@ -3627,22 +3378,44 @@ export default function App() {
                   triggerAudio={triggerAudio}
                   onLoginRedirect={handleLoginRedirect}
                 />
+                <div id="theories-section-wrapper">
+                  <TheoriesSection
+                    theories={theoriesList}
+                    isAdmin={isAdmin}
+                    currentUser={user}
+                    onDelete={handleDeleteTheory}
+                    onLike={handleLikeTheory}
+                    onAddXP={handleAddFanXP}
+                    onNavigate={navigateTo}
+                  />
+                </div>
               </div>
             )}
 
-            {activeTab === 'missoes' && (
-              <div className="max-w-4xl mx-auto space-y-12 animate-fade-in" id="missions-section-wrapper">
-                <MissionsSection 
+            {communitySubTab === 'pkxd-id' && (
+              <div className="animate-fade-in" id="passport-section-wrapper">
+                <PassportSection
+                  currentUser={user}
+                  isAdmin={isAdmin}
+                  fanXP={fanXP}
+                  fanLevel={fanLevel}
+                  onAddXP={handleAddFanXP}
+                  triggerAudio={triggerAudio}
+                />
+              </div>
+            )}
+
+            {communitySubTab === 'missoes' && (
+              <div className="space-y-10 animate-fade-in" id="missions-section-wrapper">
+                <MissionsSection
                   fanLevel={fanLevel}
                   fanXP={fanXP}
                   onAddXP={handleAddFanXP}
                   triggerAudio={triggerAudio}
                   soundEnabled={soundEnabled}
                 />
-                
-                {/* Fan Level section inside the Missions panel */}
                 <div id="fan-level-section-wrapper">
-                  <FanLevelSection 
+                  <FanLevelSection
                     level={fanLevel}
                     xp={fanXP}
                     onAddXP={handleAddFanXP}
@@ -3675,490 +3448,272 @@ export default function App() {
               </div>
             )}
 
-            {activeTab === 'artes' && (
-              <div className="max-w-4xl mx-auto animate-fade-in" id="artes-section-wrapper">
-                <ArtesSection 
+            {communitySubTab === 'artes' && (
+              <div className="animate-fade-in" id="artes-section-wrapper">
+                <ArtesSection
                   isAdmin={isAdmin}
                   soundEnabled={soundEnabled}
                   triggerAudio={triggerAudio}
                 />
               </div>
             )}
-          </>
-        )}
 
+            {communitySubTab === 'ouvidoria' && (
+              <div className="animate-fade-in">
+                <CommunityFeedbackSection
+                  currentUser={user}
+                  isAdmin={isAdmin}
+                  onAddXP={handleAddFanXP}
+                  triggerAudio={triggerAudio}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <PKXDHomeView
+            user={user}
+            isAdmin={isAdmin}
+            fanLevel={fanLevel}
+            totalXp={totalXpDisplay}
+            playerTag={currentPlayerTag}
+            identityXpClaimed={Boolean(xpProfile?.claimedRewards?.includes('pkxd_identity_25'))}
+            pwaXpClaimed={Boolean(xpProfile?.claimedRewards?.includes('pwa_install_100'))}
+            newsList={newsList}
+            featuredList={featuredList}
+            theoriesList={theoriesList}
+            shortsList={shortsList}
+            pastSpoilers={pastSpoilers}
+            notifications={notificationList}
+            spoilerTitle={spoilerTitle}
+            spoilerDesc={spoilerDesc}
+            spoilerImage={spoilerImage}
+            forceReveal={forceReveal}
+            revealedAt={revealedAt}
+            isDelayed={isDelayed}
+            delayMessage={delayMessage}
+            extraCountdownTitle={extraCountdownTitle}
+            extraCountdownDate={extraCountdownDate}
+            extraCountdownEnabled={extraCountdownEnabled}
+            giftCountdownTitle={giftCountdownTitle}
+            giftCountdownDate={giftCountdownDate}
+            giftCountdownEnabled={giftCountdownEnabled}
+            giftCountdownContent={giftCountdownContent}
+            whatsappChannelUrl={WHATSAPP_CHANNEL_URL}
+            onNavigate={navigateTo}
+            onOpenTagModal={openTagSetupFlow}
+            onTriggerPWAInstall={() => setShowInstallAppModal(true)}
+            onAddXP={handleAddFanXP}
+            onOpenFullscreenSpoiler={(title, desc, img) => {
+              setFullscreenData({ title, desc, imageUrl: img || '' });
+              setIsFullscreenOpen(true);
+            }}
+            onDeletePastSpoiler={handleDeletePastSpoiler}
+            onEditPastSpoiler={(spoil) => {
+              setPastSpoilerToEdit(spoil);
+              navigateTo('/admin');
+            }}
+            onRatePastSpoiler={handleRatePastSpoiler}
+            onReactPastSpoiler={handleReactPastSpoiler}
+            onSelectNewsArticle={(id) => navigateTo(`/noticias/${id}`)}
+            triggerAudio={triggerAudio}
+          />
+        )}
       </main>
 
-      {/* Footer Area */}
-      <footer id="main-footer" className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-16 mt-12 select-none border-t border-white/10 font-sans">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          
-          {/* Brand & Mission */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
-              <strong className="font-sans text-sm font-black text-white tracking-wider uppercase">
-                PKXD Central • 2026
+      {/* BOLD NEO-BRUTALIST DEEP PURPLE FOOTER */}
+      <footer id="main-footer" className="relative z-10 bg-[#1B0538] border-t-[4px] border-[#120624] text-white mt-auto select-none pb-24 md:pb-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            {/* Brand & Mission */}
+            <div className="space-y-3">
+              <strong className="font-display text-xl font-bold text-white block">
+                PKXD <span className="text-[#F9C826]">CENTRAL</span>
               </strong>
+              <p className="text-xs sm:text-sm text-white/80 leading-relaxed max-w-sm">
+                Portal independente completo para a comunidade PK XD: eventos, torneios, Minha Agenda, notícias, criadores e sistema de XP.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowInstallAppModal(true)}
+                className="pkxd-btn-gold px-4 py-2 text-xs uppercase cursor-pointer"
+              >
+                Instalar App (+100 XP)
+              </button>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-sm">
-              Este site é um portal independente mantido por fãs de PK XD. PK XD é uma marca registrada de suas respectivas publicadoras. Todas as mídias pertencem a seus legítimos donos.
-            </p>
+
+            {/* Direct Navigation Links */}
+            <div className="space-y-3">
+              <span className="text-xs font-black uppercase tracking-wider text-[#F9C826] block">
+                Explorar Portal
+              </span>
+              <ul className="grid grid-cols-2 gap-y-2.5 gap-x-4 text-xs sm:text-sm text-white/85 font-semibold">
+                {[
+                  { label: 'Início', path: '/' },
+                  { label: 'Eventos', path: '/eventos' },
+                  { label: 'Minha Agenda', path: '/minha-agenda' },
+                  { label: 'Criar Evento', path: '/criar-evento' },
+                  { label: 'Notícias', path: '/noticias' },
+                  { label: 'Creators', path: '/criadores' },
+                  { label: 'Notificações', path: '/notificacoes' },
+                  { label: 'Meu Perfil', path: '/perfil' },
+                  { label: 'Administração', path: '/admin' },
+                ].map((link) => (
+                  <li key={link.path}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerAudio('tap');
+                        navigateTo(link.path);
+                      }}
+                      className="hover:text-[#F9C826] transition-colors cursor-pointer"
+                    >
+                      {link.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Privacy, Cookies & Rights */}
+            <div className="space-y-3" id="footer-privacy-column">
+              <span className="text-xs font-black uppercase tracking-wider text-[#F9C826] block">
+                Privacidade e Segurança
+              </span>
+              <ul className="space-y-2.5 text-xs sm:text-sm text-white/85 font-semibold">
+                <li>
+                  <button
+                    id="footer-link-privacy-policy"
+                    type="button"
+                    onClick={() => {
+                      triggerAudio('tap');
+                      navigateTo('/privacidade');
+                    }}
+                    className="hover:text-[#F9C826] transition-colors cursor-pointer text-left"
+                  >
+                    Política de Privacidade
+                  </button>
+                </li>
+                <li>
+                  <button
+                    id="footer-link-terms-of-use"
+                    type="button"
+                    onClick={() => {
+                      triggerAudio('tap');
+                      navigateTo('/termos-de-uso');
+                    }}
+                    className="hover:text-[#F9C826] transition-colors cursor-pointer text-left"
+                  >
+                    Termos de Uso
+                  </button>
+                </li>
+                <li>
+                  <button
+                    id="footer-link-cookie-preferences"
+                    type="button"
+                    onClick={() => {
+                      triggerAudio('tap');
+                      setIsCookiePreferencesOpen(true);
+                    }}
+                    className="hover:text-[#F9C826] transition-colors cursor-pointer text-left"
+                  >
+                    Preferências de Cookies
+                  </button>
+                </li>
+                <li>
+                  <button
+                    id="footer-link-user-rights"
+                    type="button"
+                    onClick={() => {
+                      triggerAudio('tap');
+                      setUserDataRequestInitialType('access');
+                      setIsUserDataRequestOpen(true);
+                    }}
+                    className="hover:text-[#F9C826] transition-colors cursor-pointer text-left"
+                  >
+                    Seus Direitos e Dados
+                  </button>
+                </li>
+              </ul>
+            </div>
           </div>
 
-          {/* Direct Navigation Links */}
-          <div className="space-y-3">
-            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-300 block">
-              Navegação Rápida
-            </span>
-            <ul className="space-y-2 text-xs text-zinc-400">
-              <li>
-                <button
-                  onClick={() => {
-                    triggerAudio('tap');
-                    navigateTo('/Hub/');
-                  }}
-                  className="hover:text-purple-400 transition-colors cursor-pointer"
-                >
-                  Início / Hub de Notícias
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    triggerAudio('tap');
-                    navigateTo('/progresso-creator');
-                  }}
-                  className="hover:text-purple-400 transition-colors cursor-pointer"
-                >
-                  Creator Progress Analyzer
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    triggerAudio('tap');
-                    navigateTo('/inscricoes');
-                  }}
-                  className="hover:text-purple-400 transition-colors cursor-pointer"
-                >
-                  Inscrições & Painel Creator
-                </button>
-              </li>
-            </ul>
+          <div className="pt-6 border-t border-white/15 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/70">
+            <span>© 2026 PKXD Central · Plataforma Independente da Comunidade PK XD</span>
+            <button
+              type="button"
+              onClick={() => {
+                triggerAudio('tap');
+                navigateTo('/privacidade-e-direitos');
+              }}
+              className="hover:text-[#F9C826] transition-colors cursor-pointer underline"
+            >
+              Centro de Privacidade e Direitos
+            </button>
           </div>
-
-          {/* Privacy, Cookies and Rights Column (User Request #11) */}
-          <div className="space-y-3" id="footer-privacy-column">
-            <span className="text-[11px] font-black uppercase tracking-wider text-purple-400 block">
-              Privacidade
-            </span>
-            <ul className="space-y-2 text-xs text-zinc-400 font-medium">
-              <li>
-                <button
-                  id="footer-link-privacy-policy"
-                  onClick={() => {
-                    triggerAudio('tap');
-                    navigateTo('/privacidade');
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-left"
-                >
-                  <span>Política de Privacidade</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  id="footer-link-terms-of-use"
-                  onClick={() => {
-                    triggerAudio('tap');
-                    navigateTo('/termos-de-uso');
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-left"
-                >
-                  <span>Termos de Uso</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  id="footer-link-cookies"
-                  onClick={() => {
-                    triggerAudio('tap');
-                    navigateTo('/privacidade-e-direitos');
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-left"
-                >
-                  <span>Cookies</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  id="footer-link-cookie-preferences"
-                  onClick={() => {
-                    triggerAudio('tap');
-                    setIsCookiePreferencesOpen(true);
-                  }}
-                  className="text-purple-300 hover:text-purple-200 transition-colors cursor-pointer flex items-center gap-1.5 text-left font-bold"
-                >
-                  <span>Preferências de Cookies</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  id="footer-link-user-rights"
-                  onClick={() => {
-                    triggerAudio('tap');
-                    setUserDataRequestInitialType('access');
-                    setIsUserDataRequestOpen(true);
-                  }}
-                  className="text-indigo-300 hover:text-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5 text-left font-bold"
-                >
-                  <span>Seus Direitos</span>
-                </button>
-              </li>
-            </ul>
-          </div>
-
-        </div>
-
-        {/* Bottom subtle copyright */}
-        <div className="pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-zinc-500">
-          <span>© 2026 PKXD Central • Fã Clube Independente</span>
-          <button
-            onClick={() => {
-              triggerAudio('tap');
-              navigateTo('/privacidade-e-direitos');
-            }}
-            className="hover:text-zinc-300 transition-colors cursor-pointer underline"
-          >
-            Acessar Centro de Privacidade e Direitos
-          </button>
         </div>
       </footer>
 
-      {/* FLOATING SECTIONS MENU BUTTON - Redesigned to be delicate, small and beautiful as requested */}
-      <div className="fixed bottom-6 right-6 z-45">
-        <button 
-          onClick={() => {
-            setIsNavMenuOpen(!isNavMenuOpen);
-            triggerAudio('tap');
-          }}
-          className="w-12 h-12 bg-zinc-950/95 hover:bg-purple-950 text-cyan-300 hover:text-yellow-300 rounded-full shadow-[0_4px_15px_rgba(236,72,153,0.3)] hover:shadow-[0_4px_25px_rgba(34,211,238,0.55)] border-2 border-cyan-400/60 active:scale-90 transition-all duration-200 cursor-pointer flex items-center justify-center group relative"
-          title="Navegar pelas Seções"
-          id="floating-navigation-compass-trigger"
-        >
-          {/* Subtle neon pulse background */}
-          <span className="absolute -inset-1 rounded-full bg-cyan-400/10 blur-sm pointer-events-none group-hover:bg-cyan-400/25 transition-all duration-300" />
-          <span className="absolute inset-0 rounded-full bg-cyan-500/10 animate-ping pointer-events-none" />
-          
-          <Compass className="w-5 h-5 animate-spin-slow group-hover:rotate-45 duration-500 text-cyan-400 group-hover:text-yellow-300" />
-          
-          <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow border border-white/20 uppercase tracking-widest">
-            NAV
-          </span>
-        </button>
-      </div>
-
-      {/* COLLAPSIBLE SIDEBAR DRAWER SECTIONS NAVIGATOR */}
-      <AnimatePresence>
-        {isNavMenuOpen && (
-          <div className="fixed inset-0 z-50 overflow-hidden" id="navigation-sidebar-drawer">
-            {/* Translucent Backdrop */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity" 
-              onClick={() => {
-                setIsNavMenuOpen(false);
-                triggerAudio('tap');
-              }}
-            />
-
-            <div className="absolute inset-y-0 right-0 max-w-full flex pl-4">
-              <motion.div 
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-                className="w-screen max-w-xs sm:max-w-md h-full"
-              >
-                <div className="h-full flex flex-col bg-gradient-to-b from-[#0a051b] via-[#0d0726] to-[#04020a] border-l-2 border-cyan-500/30 shadow-[0_0_50px_rgba(6,182,212,0.15)] relative overflow-y-auto">
-                  
-                  {/* Drawer Header */}
-                  <div className="p-6 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-slate-950 to-indigo-950/60 relative">
-                    {/* Glowing background header effect */}
-                    <div className="absolute top-0 right-1/4 w-32 h-12 bg-cyan-500/10 blur-xl rounded-full pointer-events-none" />
-                    
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-400/20 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-                        <Compass className="w-5 h-5 text-cyan-400 animate-spin-slow" />
-                      </div>
-                      <div>
-                        <h3 className="font-sans font-black text-sm uppercase tracking-widest text-white flex items-center gap-1.5">
-                          <span className="bg-gradient-to-r from-cyan-400 via-pink-400 to-yellow-300 bg-clip-text text-transparent">
-                            Portal PKXD
-                          </span>
-                          <span className="text-[10px] bg-yellow-400 text-black px-1.5 py-0.5 rounded-md font-black tracking-normal uppercase">
-                            Central
-                          </span>
-                        </h3>
-                        <p className="text-[9px] text-cyan-400 font-mono tracking-wider">GUIA DE ATALHOS RÁPIDOS</p>
-                      </div>
-                    </div>
-                    
-                    <motion.button 
-                      whileHover={{ scale: 1.1, rotate: 90 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        setIsNavMenuOpen(false);
-                        triggerAudio('tap');
-                      }}
-                      className="w-9 h-9 rounded-full bg-white/[0.04] hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/30 border border-white/10 text-gray-400 transition-all duration-150 cursor-pointer flex items-center justify-center font-bold text-base"
-                      title="Fechar Menu"
-                    >
-                      ✕
-                    </motion.button>
-                  </div>
-
-                  {/* Navigation Links list */}
-                  <div className="flex-1 p-5 sm:p-6 space-y-5 overflow-y-auto custom-scrollbar">
-                    <div className="flex items-center justify-between">
-                      <p className="font-sans text-[10px] text-gray-400 uppercase tracking-widest font-black flex items-center gap-1">
-                        <span>🎯</span> SEÇÕES DISPONÍVEIS:
-                      </p>
-                      <span className="text-[9px] bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-gray-400 font-mono">
-                        7 Áreas
-                      </span>
-                    </div>
-                    
-                    <nav className="space-y-3">
-                      {[
-                        { 
-                          id: 'countdown-card-root', 
-                          title: 'Spoilers Semanais', 
-                          desc: 'Contagem regressiva e spoilers oficiais em vigor', 
-                          badge: 'Ativo', 
-                          badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-                          glowColor: 'group-hover:border-emerald-500/40 group-hover:bg-emerald-500/[0.02]',
-                          sideColor: 'bg-emerald-500'
-                        },
-                        { 
-                          id: 'past-spoilers-history-section-wrapper', 
-                          title: 'Spoilers Antigos', 
-                          desc: 'Bandeja histórica de spoilers e histórias arquivadas', 
-                          badge: 'Histórico', 
-                          badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-                          glowColor: 'group-hover:border-purple-500/40 group-hover:bg-purple-500/[0.02]',
-                          sideColor: 'bg-purple-500'
-                        },
-                        { 
-                          id: 'fan-level-section-wrapper', 
-                          title: 'Nível de Fã Extra', 
-                          desc: 'Subir de nível e coletar insígnias oficiais de fã', 
-                          badge: 'Desafios', 
-                          badgeColor: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
-                          glowColor: 'group-hover:border-pink-500/40 group-hover:bg-pink-500/[0.02]',
-                          sideColor: 'bg-pink-500'
-                        },
-                        { 
-                          id: 'upcoming-streams-section-wrapper', 
-                          title: 'Lives & Vídeos com Códigos', 
-                          desc: 'Próximas transmissões e cupons de gemas', 
-                          badge: 'Lives ⚡', 
-                          badgeColor: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-                          glowColor: 'group-hover:border-yellow-500/40 group-hover:bg-yellow-500/[0.02]',
-                          sideColor: 'bg-yellow-400'
-                        },
-                        { 
-                          id: 'promo-code-redeemer-section-wrapper', 
-                          title: 'Resgatar Códigos', 
-                          desc: 'Promo codes ativos nos últimos 7 dias', 
-                          badge: 'Códigos', 
-                          badgeColor: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-                          glowColor: 'group-hover:border-yellow-500/40 group-hover:bg-yellow-500/[0.02]',
-                          sideColor: 'bg-yellow-400'
-                        },
-                        { 
-                          id: 'featured-videos-section-wrapper', 
-                          title: 'Vídeos Destaques', 
-                          desc: 'Tutoriais de moedas e gameplays recomendadas', 
-                          badge: 'Vídeos', 
-                          badgeColor: 'bg-red-500/10 text-red-400 border-red-500/20',
-                          glowColor: 'group-hover:border-red-500/40 group-hover:bg-red-500/[0.02]',
-                          sideColor: 'bg-red-500'
-                        },
-                        { 
-                          id: 'best-shorts-section-wrapper', 
-                          title: 'Shorts Virais', 
-                          desc: 'Vídeos curtos e engraçados da comunidade', 
-                          badge: 'Shorts', 
-                          badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-                          glowColor: 'group-hover:border-cyan-500/40 group-hover:bg-cyan-500/[0.02]',
-                          sideColor: 'bg-cyan-400'
-                        },
-                        { 
-                          id: 'theories-section-wrapper', 
-                          title: 'Teorias dos Fãs', 
-                          desc: 'Segredos ocultos e suposições da atualização', 
-                          badge: 'Fórum', 
-                          badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-                          glowColor: 'group-hover:border-amber-500/40 group-hover:bg-amber-500/[0.02]',
-                          sideColor: 'bg-amber-500'
-                        },
-                      ].map((section) => (
-                        <motion.button
-                          key={section.id}
-                          type="button"
-                          whileHover={{ scale: 1.02, x: 6 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            setIsNavMenuOpen(false);
-                            triggerAudio('tap');
-                            // Smooth scroll targeting center
-                            setTimeout(() => {
-                              document.getElementById(section.id)?.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center',
-                              });
-                            }, 120);
-                          }}
-                          className={`w-full text-left p-3.5 rounded-2xl border border-white/5 bg-white/[0.02] ${section.glowColor} transition-all duration-200 flex items-center justify-between group cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.5)] relative overflow-hidden`}
-                        >
-                          {/* Elegant side tag border indicator */}
-                          <div className={`absolute left-0 inset-y-0 w-[4px] ${section.sideColor} opacity-0 group-hover:opacity-100 transition-opacity duration-200`} />
-                          
-                          <div className="space-y-1 pl-1.5 pr-2">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-sans font-black text-xs sm:text-sm text-gray-100 group-hover:text-cyan-300 transition-colors">
-                                {section.title}
-                              </span>
-                              <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${section.badgeColor}`}>
-                                {section.badge}
-                              </span>
-                            </div>
-                            <span className="block font-sans text-[10.5px] text-gray-400 leading-snug group-hover:text-gray-300 transition-colors">
-                              {section.desc}
-                            </span>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-cyan-400 transition-all transform group-hover:translate-x-1.5 flex-shrink-0" />
-                        </motion.button>
-                      ))}
-                    </nav>
-                  </div>
-
-                  {/* Quick Info footer inside drawer */}
-                  <div className="p-5 sm:p-6 border-t border-white/10 bg-slate-950/80 backdrop-blur-md space-y-3 relative">
-                    <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
-                    
-                    <div className="flex items-center justify-center gap-1.5 text-center">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                      <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">ADMINISTRAÇÃO & COMUNICADOS</span>
-                    </div>
-                    
-                    {/* Candidate to Admin Form button */}
-                    <motion.button 
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => { triggerAudio('tap'); navigateTo('/inscricoes#admin'); }}
-                      className="w-full py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:via-indigo-500 hover:to-cyan-500 text-white font-sans font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:shadow-[0_0_25px_rgba(168,85,247,0.4)] border border-indigo-500/30 cursor-pointer"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>CANDIDATAR A ADMIN</span>
-                    </motion.button>
-
-                    <motion.a 
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.98 }}
-                      href={WHATSAPP_CHANNEL_URL} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-sans font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer text-center"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5 fill-black" />
-                      <span>ENTRAR NO CANAL WHATSAPP</span>
-                    </motion.a>
-
-                    <p className="text-[8.5px] text-gray-500 text-center pt-2 font-mono leading-normal">
-                      PKXD Central © 2026 • Comunidade Oficial de Fãs
-                    </p>
-                  </div>
-
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* FULLSCREEN SPOILER MODAL OVERLAY */}
       {isFullscreenOpen && fullscreenData && (
-        <div 
+        <div
           onClick={() => {
             setIsFullscreenOpen(false);
             setFullscreenData(null);
             triggerAudio('tap');
           }}
-          className="fixed inset-0 z-50 overflow-y-auto flex flex-col items-center justify-start p-3 sm:p-6 bg-black/98 backdrop-blur-3xl animate-fade-in cursor-zoom-out" 
+          className="fixed inset-0 z-50 overflow-y-auto flex flex-col items-center justify-start p-4 sm:p-6 bg-slate-950/90 backdrop-blur-md animate-fade-in cursor-zoom-out"
           id="fullscreen-spoiler-overlay"
         >
-          {/* Main content wrapper */}
-          <div 
-            onClick={(e) => e.stopPropagation()} 
-            className="w-full max-w-6xl my-auto py-6 sm:py-10 relative flex flex-col items-stretch text-left cursor-default space-y-5 sm:space-y-7"
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-5xl my-auto py-6 relative flex flex-col items-stretch text-left cursor-default space-y-5"
           >
-            
-            {/* Top Close Circular Control */}
-            <button
-              onClick={() => {
-                setIsFullscreenOpen(false);
-                setFullscreenData(null);
-                triggerAudio('tap');
-              }}
-              className="fixed top-4 right-4 sm:top-6 sm:right-6 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-pink-500 hover:scale-105 active:scale-95 text-white transition-all cursor-pointer border border-white/15 shadow-2xl duration-150 z-50 hover:shadow-pink-500/25"
-              title="Fechar Foco Imersivo"
-            >
-              <span className="text-2xl font-light leading-none">✕</span>
-            </button>
+            <div className="flex items-center justify-between gap-4">
+              <h3 className="font-display font-bold text-2xl sm:text-4xl text-white">
+                {fullscreenData.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFullscreenOpen(false);
+                  setFullscreenData(null);
+                  triggerAudio('tap');
+                }}
+                className="w-11 h-11 rounded-2xl bg-white/15 hover:bg-rose-600 text-white flex items-center justify-center cursor-pointer shrink-0 transition-colors"
+                aria-label="Fechar visualização"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            {/* Title */}
-            <h3 className="font-sans font-black text-3xl sm:text-5xl text-yellow-350 uppercase tracking-tight leading-tight text-center max-w-5xl mx-auto px-4 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-              {fullscreenData.title}
-            </h3>
-
-            {/* Immersive Spoiler Image - Now MUCH LARGER */}
             {fullscreenData.imageUrl && (
-              <div className="rounded-3xl border-2 border-white/10 overflow-hidden bg-black/85 p-2.5 max-h-[78vh] flex items-center justify-center max-w-5xl w-full mx-auto shadow-[0_0_40px_rgba(236,72,153,0.15)] relative animate-fade-in">
+              <div className="rounded-3xl border border-white/15 overflow-hidden bg-slate-900 p-2 max-h-[75vh] flex items-center justify-center">
                 <img
                   src={fullscreenData.imageUrl}
                   alt={fullscreenData.title}
-                  className="max-h-[74vh] w-full h-auto object-contain rounded-2xl select-none"
+                  className="max-h-[70vh] w-full h-auto object-contain rounded-2xl select-none"
                   referrerPolicy="no-referrer"
                 />
               </div>
             )}
 
-            {/* Spoilers details text block */}
             {fullscreenData.desc && (
-              <div className="max-w-5xl w-full mx-auto bg-neutral-900/90 p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl overflow-y-auto max-h-[380px] custom-scrollbar">
-                <div className="space-y-4 font-sans text-base sm:text-lg text-gray-150 leading-relaxed">
-                  <CountdownWidget 
-                    onlyContent={true}
-                    spoilerTitle={fullscreenData.title}
-                    spoilerDesc={fullscreenData.desc} 
-                  />
-                </div>
+              <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-3xl shadow-2xl overflow-y-auto max-h-[360px]">
+                <CountdownWidget
+                  onlyContent={true}
+                  spoilerTitle={fullscreenData.title}
+                  spoilerDesc={fullscreenData.desc}
+                />
               </div>
             )}
-
           </div>
         </div>
       )}
 
-      {/* CENTRAL DE NOTIFICAÇÕES OVERLAY */}
+      {/* CENTRAL DE ALERTAS OVERLAY (Light, high-contrast) */}
       {isNotifOverlayOpen && (
-        <div 
-          className="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm animate-fade-in cursor-pointer" 
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in cursor-pointer"
           id="notifications-list-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4167,45 +3722,57 @@ export default function App() {
             }
           }}
         >
-          <div className="bg-[#15102A]/85 backdrop-blur-xl border border-cyan-400/40 rounded-3xl p-5 sm:p-8 w-full max-w-2xl relative shadow-[0_24px_64px_rgba(0,0,0,0.65)] my-4 sm:my-8 text-left cursor-default">
-            
-            {/* Top Close Controls */}
-            <button
-              onClick={() => {
-                setIsNotifOverlayOpen(false);
-                triggerAudio('tap');
-              }}
-              className="absolute top-4 right-4 bg-red-500 hover:bg-red-600 active:scale-95 text-white font-sans font-black text-xs uppercase px-4 py-3 rounded-xl border border-red-400/20 transition-all cursor-pointer shadow-md duration-150 z-10 flex items-center justify-center min-h-[44px]"
-            >
-              Fechar ✕
-            </button>
+          <div className="pkxd-glass-modal rounded-3xl p-5 sm:p-7 w-full max-w-2xl relative my-4 sm:my-8 text-left cursor-default">
+            <div className="flex items-center justify-between gap-4 pb-4 mb-5 border-b border-slate-200">
+              <div className="flex items-center gap-2.5 text-slate-900">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                  <BellRing className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-lg text-slate-900">
+                    Notificações Importantes
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Spoilers, códigos de lives e comunicados recentes
+                  </p>
+                </div>
+              </div>
 
-            {/* Header Title */}
-            <div className="flex items-center gap-2 text-cyan-400 mb-5 pb-3 border-b border-white/10 pr-16 sm:pr-0">
-              <BellRing className="w-5 h-5 animate-swing text-cyan-400 fill-cyan-400 flex-shrink-0" />
-              <h3 className="font-sans font-black text-sm sm:text-lg uppercase tracking-wide text-white">Central de Alertas</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNotifOverlayOpen(false);
+                  triggerAudio('tap');
+                }}
+                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                aria-label="Fechar notificações"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Native browser/mobile alert toggle card */}
-            <div className="mb-6 p-4 rounded-2xl bg-[#1D1638]/70 backdrop-blur-md border border-white/[0.08] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h4 className="font-sans font-black text-xs uppercase tracking-wider text-pink-400">📲 Notificações no Celular / Navegador</h4>
-                <p className="text-[11px] text-gray-400 leading-normal">
-                  Ative para receber alertas sonoros e pop-ups direto na tela do seu celular ou PC toda vez que novos spoilers e códigos forem liberados!
+            {/* Browser push opt-in bar */}
+            <div className="mb-5 p-4 rounded-2xl bg-violet-50 border border-violet-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-violet-800">
+                  Alertas no Navegador e Celular
+                </h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Ative para receber avisos quando novos spoilers e códigos forem publicados.
                 </p>
               </div>
-              
+
               {hasNotificationPermission ? (
-                <div className="flex-shrink-0 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 self-stretch sm:self-auto justify-center">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  Ativado! 🟢
-                </div>
+                <span className="shrink-0 bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold">
+                  Alertas Ativados
+                </span>
               ) : (
                 <button
+                  type="button"
                   onClick={async () => {
                     triggerAudio('tap');
                     if (!('Notification' in window)) {
-                      setNotifMessage('Este navegador ou celular não suporta notificações de sistema.');
+                      setNotifMessage('Este navegador não suporta notificações de sistema.');
                       setTimeout(() => setNotifMessage(null), 5000);
                       return;
                     }
@@ -4214,25 +3781,17 @@ export default function App() {
                       setHasNotificationPermission(perm === 'granted');
                       if (perm === 'granted') {
                         triggerAudio('success');
-                        
-                        // Immediately register subscription on current browser session to guarantee it
-                        setTimeout(() => {
-                          subscribeUserToPush();
-                        }, 200);
-
-                        const welcomeTitle = 'Portal PKXD Central 🔔';
+                        setTimeout(() => subscribeUserToPush(), 200);
+                        const welcomeTitle = 'PKXD Central';
                         const welcomeOptions = {
-                          body: 'Notificações ativas com sucesso! Você receberá alertas de novos spoilers e códigos.',
+                          body: 'Notificações ativadas com sucesso! Você receberá alertas de novos spoilers e códigos.',
                           icon: '/favicon.png',
                           badge: '/favicon.png',
                         };
-
                         if ('serviceWorker' in navigator) {
-                          navigator.serviceWorker.ready.then((reg) => {
-                            reg.showNotification(welcomeTitle, welcomeOptions);
-                          }).catch(() => {
-                            new Notification(welcomeTitle, welcomeOptions);
-                          });
+                          navigator.serviceWorker.ready
+                            .then((reg) => reg.showNotification(welcomeTitle, welcomeOptions))
+                            .catch(() => new Notification(welcomeTitle, welcomeOptions));
                         } else {
                           new Notification(welcomeTitle, welcomeOptions);
                         }
@@ -4241,107 +3800,76 @@ export default function App() {
                       console.warn(err);
                     }
                   }}
-                  className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-sans font-extrabold uppercase text-[10px] tracking-wider rounded-xl cursor-pointer shadow-lg hover:shadow-pink-500/20 active:scale-95 transition-all text-center w-full sm:w-auto"
+                  className="pkxd-btn-primary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer shrink-0"
                 >
-                  🔔 ATIVAR ALERTAS
+                  Ativar Alertas
                 </button>
               )}
             </div>
 
-            {/* Notification logs list block */}
-            <div className="space-y-3 overflow-y-auto max-h-[400px] pr-2">
+            {/* Notification feed */}
+            <div className="space-y-3 overflow-y-auto max-h-[380px] pr-1 custom-scrollbar">
               {notificationList.length === 0 ? (
-                <div className="py-12 text-center text-gray-500 space-y-2">
-                  <p className="font-sans text-sm">Nenhuma notificação recebida recentemente.</p>
-                  <p className="font-sans text-[11px] text-gray-600">Todas as novidades, alertas e alterações de cronograma aparecerão aqui!</p>
+                <div className="py-10 text-center text-slate-500 space-y-1">
+                  <p className="text-sm font-semibold">Nenhuma notificação recente.</p>
+                  <p className="text-xs">Novos comunicados e spoilers aparecerão aqui.</p>
                 </div>
               ) : (
                 notificationList.map((notif) => {
-                  let badgeColors = 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-                  let icon = '📢';
-                  if (notif.type === 'story_published') {
-                    badgeColors = 'bg-pink-500/20 text-pink-300 border-pink-500/30';
-                    icon = '⭐';
-                  } else if (notif.type === 'delayed_alert') {
-                    badgeColors = 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40';
-                    icon = '⚠️';
-                  } else if (notif.type === 'countdown_alert') {
-                    badgeColors = 'bg-indigo-500/20 text-cyan-300 border-indigo-500/30';
-                    icon = '⏰';
-                  }
-
                   const userReaction = notificationReactions[notif.id];
-                  // Stable pseudo-random base counts so cards have realistic numbers of likes/dislikes
                   const baseLikes = (notif.createdAt % 29) + 8;
-                  const baseDislikes = (notif.createdAt % 7);
-                  
+                  const baseDislikes = notif.createdAt % 7;
                   const displayLikes = baseLikes + (userReaction === 'like' ? 1 : 0);
                   const displayDislikes = baseDislikes + (userReaction === 'dislike' ? 1 : 0);
 
                   return (
-                    <div 
+                    <div
                       key={notif.id}
-                      className="p-4 bg-[#1D1638]/70 backdrop-blur-md border border-white/[0.08] rounded-2xl flex items-start gap-3 hover:border-white/20 transition-all shadow-sm relative group"
+                      className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2"
                     >
-                      <span className="text-xl leading-none select-none p-1.5 bg-white/5 rounded-xl block">
-                        {icon}
-                      </span>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="font-sans font-extrabold text-white text-xs sm:text-sm">
-                            {notif.title}
-                          </h4>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeColors}`}>
-                              {notif.type.replace('_', ' ')}
-                            </span>
-                            {isAdmin && (
-                              <button
-                                onClick={() => handleDeleteNotification(notif.id)}
-                                title="Apagar Notificação"
-                                className="p-1.5 text-red-400 hover:text-white bg-red-500/10 hover:bg-red-600 rounded-lg transition-all cursor-pointer flex items-center justify-center"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="font-sans text-xs text-gray-300 leading-relaxed">
-                          {notif.body}
-                        </p>
-                        <div className="flex items-center justify-between gap-4 pt-2.5 border-t border-white/5 mt-2.5">
-                          <span className="block font-mono text-[9px] text-gray-500">
-                            Enviado em: {new Date(notif.createdAt).toLocaleString('pt-BR')}
-                          </span>
-                          
-                          {/* Interações de Gostei/Não Gostei */}
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleNotificationReaction(notif.id, 'like')}
-                              className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer select-none active:scale-95 ${
-                                userReaction === 'like'
-                                  ? 'bg-emerald-500/20 text-emerald-350 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.2)]'
-                                  : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10 hover:text-white'
-                              }`}
-                              title="Gostei"
-                            >
-                              <ThumbsUp className={`w-3 h-3 ${userReaction === 'like' ? 'fill-emerald-350' : ''}`} />
-                              <span>{displayLikes}</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleNotificationReaction(notif.id, 'dislike')}
-                              className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer select-none active:scale-95 ${
-                                userReaction === 'dislike'
-                                  ? 'bg-rose-500/20 text-rose-350 border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.2)]'
-                                  : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10 hover:text-white'
-                              }`}
-                              title="Não gostei"
-                            >
-                              <ThumbsDown className={`w-3 h-3 ${userReaction === 'dislike' ? 'fill-rose-350' : ''}`} />
-                              <span>{displayDislikes}</span>
-                            </button>
-                          </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-bold text-slate-900 text-sm">{notif.title}</h4>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNotification(notif.id)}
+                            title="Apagar Notificação"
+                            className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{notif.body}</p>
+                      <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200 text-xs">
+                        <span className="text-slate-500 tabular-nums">
+                          {new Date(notif.createdAt).toLocaleString('pt-BR')}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleNotificationReaction(notif.id, 'like')}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer tabular-nums ${
+                              userReaction === 'like'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <ThumbsUp className="w-3 h-3" />
+                            <span>{displayLikes}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleNotificationReaction(notif.id, 'dislike')}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer tabular-nums ${
+                              userReaction === 'dislike'
+                                ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <ThumbsDown className="w-3 h-3" />
+                            <span>{displayDislikes}</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -4349,123 +3877,109 @@ export default function App() {
                 })
               )}
             </div>
-
-            {/* Quick footer action info */}
-            <div className="mt-6 pt-4 border-t border-white/10 text-center">
-              <button
-                onClick={() => {
-                  setIsNotifOverlayOpen(false);
-                  triggerAudio('tap');
-                }}
-                className="w-full py-3.5 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 active:scale-95 text-white font-sans font-black text-xs uppercase tracking-widest rounded-2xl border border-red-500/20 transition-all cursor-pointer shadow-lg flex items-center justify-center gap-1.5 min-h-[44px]"
-              >
-                Fechar Central de Alertas ✕
-              </button>
-            </div>
           </div>
         </div>
       )}
 
-      {/* QUICK PK XD TAG SETUP MODAL FOR EXISTING USERS */}
+      {/* QUICK PK XD TAG SETUP MODAL */}
       {showTagSetupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-[#15102A]/85 backdrop-blur-xl border border-pink-500/40 rounded-3xl p-6 w-full max-w-md relative shadow-[0_24px_64px_rgba(0,0,0,0.65)] text-left space-y-4 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="pkxd-glass-modal rounded-3xl p-6 w-full max-w-md relative text-left space-y-4">
             <button
+              type="button"
               onClick={() => setShowTagSetupModal(false)}
-              className="absolute top-4 right-4 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full cursor-pointer"
+              className="absolute top-4 right-4 w-9 h-9 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center cursor-pointer"
+              aria-label="Fechar modal"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2.5 text-pink-400">
-              <div className="p-2 bg-pink-500/20 border border-pink-500/40 rounded-xl">
-                <Sparkles className="w-5 h-5 text-pink-400" />
+            <div className="flex items-center gap-3 pr-8">
+              <div className="w-11 h-11 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-sans font-black text-base text-white uppercase tracking-wider">
-                  Vincular Nome e # do PK XD 🎮
+                <h3 className="font-display font-bold text-lg text-slate-900">
+                  Vincular Nome e # do PK XD
                 </h3>
-                <span className="text-[10px] text-yellow-300 font-bold">
-                  🎁 Ganhe +25 XP e ative o preenchimento automático em festas!
+                <span className="text-xs text-amber-700 font-bold">
+                  Ganhe +25 XP e preenchimento automático em eventos
                 </span>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              Informe seu Nick e o código numérico com hashtag (#) exatamente como aparece dentro do jogo PK XD.
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Informe seu Nick e o número com hashtag (#) exatamente como aparece dentro do jogo PK XD.
             </p>
 
             <form onSubmit={handleSavePkxdTag} className="space-y-4">
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[10px] font-black text-pink-400 uppercase tracking-widest mb-1">
-                      Nome no PK XD (Nick) *
-                    </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nome no PK XD *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={16}
+                    placeholder="Ex: LUNA"
+                    value={tagSetupName}
+                    onChange={(e) => {
+                      setTagSetupName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
+                      setTagSetupError('');
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 uppercase focus:outline-none focus:border-violet-600 font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Número # *
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 font-mono font-bold text-sm text-violet-700">#</span>
                     <input
                       type="text"
                       required
-                      maxLength={16}
-                      placeholder="Ex: LUNA ou GABRIEL"
-                      value={tagSetupName}
+                      maxLength={6}
+                      placeholder="245"
+                      value={tagSetupNumber}
                       onChange={(e) => {
-                        setTagSetupName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
+                        setTagSetupNumber(e.target.value.replace(/[^0-9]/g, ''));
                         setTagSetupError('');
                       }}
-                      className="w-full bg-black/60 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white uppercase placeholder-zinc-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all font-mono font-bold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-violet-600 font-mono font-bold"
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black text-pink-400 uppercase tracking-widest mb-1">
-                      Número / Tag # *
-                    </label>
-                    <div className="relative flex items-center">
-                      <span className="absolute left-3 font-mono font-black text-xs text-pink-400">#</span>
-                      <input
-                        type="text"
-                        required
-                        maxLength={6}
-                        placeholder="Ex: 245 ou 000"
-                        value={tagSetupNumber}
-                        onChange={(e) => {
-                          setTagSetupNumber(e.target.value.replace(/[^0-9]/g, ''));
-                          setTagSetupError('');
-                        }}
-                        className="w-full bg-black/60 border border-white/15 rounded-xl pl-7 pr-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live tag preview */}
-                <div className="p-3 bg-purple-950/40 border border-purple-500/30 rounded-xl flex items-center justify-between text-xs">
-                  <span className="text-zinc-400 font-medium">Sua Tag Completa:</span>
-                  <span className="font-mono font-black text-yellow-300 bg-black/60 px-2.5 py-1 rounded-lg border border-yellow-400/30">
-                    {tagSetupName.trim() || 'SEUNICK'}#{tagSetupNumber.trim() || '000'}
-                  </span>
                 </div>
               </div>
 
+              <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-semibold">Tag Completa:</span>
+                <span className="font-mono font-bold text-violet-800">
+                  {tagSetupName.trim() || 'SEUNICK'}#{tagSetupNumber.trim() || '000'}
+                </span>
+              </div>
+
               {tagSetupError && (
-                <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-300 font-bold">
-                  ⚠️ {tagSetupError}
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold">
+                  {tagSetupError}
                 </div>
               )}
 
               <button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:brightness-110 text-white font-sans text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg active:scale-95"
+                className="w-full pkxd-btn-primary py-3 rounded-2xl text-sm font-bold cursor-pointer"
               >
-                Salvar Minha Tag e Ganhar +25 XP 🚀
+                Salvar Tag e Ganhar +25 XP
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* DEDICATED AUTH MODAL (LOGIN / REGISTER / RESET PASSWORD) */}
-      <AuthModal 
+      {/* DEDICATED AUTH MODAL */}
+      <AuthModal
         isOpen={isAuthModalOpen}
         initialMode={currentAuthModalMode}
         onClose={() => {
@@ -4474,7 +3988,7 @@ export default function App() {
             navigateTo('/');
           }
         }}
-        onSuccess={(loggedUser, authMode) => {
+        onSuccess={(loggedUser) => {
           setUser(loggedUser);
           setExplicitAuthModalOpen(false);
         }}
@@ -4501,7 +4015,6 @@ export default function App() {
         onClose={() => setIsUserDataRequestOpen(false)}
         triggerAudio={triggerAudio}
       />
-
     </div>
   );
 }

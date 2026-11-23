@@ -55,7 +55,7 @@ function renderRichContent(text: string) {
   const parts = text.split(mediaRegex);
 
   return (
-    <div className="space-y-4 text-left mt-2 text-gray-300">
+    <div className="space-y-4 text-left mt-2 text-slate-700">
       {parts.map((part, partIdx) => {
         if (!part) return null;
 
@@ -65,16 +65,16 @@ function renderRichContent(text: string) {
           const altText = mdMatched[1] || 'Imagem do Spoiler';
           const imageUrl = mdMatched[2];
           return (
-            <div key={`part-${partIdx}`} className="my-3 rounded-2xl overflow-hidden border border-white/10 shadow-xl bg-black/60 p-2 text-center">
+            <div key={`part-${partIdx}`} className="my-3 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm bg-slate-50 p-2 text-center">
               <img 
                 src={imageUrl} 
                 alt={altText} 
-                className="w-full max-h-[500px] object-contain hover:scale-[1.01] transition-transform duration-300 mx-auto rounded-xl" 
+                className="w-full max-h-[480px] object-contain hover:scale-[1.01] transition-transform duration-300 mx-auto rounded-xl" 
                 referrerPolicy="no-referrer"
               />
               {altText && altText !== 'Spoiler' && (
-                <span className="text-xs text-gray-400 block pt-2 font-mono uppercase tracking-wider">
-                  ✦ {altText}
+                <span className="text-xs text-slate-500 block pt-2 font-semibold uppercase tracking-wider">
+                  {altText}
                 </span>
               )}
             </div>
@@ -86,11 +86,11 @@ function renderRichContent(text: string) {
         if (htmlMatched) {
           const imageUrl = htmlMatched[1];
           return (
-            <div key={`part-${partIdx}`} className="my-3 rounded-2xl overflow-hidden border border-white/10 shadow-xl bg-black/60 p-2">
+            <div key={`part-${partIdx}`} className="my-3 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm bg-slate-50 p-2">
               <img 
                 src={imageUrl} 
                 alt="Spoiler Media" 
-                className="w-full max-h-[500px] object-contain hover:scale-[1.01] transition-transform duration-300 mx-auto rounded-xl" 
+                className="w-full max-h-[480px] object-contain hover:scale-[1.01] transition-transform duration-300 mx-auto rounded-xl" 
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -100,8 +100,8 @@ function renderRichContent(text: string) {
         // Check for raw image URL match
         if (part.match(/^https?:\/\/[^\s]+?(?:\.png|\.jpg|\.jpeg|\.gif|\.webp|\.bmp)(?:\?[^\s]*)?$/i)) {
           return (
-            <div key={`part-${partIdx}`} className="my-3 rounded-2xl overflow-hidden border border-white/10 shadow-xl bg-black/60 p-2">
-              <img src={part} alt="Raw URL Web Image" className="w-full max-h-[500px] object-contain hover:scale-[1.01] transition-transform duration-300 mx-auto rounded-xl" referrerPolicy="no-referrer" />
+            <div key={`part-${partIdx}`} className="my-3 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm bg-slate-50 p-2">
+              <img src={part} alt="Imagem do Spoiler" className="w-full max-h-[480px] object-contain hover:scale-[1.01] transition-transform duration-300 mx-auto rounded-xl" referrerPolicy="no-referrer" />
             </div>
           );
         }
@@ -118,8 +118,8 @@ function renderRichContent(text: string) {
               if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
                 const content = trimmed.substring(1).trim();
                 return (
-                  <div key={lineIdx} className="flex items-start gap-2 text-sm text-gray-200 pl-1">
-                    <span className="text-pink-400 mt-1 flex-shrink-0 text-xs">✦</span>
+                  <div key={lineIdx} className="flex items-start gap-2 text-sm text-slate-700 pl-1">
+                    <span className="text-violet-600 mt-1 flex-shrink-0 text-xs font-bold">•</span>
                     <span>{content}</span>
                   </div>
                 );
@@ -127,14 +127,14 @@ function renderRichContent(text: string) {
 
               // Headers
               if (trimmed.startsWith('###')) {
-                return <h5 key={lineIdx} className="font-sans font-extrabold text-sm text-cyan-400 uppercase tracking-wider pt-2">{trimmed.replace('###', '').trim()}</h5>;
+                return <h5 key={lineIdx} className="font-display font-bold text-sm text-sky-700 uppercase tracking-wider pt-2">{trimmed.replace('###', '').trim()}</h5>;
               }
               if (trimmed.startsWith('##')) {
-                return <h4 key={lineIdx} className="font-sans font-black text-base text-yellow-300 uppercase tracking-widest pt-2">{trimmed.replace('##', '').trim()}</h4>;
+                return <h4 key={lineIdx} className="font-display font-bold text-base text-violet-700 uppercase tracking-wide pt-2">{trimmed.replace('##', '').trim()}</h4>;
               }
 
               return (
-                <p key={lineIdx} className="font-sans text-sm text-gray-300 leading-relaxed">
+                <p key={lineIdx} className="font-sans text-sm text-slate-700 leading-relaxed">
                   {trimmed}
                 </p>
               );
@@ -149,6 +149,7 @@ function renderRichContent(text: string) {
 export default function PastSpoilersSection({ spoilers, isAdmin, onDelete, onEdit, onRate, onReact }: PastSpoilersSectionProps) {
   // Track selected spoiler for full screen immersive overlay
   const [immersiveSpoiler, setImmersiveSpoiler] = useState<PastSpoiler | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // State to track copied feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -256,285 +257,290 @@ export default function PastSpoilersSection({ spoilers, isAdmin, onDelete, onEdi
   return (
     <section 
       id="past-spoilers-history-section"
-      className="bg-[#1D1638]/72 backdrop-blur-xl border border-white/[0.09] rounded-3xl p-6 sm:p-8 space-y-6 shadow-[0_8px_32px_rgba(0,0,0,0.38)] relative overflow-hidden text-left"
+      className="pkxd-glass rounded-3xl p-5 sm:p-7 space-y-6 relative overflow-hidden text-left"
     >
-      {/* Decorative neon gradient glow */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full filter blur-2xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-32 h-32 bg-pink-500/5 rounded-full filter blur-2xl pointer-events-none" />
-
       {/* Section Header */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-pink-500/10 rounded-xl border border-pink-500/25">
-            <Flame className="w-5 h-5 text-pink-400 fill-pink-400 animate-pulse" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 bg-pink-100 rounded-2xl border border-pink-200 flex items-center justify-center shrink-0">
+            <Flame className="w-5 h-5 text-pink-600" />
           </div>
           <div>
-            <h3 className="font-sans font-black text-lg sm:text-xl text-white uppercase tracking-wider">
-              🔮 GALERIA DE SPOILERS & NOVIDADES
+            <h3 className="font-display font-bold text-lg sm:text-xl text-slate-900">
+              Galeria de Spoilers &amp; Novidades
             </h3>
-            <p className="font-sans text-xs text-gray-400">
-              Clique nos cards compactos para abrir o Modo Imersivo em tela cheia e avalie com estrelas!
+            <p className="font-sans text-xs sm:text-sm text-slate-500">
+              Clique nos cards para abrir os detalhes completos e avaliar com estrelas.
             </p>
           </div>
         </div>
-        <span className="text-[10px] sm:text-xs font-mono font-bold px-3 py-1 bg-[#251B46]/80 backdrop-blur-md border border-white/10 text-pink-400 rounded-full flex-shrink-0 self-start sm:self-center">
-          {isEmpty ? 0 : spoilers.length} Lançados
+        <span className="text-xs font-bold px-3 py-1 bg-white border border-slate-200 text-violet-700 rounded-full flex-shrink-0 self-start sm:self-center">
+          {isEmpty ? 0 : spoilers.length} lançados
         </span>
       </div>
 
       {isEmpty ? (
-        <div className="relative z-10 text-center py-10 px-4 bg-[#15102A]/60 backdrop-blur-sm rounded-2xl border border-dashed border-white/10 text-gray-400 font-sans space-y-3">
-          <p className="text-sm font-semibold text-gray-300">
-            Nenhum spoiler arquivado ainda 🔮
+        <div className="text-center py-10 px-4 bg-white rounded-2xl border-2 border-dashed border-slate-200 text-slate-600 font-sans space-y-2">
+          <p className="text-sm font-bold text-slate-800">
+            Nenhum spoiler arquivado ainda
           </p>
-          <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
-            Abra o Modo Admin e publique um spoiler! Ao salvar, ele será liberado instantaneamente e guardado no arquivo de spoilers antigos.
+          <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+            Assim que o administrador publicar e arquivar os próximos spoilers semanais, eles aparecerão organizados aqui.
           </p>
         </div>
       ) : (
-        /* Compact collection grids: delimited scrollable container with max-height */
-        <div className="relative z-10 space-y-3">
-          <div className="max-h-[520px] overflow-y-auto pr-1.5 sm:pr-2 space-y-4 scrollbar-thin scrollbar-thumb-purple-600/40 scrollbar-track-black/30">
+        <div className="space-y-3">
+          <div className="max-h-[540px] overflow-y-auto pr-1 sm:pr-2 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {spoilers.map((spoil) => {
-          const isDateValid = spoil.createdAt && !isNaN(new Date(spoil.createdAt).getTime());
-          const formattedDate = isDateValid
-            ? new Date(spoil.createdAt).toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              })
-            : 'Sem Data';
+              {spoilers.map((spoil) => {
+                const isDateValid = spoil.createdAt && !isNaN(new Date(spoil.createdAt).getTime());
+                const formattedDate = isDateValid
+                  ? new Date(spoil.createdAt).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    })
+                  : 'Sem data';
 
-          const snippet = getPlainSnippet(spoil.description);
-          const firstImgUrl = getFirstImageFromDescription(spoil.description) || spoil.imageUrl;
-          const avgRating = spoil.ratingCount && spoil.ratingCount > 0 
-            ? (spoil.ratingSum || 0) / spoil.ratingCount 
-            : null;
+                const snippet = getPlainSnippet(spoil.description);
+                const firstImgUrl = getFirstImageFromDescription(spoil.description) || spoil.imageUrl;
+                const avgRating = spoil.ratingCount && spoil.ratingCount > 0 
+                  ? (spoil.ratingSum || 0) / spoil.ratingCount 
+                  : null;
 
-          return (
-            <div 
-              key={spoil.id}
-              onClick={() => setImmersiveSpoiler(spoil)}
-              className="flex flex-col bg-[#15102A]/75 hover:bg-[#251B46]/80 backdrop-blur-md border border-white/[0.08] hover:border-pink-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-md group cursor-pointer relative"
-            >
-              {/* Card Image */}
-              <div className="h-32 w-full overflow-hidden relative bg-black/40 border-b border-zinc-800/60">
-                {firstImgUrl ? (
-                  <img 
-                    src={firstImgUrl} 
-                    alt={spoil.title} 
-                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" 
-                    referrerPolicy="no-referrer"
-                    onError={(e) => { (e.target as any).src = "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?auto=format&fit=crop&q=80&w=400"; }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-950 font-black text-2xl text-pink-500/20">
-                    PKXD
-                  </div>
-                )}
-                
-                {/* Date overlay badge */}
-                <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-md text-[9px] text-zinc-300 font-mono px-2 py-0.5 rounded-md border border-white/10">
-                  {formattedDate}
-                </div>
-
-                {/* Rating Badge */}
-                <div className="absolute top-2 right-2 bg-yellow-400 text-black font-sans font-bold text-[9px] px-2 py-0.5 rounded-md shadow flex items-center gap-1">
-                  ⭐ {avgRating ? avgRating.toFixed(1) : 'S/N'}
-                </div>
-              </div>
-
-              {/* Card Body (Simplified representation) */}
-              <div className="p-4 flex-grow flex flex-col justify-between space-y-3">
-                <div className="space-y-1">
-                  <h4 className="font-sans font-black text-sm text-yellow-400 group-hover:text-yellow-300 leading-tight transition-colors line-clamp-1">
-                    {spoil.title}
-                  </h4>
-                  <p className="font-sans text-[11px] text-gray-400 leading-relaxed line-clamp-2">
-                    {snippet || "Toque para abrir a descrição imersiva..."}
-                  </p>
-                {/* Interactive Emoji Reaction Bar */}
-                <div className="flex items-center justify-between bg-zinc-950/40 p-1.5 rounded-xl border border-white/5 my-2" onClick={(e) => e.stopPropagation()}>
-                  <span className="text-[9px] uppercase font-mono font-bold text-gray-500 tracking-wider pl-1 select-none">Reagir:</span>
-                  <div className="flex items-center gap-1">
-                    {[
-                      { emoji: '👍', label: 'Like' },
-                      { emoji: '🔥', label: 'Amei' },
-                      { emoji: '😮', label: 'Uau' },
-                      { emoji: '🚀', label: 'Top' },
-                      { emoji: '😢', label: 'Triste' }
-                    ].map((item) => {
-                      const count = spoil.reactions?.[item.emoji] || 0;
-                      const hasReactedToThis = reactedSpoilers[spoil.id] === item.emoji;
-                      const hasReactedToAny = !!reactedSpoilers[spoil.id];
-
-                      return (
-                        <button
-                          key={item.emoji}
-                          type="button"
-                          onClick={(e) => handleReactAction(spoil.id, item.emoji, e)}
-                          disabled={hasReactedToAny}
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg transition-all duration-200 cursor-pointer text-[10px] select-none ${
-                            hasReactedToThis
-                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 scale-110 font-bold'
-                              : hasReactedToAny
-                                ? 'opacity-40 grayscale pointer-events-none'
-                                : 'hover:bg-white/5 text-gray-400 hover:text-white hover:scale-105 active:scale-95'
-                          }`}
-                          title={`Reagir com ${item.label}`}
-                        >
-                          <span>{item.emoji}</span>
-                          {count > 0 && (
-                            <span className="text-[8px] font-mono font-semibold text-zinc-400">
-                              {count}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                        {/* Open detail trigger & Share row */}
-                <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                  <div className="flex items-center gap-2">
-                    <span 
-                      onClick={() => setImmersiveSpoiler(spoil)}
-                      className="text-[9px] uppercase font-mono tracking-wider text-pink-400 font-bold group-hover:text-pink-300 flex items-center gap-1 hover:underline cursor-pointer"
-                    >
-                      <Maximize2 className="w-3 h-3" />
-                      TELA CHEIA
-                    </span>
-
-                    {/* Share Link Button */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleShare(spoil.id, e)}
-                      className={`text-[9px] uppercase font-mono tracking-wider font-extrabold flex items-center gap-1 px-2 py-0.5 rounded-md border active:scale-95 transition-all text-xs cursor-pointer ${
-                        copiedId === spoil.id 
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/10' 
-                          : 'bg-cyan-500/5 hover:bg-cyan-500/15 border-cyan-500/15 text-cyan-400 hover:text-cyan-300'
-                      }`}
-                      title="Copiar Link para Compartilhar"
-                    >
-                      <Share2 className="w-2.5 h-2.5" />
-                      {copiedId === spoil.id ? 'COPIADO! 🔗' : 'COMPARTILHAR'}
-                    </button>
-                  </div>
-
-                  {/* Admin Direct Actions inside lists */}
-                  {isAdmin && (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      {onEdit && (
-                        <button 
-                          type="button"
-                          onClick={() => onEdit(spoil)}
-                          className="text-yellow-400 hover:text-yellow-350 p-1 bg-yellow-950/40 rounded border border-yellow-500/20"
-                          title="Editar"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </button>
+                return (
+                  <div 
+                    key={spoil.id}
+                    onClick={() => setImmersiveSpoiler(spoil)}
+                    className="flex flex-col bg-white/80 backdrop-blur-md hover:border-violet-400 border-2 border-white/80 rounded-2xl overflow-hidden transition-all duration-200 shadow-xs hover:shadow-md group cursor-pointer relative"
+                  >
+                    {/* Card Image */}
+                    <div className="h-36 w-full overflow-hidden relative bg-gradient-to-br from-violet-100 via-sky-50 to-amber-50 border-b border-slate-100">
+                      {firstImgUrl ? (
+                        <img 
+                          src={firstImgUrl} 
+                          alt={spoil.title} 
+                          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" 
+                          referrerPolicy="no-referrer"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-display font-bold text-2xl text-violet-300">
+                          PKXD
+                        </div>
                       )}
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          if (confirm("Deletar este spoiler?")) {
-                            onDelete(spoil.id);
-                          }
-                        }}
-                        className="text-red-400 hover:text-red-300 p-1 bg-red-950/40 rounded border border-red-500/20"
-                        title="Deletar"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      
+                      {/* Date overlay badge */}
+                      <div className="absolute top-2.5 left-2.5 bg-white/95 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                        {formattedDate}
+                      </div>
+
+                      {/* Rating Badge */}
+                      <div className="absolute top-2.5 right-2.5 bg-amber-300 text-slate-900 font-sans font-extrabold text-[11px] px-2 py-0.5 rounded-lg shadow-xs flex items-center gap-1">
+                        ★ {avgRating ? avgRating.toFixed(1) : 'Novo'}
+                      </div>
                     </div>
-                  )}
-                </div>
-         </div>
-              </div>
-            </div>
-          );
-        })}
+
+                    {/* Card Body */}
+                    <div className="p-4 flex-grow flex flex-col justify-between space-y-3">
+                      <div className="space-y-1.5">
+                        <h4 className="font-display font-bold text-base text-slate-900 group-hover:text-violet-700 leading-snug transition-colors line-clamp-1">
+                          {spoil.title}
+                        </h4>
+                        <p className="font-sans text-xs text-slate-600 leading-relaxed line-clamp-2">
+                          {snippet || 'Toque para abrir a descrição completa.'}
+                        </p>
+                      </div>
+
+                      {/* Interactive Emoji Reaction Bar */}
+                      <div className="flex items-center justify-between bg-slate-50 p-1.5 rounded-xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider pl-1.5 select-none">Reagir:</span>
+                        <div className="flex items-center gap-1">
+                          {[
+                            { emoji: '👍', label: 'Like' },
+                            { emoji: '🔥', label: 'Amei' },
+                            { emoji: '😮', label: 'Uau' },
+                            { emoji: '🚀', label: 'Top' },
+                            { emoji: '😢', label: 'Triste' }
+                          ].map((item) => {
+                            const count = spoil.reactions?.[item.emoji] || 0;
+                            const hasReactedToThis = reactedSpoilers[spoil.id] === item.emoji;
+                            const hasReactedToAny = !!reactedSpoilers[spoil.id];
+
+                            return (
+                              <button
+                                key={item.emoji}
+                                type="button"
+                                onClick={(e) => handleReactAction(spoil.id, item.emoji, e)}
+                                disabled={hasReactedToAny}
+                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg transition-all duration-150 cursor-pointer text-xs select-none ${
+                                  hasReactedToThis
+                                    ? 'bg-violet-100 text-violet-800 border border-violet-300 font-bold'
+                                    : hasReactedToAny
+                                      ? 'opacity-45 pointer-events-none'
+                                      : 'hover:bg-white text-slate-600 hover:text-slate-900 active:scale-95'
+                                }`}
+                                title={`Reagir com ${item.label}`}
+                              >
+                                <span>{item.emoji}</span>
+                                {count > 0 && (
+                                  <span className="text-[10px] font-mono font-bold text-slate-600">
+                                    {count}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Open detail trigger & Share row */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            onClick={() => setImmersiveSpoiler(spoil)}
+                            className="text-xs font-bold text-violet-700 group-hover:text-violet-900 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            Abrir
+                          </span>
+
+                          {/* Share Link Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleShare(spoil.id, e)}
+                            className={`text-[11px] font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg border active:scale-95 transition-all cursor-pointer ${
+                              copiedId === spoil.id 
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
+                                : 'bg-sky-50 hover:bg-sky-100 border-sky-200 text-sky-700'
+                            }`}
+                            title="Copiar Link para Compartilhar"
+                          >
+                            <Share2 className="w-3 h-3" />
+                            {copiedId === spoil.id ? 'Copiado!' : 'Compartilhar'}
+                          </button>
+                        </div>
+
+                        {/* Admin Direct Actions inside lists */}
+                        {isAdmin && (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            {onEdit && (
+                              <button 
+                                type="button"
+                                onClick={() => onEdit(spoil)}
+                                className="text-amber-700 hover:bg-amber-100 p-1.5 bg-amber-50 rounded-lg border border-amber-200 cursor-pointer"
+                                title="Editar"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {confirmDeleteId === spoil.id ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onDelete(spoil.id);
+                                  setConfirmDeleteId(null);
+                                }}
+                                className="text-white bg-rose-600 hover:bg-rose-700 px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer"
+                              >
+                                Confirmar?
+                              </button>
+                            ) : (
+                              <button 
+                                type="button"
+                                onClick={() => setConfirmDeleteId(spoil.id)}
+                                className="text-rose-600 hover:bg-rose-100 p-1.5 bg-rose-50 rounded-lg border border-rose-200 cursor-pointer"
+                                title="Deletar"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
           {spoilers.length > 3 && (
-            <div className="text-center pt-1 border-t border-white/5">
-              <span className="text-[10px] font-mono text-neutral-400 bg-black/50 px-3 py-1 rounded-full border border-white/10 inline-flex items-center gap-1">
-                <span>↕ Role o painel acima para ver os {spoilers.length} spoilers</span>
+            <div className="text-center pt-1">
+              <span className="text-xs font-semibold text-slate-500 bg-white px-3.5 py-1 rounded-full border border-slate-200 inline-flex items-center gap-1">
+                <span>Role o painel acima para ver todos os {spoilers.length} spoilers</span>
               </span>
             </div>
           )}
         </div>
       )}
 
-      {/* 🌟 IMMERSIVE FULL-SCREEN MODE MODAL 🌟 */}
+      {/* IMMERSIVE FULL-SCREEN MODE MODAL */}
       {immersiveSpoiler && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl overflow-y-auto animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
           onClick={() => setImmersiveSpoiler(null)}
         >
           {/* Main Modal Panel */}
           <div 
-            className="relative bg-[#15102A]/85 backdrop-blur-2xl border border-pink-500/40 max-w-2xl w-full rounded-3xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.7)] my-8 text-slate-100 flex flex-col max-h-[90vh] scale-up"
+            className="relative pkxd-glass-modal max-w-2xl w-full rounded-3xl overflow-hidden my-8 text-slate-900 flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Area */}
-            <div className="p-5 border-b border-white/[0.08] bg-[#1D1638]/75 backdrop-blur-md flex items-center justify-between">
+            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-ping" />
-                <span className="text-[10px] sm:text-xs font-mono font-black uppercase text-pink-400 tracking-widest">
-                  🔮 VISUALIZAÇÃO IMERSIVA DE SPOILER
+                <Flame className="w-4 h-4 text-pink-600" />
+                <span className="text-xs font-extrabold uppercase text-violet-700 tracking-wider">
+                  Visualização Completa do Spoiler
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setImmersiveSpoiler(null)}
-                className="text-zinc-400 hover:text-white p-2 hover:bg-white/5 rounded-full transition-colors cursor-pointer"
+                className="text-slate-500 hover:text-slate-900 p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Scrollable Content inside */}
-            <div className="overflow-y-auto p-6 sm:p-8 space-y-6 flex-grow custom-scroll">
+            <div className="overflow-y-auto p-6 sm:p-8 space-y-6 flex-grow">
               
               {/* Optional big Cover image / GIF */}
               {immersiveSpoiler.imageUrl && (
-                <div className="w-full overflow-hidden rounded-2xl border border-zinc-800 bg-black/55 relative p-1.5 shadow-inner">
+                <div className="w-full overflow-hidden rounded-2xl border-2 border-slate-200 bg-slate-50 relative p-1.5">
                   <img 
                     src={immersiveSpoiler.imageUrl} 
                     alt={immersiveSpoiler.title} 
                     className="w-full max-h-[380px] object-contain mx-auto rounded-xl" 
                     referrerPolicy="no-referrer"
-                    onError={(e) => { (e.target as any).src = "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?auto=format&fit=crop&q=80&w=400"; }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
               )}
 
               {/* Title & Metadata */}
-              <div className="space-y-2 border-b border-zinc-800 pb-4">
-                <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
-                  <Calendar className="w-4 h-4 text-pink-400" />
+              <div className="space-y-2 border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
+                  <Calendar className="w-4 h-4 text-violet-600" />
                   <span>
                     Publicado em {immersiveSpoiler.createdAt && !isNaN(new Date(immersiveSpoiler.createdAt).getTime())
                       ? new Date(immersiveSpoiler.createdAt).toLocaleString('pt-BR', {
                           day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                         })
-                      : 'Sem Data'}
+                      : 'Sem data'}
                   </span>
                 </div>
-                <h3 className="font-sans font-black text-xl sm:text-2xl text-yellow-400 leading-tight">
+                <h3 className="font-display font-bold text-xl sm:text-2xl text-slate-900 leading-tight">
                   {immersiveSpoiler.title}
                 </h3>
               </div>
 
-              {/* Description (Rich/Full rendered) */}
-              <div className="prose prose-invert max-w-none text-zinc-200">
+              {/* Description */}
+              <div>
                 {renderRichContent(immersiveSpoiler.description)}
               </div>
 
-              {/* Glowing Fans Rating Box */}
+              {/* Fans Rating Box */}
               {(() => {
                 const spId = immersiveSpoiler.id;
                 const ratedValue = ratedSpoilers[spId];
@@ -544,45 +550,46 @@ export default function PastSpoilersSection({ spoilers, isAdmin, onDelete, onEdi
                   : null;
 
                 return (
-                  <div className="flex flex-col gap-3 p-5 rounded-2xl bg-zinc-900/80 border-2 border-pink-500/20 shadow-lg mt-6">
+                  <div className="flex flex-col gap-3 p-5 rounded-2xl bg-amber-50 border-2 border-amber-200 mt-6">
                     <div className="flex flex-wrap items-center justify-between gap-2.5">
-                      <span className="text-zinc-200 font-black uppercase text-xs tracking-wider flex items-center gap-2">
-                        <Star className="w-4.5 h-4.5 text-yellow-400 fill-yellow-400" />
-                        MÉDIA DE AVALIAÇÃO DOS FÃS:
+                      <span className="text-slate-900 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                        <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                        Média de avaliação dos fãs
                       </span>
-                      <span className="text-yellow-400 font-mono font-black text-sm flex items-center gap-1.5 bg-yellow-400/10 px-3.5 py-1 rounded-full border border-yellow-400/25 shadow-sm">
-                        ⭐ {avgRating ? `${avgRating.toFixed(1)} / 5.0` : 'Sem votos'}
+                      <span className="text-amber-900 font-mono font-bold text-sm flex items-center gap-1.5 bg-white px-3.5 py-1 rounded-full border border-amber-300">
+                        ★ {avgRating ? `${avgRating.toFixed(1)} / 5.0` : 'Sem votos'}
                         {immersiveSpoiler.ratingCount ? ` (${immersiveSpoiler.ratingCount} votos)` : ''}
                       </span>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mt-2 border-t border-white/5 pt-3">
-                      <span className="text-zinc-300 text-xs font-semibold">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mt-1 border-t border-amber-200 pt-3">
+                      <span className="text-slate-700 text-xs font-semibold">
                         {ratedValue ? (
-                          <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                            ✓ Você deu nota {ratedValue} ★ (+15 XP Coletados!)
+                          <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                            ✓ Você deu nota {ratedValue} ★ (+15 XP coletados)
                           </span>
                         ) : (
-                          <span className="text-zinc-400">Avalie esse Spoiler para ganhar <strong className="text-yellow-400 font-black">+15 XP</strong>:</span>
+                          <span>Avalie esse spoiler para ganhar <strong className="text-amber-800 font-extrabold">+15 XP</strong>:</span>
                         )}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {[1, 2, 3, 4, 5].map((star) => {
                           const isFilled = ratedValue ? star <= ratedValue : (hoverValue ? star <= hoverValue : false);
                           return (
                             <button
                               key={star}
+                              type="button"
                               disabled={!!ratedValue}
                               onClick={() => handleRateAction(spId, star)}
                               onMouseEnter={() => !ratedValue && setHoveredStars(prev => ({ ...prev, [spId]: star }))}
                               onMouseLeave={() => !ratedValue && setHoveredStars(prev => ({ ...prev, [spId]: 0 }))}
-                              className={`cursor-pointer transition-all duration-150 ${!!ratedValue ? 'opacity-85' : 'hover:scale-130 active:scale-95'}`}
+                              className={`cursor-pointer transition-all duration-150 ${!!ratedValue ? 'opacity-85' : 'hover:scale-125 active:scale-95'}`}
                             >
                               <Star 
                                 className={`w-6 h-6 ${
                                   isFilled 
-                                    ? 'fill-yellow-400 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]' 
-                                    : 'text-zinc-700'
+                                    ? 'fill-amber-400 text-amber-500' 
+                                    : 'text-slate-300'
                                 }`} 
                               />
                             </button>
@@ -597,25 +604,25 @@ export default function PastSpoilersSection({ spoilers, isAdmin, onDelete, onEdi
             </div>
 
             {/* Footer Row */}
-            <div className="p-4 border-t border-zinc-800 bg-zinc-900/60 flex flex-wrap items-center justify-center gap-3">
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={(e) => handleShare(immersiveSpoiler.id, e)}
-                className={`px-5 py-2.5 border font-sans font-black rounded-xl text-xs uppercase tracking-widest shadow-md cursor-pointer active:scale-95 transition-all flex items-center gap-1.5 ${
+                className={`px-5 py-2.5 border-2 font-sans font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer active:scale-95 transition-all flex items-center gap-1.5 ${
                   copiedId === immersiveSpoiler.id
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 animate-pulse'
-                    : 'bg-zinc-900 hover:bg-zinc-850 border-zinc-700 hover:border-cyan-500/35 text-cyan-400'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'bg-white hover:bg-sky-50 border-slate-200 hover:border-sky-300 text-sky-700'
                 }`}
                 title="Copiar link direto para este spoiler"
               >
                 <Share2 className="w-4 h-4" />
-                {copiedId === immersiveSpoiler.id ? 'LINK COPIADO! 🔗' : 'COMPARTILHAR SPOILER'}
+                {copiedId === immersiveSpoiler.id ? 'Link Copiado!' : 'Compartilhar Spoiler'}
               </button>
 
               <button
                 type="button"
                 onClick={() => setImmersiveSpoiler(null)}
-                className="px-6 py-2.5 bg-gradient-to-r from-purple-800 to-pink-600 hover:from-purple-700 hover:to-pink-500 text-white font-sans font-black rounded-xl text-xs uppercase tracking-widest shadow-md hover:shadow-pink-500/10 cursor-pointer active:scale-95 transition-all"
+                className="pkxd-btn-primary px-6 py-2.5 text-xs uppercase tracking-wider cursor-pointer"
               >
                 Voltar para a Galeria
               </button>
