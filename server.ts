@@ -967,7 +967,7 @@ app.get("/api/admin/stats", async (req, res) => {
 let aiClient: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY não encontrada no servidor. Configure-a no painel de Secrets.");
     }
@@ -1184,6 +1184,62 @@ app.get("/api/youtube/channel", async (req, res) => {
     res.status(404).json({ 
       error: err.message || "Canal não encontrado ou indisponível publicamente." 
     });
+  }
+});
+
+// Safe CORS image proxy strictly for YouTube/Google channel avatars (used by Instagram PNG card exporter)
+const ALLOWED_AVATAR_HOSTS = new Set([
+  "yt3.googleusercontent.com",
+  "yt3.ggpht.com",
+  "i.ytimg.com",
+  "lh3.googleusercontent.com"
+]);
+
+app.get("/api/youtube/avatar", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  const rawUrl = typeof req.query.url === "string" ? req.query.url.trim() : "";
+  if (!rawUrl) {
+    res.status(400).json({ error: "URL da imagem é obrigatória." });
+    return;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    res.status(400).json({ error: "URL inválida." });
+    return;
+  }
+
+  if (parsed.protocol !== "https:" || !ALLOWED_AVATAR_HOSTS.has(parsed.hostname.toLowerCase())) {
+    res.status(403).json({ error: "Domínio de imagem não permitido." });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(parsed.toString(), {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+    if (!upstream.ok) {
+      res.status(502).json({ error: `Falha ao carregar avatar (${upstream.status}).` });
+      return;
+    }
+
+    const contentType = upstream.headers.get("content-type") || "image/jpeg";
+    if (!contentType.startsWith("image/")) {
+      res.status(400).json({ error: "Resposta não é uma imagem válida." });
+      return;
+    }
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.send(buffer);
+  } catch (err: any) {
+    console.error("[Avatar Proxy] Erro ao carregar avatar:", err);
+    res.status(502).json({ error: "Não foi possível carregar o avatar do canal." });
   }
 });
 

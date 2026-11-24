@@ -28,8 +28,12 @@ import {
   PlayCircle,
   Users,
   Video,
-  Clock
+  Clock,
+  Instagram,
+  Wand2
 } from 'lucide-react';
+import CreatorInstagramCardModal from './CreatorInstagramCardModal';
+import CreatorIdeasAssistant from './CreatorIdeasAssistant';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -417,6 +421,7 @@ export default function CreatorProgressAnalyzer({
   const [selectedTier, setSelectedTier] = useState<ProgramTier>('stardust');
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
+  const [showInstagramModal, setShowInstagramModal] = useState(false);
 
   const [manualDeclarations, setManualDeclarations] = useState<{
     pkxdViews3Months?: number;
@@ -1100,6 +1105,18 @@ export default function CreatorProgressAnalyzer({
           >
             <ArrowLeft className="w-4 h-4" /> Voltar ao Hub
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById('creator-ideas-assistant')?.scrollIntoView({ behavior: 'smooth' });
+              if (triggerAudio) triggerAudio('tap');
+            }}
+            className="px-4 py-2 rounded-full bg-[#F9C826] hover:bg-[#fbbf24] text-[#120624] border-2 border-[#120624] shadow-[0_3px_0_#120624] text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>Ideias de Vídeos & Thumbs</span>
+          </button>
         </div>
       </div>
 
@@ -1460,6 +1477,20 @@ export default function CreatorProgressAnalyzer({
 
                 <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
                   <button
+                    id="open-instagram-card-btn"
+                    type="button"
+                    onClick={() => {
+                      setShowInstagramModal(true);
+                      if (triggerAudio) triggerAudio('tap');
+                    }}
+                    className="px-3.5 py-2 rounded-full bg-gradient-to-r from-[#EC4899] to-[#7C3AED] hover:opacity-95 text-white border-2 border-[#120624] shadow-[0_3px_0_#120624] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+                    title="Gerar imagem pronta para publicar no Instagram"
+                  >
+                    <Instagram className="w-3.5 h-3.5" />
+                    <span>Foto p/ Instagram</span>
+                  </button>
+
+                  <button
                     id="reanalyze-btn"
                     onClick={() => handleSearchChannel(channelData.handle || channelData.channelId)}
                     disabled={isLoading}
@@ -1676,6 +1707,18 @@ export default function CreatorProgressAnalyzer({
                         <span>Faltam {analysis.totalCount - analysis.metCount} requisitos para subir</span>
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInstagramModal(true);
+                        if (triggerAudio) triggerAudio('tap');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-violet-600 hover:opacity-95 text-white border-2 border-[#120624] shadow-[0_3px_0_#120624] text-xs font-extrabold uppercase tracking-wider cursor-pointer"
+                    >
+                      <Instagram className="w-4 h-4" />
+                      <span>Salvar Foto p/ Instagram</span>
+                    </button>
 
                     {tierEvolution && tierEvolution.nextTier && tierEvolution.nextTier !== selectedTier && (
                       <button
@@ -2317,7 +2360,29 @@ export default function CreatorProgressAnalyzer({
             </div>
           </div>
         )}
+
+        {/* Creator AI Video & Thumbnail Ideas Assistant (always available, enriched with channel data when connected) */}
+        <CreatorIdeasAssistant
+          channelData={channelData}
+          analysis={analysis}
+          creatorFormat={creatorFormat}
+          selectedTier={selectedTier}
+          triggerAudio={triggerAudio}
+        />
       </div>
+
+      {/* Instagram Shareable Analysis Card Modal */}
+      {channelData && analysis && (
+        <CreatorInstagramCardModal
+          isOpen={showInstagramModal}
+          onClose={() => setShowInstagramModal(false)}
+          channelData={channelData}
+          analysis={analysis}
+          creatorFormat={creatorFormat}
+          selectedTier={selectedTier}
+          triggerAudio={triggerAudio}
+        />
+      )}
     </div>
   );
 }
