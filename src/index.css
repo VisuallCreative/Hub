@@ -359,6 +359,110 @@ img {
   animation: pkxdFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Modern light PK XD Central theme scope for unified Admin CMS inner forms */
+.pkxd-admin-body [class*="bg-zinc-950"],
+.pkxd-admin-body [class*="bg-zinc-900"],
+.pkxd-admin-body [class*="bg-zinc-800"],
+.pkxd-admin-body [class*="bg-zinc-700"],
+.pkxd-admin-body [class*="bg-black/"],
+.pkxd-admin-body [class*="bg-red-950"],
+.pkxd-admin-body [class*="bg-purple-950"],
+.pkxd-admin-body [class*="bg-emerald-950"] {
+  background-color: #F8FAFC !important;
+  color: #120624 !important;
+}
+
+.pkxd-admin-body input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+.pkxd-admin-body textarea,
+.pkxd-admin-body select {
+  background-color: #FFFFFF !important;
+  color: #120624 !important;
+  border-color: #CBD5E1 !important;
+}
+
+.pkxd-admin-body input::placeholder,
+.pkxd-admin-body textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+.pkxd-admin-body .text-white,
+.pkxd-admin-body .text-gray-200,
+.pkxd-admin-body .text-gray-300,
+.pkxd-admin-body .text-zinc-200,
+.pkxd-admin-body .text-zinc-300 {
+  color: #120624 !important;
+}
+
+.pkxd-admin-body .text-gray-400,
+.pkxd-admin-body .text-gray-500,
+.pkxd-admin-body .text-zinc-400 {
+  color: #475569 !important;
+}
+
+.pkxd-admin-body .text-yellow-300,
+.pkxd-admin-body .text-yellow-400 {
+  color: #B45309 !important;
+}
+
+.pkxd-admin-body .text-cyan-300,
+.pkxd-admin-body .text-cyan-400 {
+  color: #0369A1 !important;
+}
+
+.pkxd-admin-body .text-purple-300,
+.pkxd-admin-body .text-purple-400 {
+  color: #6D28D9 !important;
+}
+
+.pkxd-admin-body .text-pink-300,
+.pkxd-admin-body .text-pink-400 {
+  color: #BE185D !important;
+}
+
+.pkxd-admin-body .text-emerald-300,
+.pkxd-admin-body .text-emerald-400 {
+  color: #047857 !important;
+}
+
+.pkxd-admin-body .border-zinc-800,
+.pkxd-admin-body .border-zinc-700,
+.pkxd-admin-body .border-white\/5,
+.pkxd-admin-body .border-white\/10,
+.pkxd-admin-body .border-white\/20 {
+  border-color: #CBD5E1 !important;
+}
+
+/* Keep vivid solid/gradient buttons & badges with crisp white text */
+.pkxd-admin-body button[class*="bg-[#6D28D9]"],
+.pkxd-admin-body button[class*="bg-[#0284C7]"],
+.pkxd-admin-body button[class*="bg-[#DB2777]"],
+.pkxd-admin-body button[class*="bg-purple-600"],
+.pkxd-admin-body button[class*="bg-purple-700"],
+.pkxd-admin-body button[class*="bg-violet-600"],
+.pkxd-admin-body button[class*="bg-pink-600"],
+.pkxd-admin-body button[class*="bg-cyan-600"],
+.pkxd-admin-body button[class*="bg-cyan-500"],
+.pkxd-admin-body button[class*="bg-emerald-600"],
+.pkxd-admin-body button[class*="bg-green-600"],
+.pkxd-admin-body button[class*="bg-red-600"],
+.pkxd-admin-body button[class*="bg-rose-600"],
+.pkxd-admin-body button[class*="bg-blue-600"],
+.pkxd-admin-body button[class*="bg-gradient-"],
+.pkxd-admin-body a[class*="bg-gradient-"],
+.pkxd-admin-body span[class*="bg-rose-600"],
+.pkxd-admin-body span[class*="bg-red-500"],
+.pkxd-admin-body span[class*="bg-purple-600"],
+.pkxd-admin-body span[class*="bg-emerald-600"] {
+  color: #FFFFFF !important;
+}
+
+.pkxd-admin-body button[class*="bg-[#6D28D9]"] *,
+.pkxd-admin-body button[class*="bg-[#0284C7]"] *,
+.pkxd-admin-body button[class*="bg-[#DB2777]"] *,
+.pkxd-admin-body button[class*="bg-gradient-"] * {
+  color: inherit;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

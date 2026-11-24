@@ -10,23 +10,53 @@ import {
   Radio,
   RefreshCw,
   Tag,
+  Newspaper,
 } from 'lucide-react';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { CommunityEvent } from '../types';
+import { CommunityEvent, NewsItem } from '../types';
+import AdminNewsManager from './AdminNewsManager';
 
 const ADMIN_SECRET = 'pkxd2026_super_secret_admin_key';
 
+export type AdminEcosystemSection = 'noticias' | 'stats' | 'eventos' | 'comunicados' | 'conteudo';
+
 interface AdminEcosystemPanelProps {
-  initialSection?: 'stats' | 'eventos' | 'comunicados' | 'conteudo';
+  initialSection?: AdminEcosystemSection;
+  forceSection?: AdminEcosystemSection;
+  newsList?: NewsItem[];
+  newsToEdit?: NewsItem | null;
+  onAddNews?: (item: Omit<NewsItem, 'id'>) => void | Promise<void>;
+  onSaveEditNews?: (updated: NewsItem) => void | Promise<void>;
+  onCancelEditNews?: () => void;
+  onDeleteNews?: (id: string) => void | Promise<void>;
+  onSelectEditNews?: (item: NewsItem) => void;
+  onNavigate?: (path: string) => void;
+  triggerAudio?: (type: 'tap' | 'success' | 'levelUp') => void;
   children: React.ReactNode;
 }
 
 export default function AdminEcosystemPanel({
-  initialSection = 'stats',
+  initialSection = 'noticias',
+  forceSection,
+  newsList = [],
+  newsToEdit = null,
+  onAddNews,
+  onSaveEditNews,
+  onCancelEditNews,
+  onDeleteNews,
+  onSelectEditNews,
+  onNavigate,
+  triggerAudio,
   children,
 }: AdminEcosystemPanelProps) {
-  const [section, setSection] = useState<'stats' | 'eventos' | 'comunicados' | 'conteudo'>(initialSection);
+  const [section, setSection] = useState<AdminEcosystemSection>(forceSection || initialSection);
+
+  useEffect(() => {
+    if (forceSection) {
+      setSection(forceSection);
+    }
+  }, [forceSection]);
   const [stats, setStats] = useState<any>(null);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [events, setEvents] = useState<CommunityEvent[]>([]);
@@ -47,22 +77,53 @@ export default function AdminEcosystemPanel({
   };
 
   const loadStats = useCallback(async () => {
+    let loadedFromApi = false;
     try {
       const [statsRes, catsRes] = await Promise.all([
         fetch(`/api/admin/stats?admin_secret=${encodeURIComponent(ADMIN_SECRET)}`),
         fetch('/api/event-categories'),
       ]);
-      const statsData = await statsRes.json();
-      if (statsData?.success) {
-        setStats(statsData.stats);
-        setUsersList(Array.isArray(statsData.users) ? statsData.users : []);
+      const statsCt = statsRes.headers.get('content-type') || '';
+      if (statsRes.ok && statsCt.includes('application/json')) {
+        const statsData = await statsRes.json();
+        if (statsData?.success) {
+          setStats(statsData.stats);
+          setUsersList(Array.isArray(statsData.users) ? statsData.users : []);
+          loadedFromApi = true;
+        }
       }
-      const catsData = await catsRes.json();
-      if (catsData?.success && Array.isArray(catsData.categories)) {
-        setEventCategories(catsData.categories);
+      const catsCt = catsRes.headers.get('content-type') || '';
+      if (catsRes.ok && catsCt.includes('application/json')) {
+        const catsData = await catsRes.json();
+        if (catsData?.success && Array.isArray(catsData.categories)) {
+          setEventCategories(catsData.categories);
+        }
       }
     } catch (e) {
       console.warn(e);
+    }
+
+    // Live Firestore fallback when running on static hosting
+    if (!loadedFromApi && db) {
+      try {
+        const [usersSnap, eventsSnap, newsSnap] = await Promise.all([
+          getDocs(collection(db, 'user_xp_profiles')),
+          getDocs(collection(db, 'community_events')),
+          getDocs(collection(db, 'news')),
+        ]);
+        const users = usersSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a: any, b: any) => Number(b.totalXp || 0) - Number(a.totalXp || 0))
+          .slice(0, 50);
+        setStats({
+          users: usersSnap.size,
+          events: eventsSnap.size,
+          news: newsSnap.size,
+        });
+        setUsersList(users);
+      } catch (fsErr) {
+        console.warn('Firestore stats fallback error:', fsErr);
+      }
     }
   }, []);
 
@@ -155,10 +216,11 @@ export default function AdminEcosystemPanel({
       {/* Top Admin Sub-Navigation */}
       <div className="flex flex-wrap gap-2">
         {([
+          { id: 'noticias', label: `Notícias PK XD (${newsList.length})`, icon: Newspaper },
           { id: 'stats', label: 'Estatísticas & Usuários', icon: BarChart3 },
           { id: 'eventos', label: `Eventos & Categorias (${events.length})`, icon: Calendar },
           { id: 'comunicados', label: 'Comunicados & Push', icon: Megaphone },
-          { id: 'conteudo', label: 'Notícias, Spoilers & Conteúdo', icon: Settings },
+          { id: 'conteudo', label: 'Spoilers, Vídeos & Sistema', icon: Settings },
         ] as const).map((tab) => {
           const Icon = tab.icon;
           const active = section === tab.id;
@@ -179,6 +241,21 @@ export default function AdminEcosystemPanel({
           );
         })}
       </div>
+
+      {/* 0. EXCLUSIVE PK XD NEWS MANAGER */}
+      {section === 'noticias' && onAddNews && onSaveEditNews && onCancelEditNews && onDeleteNews && (
+        <AdminNewsManager
+          newsList={newsList}
+          newsToEdit={newsToEdit}
+          onAddNews={onAddNews}
+          onSaveEdit={onSaveEditNews}
+          onCancelEdit={onCancelEditNews}
+          onDeleteNews={onDeleteNews}
+          onSelectEdit={onSelectEditNews}
+          onNavigate={onNavigate}
+          triggerAudio={triggerAudio}
+        />
+      )}
 
       {/* 1. STATS & USERS */}
       {section === 'stats' && (
@@ -427,9 +504,9 @@ export default function AdminEcosystemPanel({
         </form>
       )}
 
-      {/* 5. EXISTING FULL CONTENT ADMIN PANEL */}
+      {/* 4. UNIFIED MODERN CONTENT CMS */}
       {section === 'conteudo' && (
-        <div className="bg-[#15102A] text-white rounded-[28px] p-4 sm:p-6 border-[3px] border-[#120624] shadow-[0_6px_0_#16032E]">
+        <div className="space-y-4">
           {children}
         </div>
       )}

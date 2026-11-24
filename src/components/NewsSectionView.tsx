@@ -211,7 +211,10 @@ export default function NewsSectionView({
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => onNavigate('/admin')}
+                onClick={() => {
+                  triggerAudio('tap');
+                  onNavigate('/admin#noticias');
+                }}
                 className="pkxd-btn-gold px-5 py-2.5 text-sm cursor-pointer self-start shrink-0"
               >
                 + Publicar Notícia

@@ -201,7 +201,7 @@ export default function AdminPanel({
   activeGiftCountdownContent,
   onUpdateGiftCountdown
 }: AdminPanelProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const deleteDocSecurely = async (collectionName: string, docId: string) => {
     try {
       const res = await fetch('/api/admin-delete', {
@@ -1638,87 +1638,84 @@ export default function AdminPanel({
   };
 
   return (
-    <div 
+    <div
       id="admin-management-panel"
-      className="bg-black/85 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl"
+      className="pkxd-pop-card pkxd-admin-modern overflow-hidden"
     >
-      {/* Header toggle */}
-      <button 
-        type="button"
-        onClick={() => { playTapSound(); setIsOpen(!isOpen); }}
-        className="w-full bg-zinc-900 border-b border-zinc-800 text-gray-200 p-4 px-6 font-sans font-black flex items-center justify-between text-base sm:text-lg cursor-pointer tracking-wider"
-      >
-        <span className="flex items-center gap-2">
-          ⚙️ Painel de Administração Gamer PKXD
-          {newsToEdit && (
-            <span className="bg-red-500 text-white font-mono text-[9px] px-2 py-0.5 rounded-full uppercase animate-pulse">
-              Modificando Vídeo
-            </span>
-          )}
-        </span>
-        <div>
-          {isOpen ? <X className="w-5 h-5 text-gray-400" /> : <Save className="w-5 h-5 text-yellow-400" />}
+      {/* Modern Unified Content CMS Header */}
+      <div className="bg-gradient-to-r from-[#2D0859] via-[#4C1D95] to-[#6D28D9] text-white px-5 py-4 sm:px-6 border-b-[3px] border-[#120624] flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#F9C826] border-2 border-[#120624] text-[#120624] flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-display font-bold text-lg sm:text-xl leading-tight flex items-center gap-2 flex-wrap">
+              <span>Gerenciador de Conteúdo PK XD Central</span>
+              {newsToEdit && (
+                <span className="bg-[#F9C826] text-[#120624] font-sans text-[11px] font-extrabold px-2.5 py-0.5 rounded-full uppercase border border-[#120624]">
+                  Editando Publicação
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-purple-100/90 font-medium">
+              Publique notícias, spoilers, vídeos, teorias, enquetes, códigos e moderação em tempo real
+            </p>
+          </div>
         </div>
-      </button>
+
+        <button
+          type="button"
+          onClick={() => { playTapSound(); onResetToDefaults(); showStatus('Restaurado para os links iniciais!'); }}
+          className="px-3.5 py-2 rounded-full bg-white/15 hover:bg-white/25 border-2 border-white/25 text-white text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Restaurar Padrões</span>
+        </button>
+      </div>
 
       {isOpen && (
-        <div className="p-6 space-y-6">
-          {user?.uid === 'admin_fallback' && (
-            <div className="p-4 bg-emerald-950/40 border-2 border-emerald-500/30 rounded-2xl text-left space-y-1.5 shadow-md">
-              <div className="flex items-center gap-2 text-emerald-400 font-extrabold text-xs uppercase tracking-wide">
-                <Sparkles className="w-4.5 h-4.5 animate-pulse text-emerald-400" />
-                <span>⚡ PORTAL SINCRONIZADO COM SUCESSO (MODO PIN)</span>
-              </div>
-              <p className="text-gray-300 text-xs font-sans leading-relaxed">
-                Você acessou o sistema usando o de <strong>Código PIN de emergência</strong>. Seus posts, códigos de vídeos e spoilers criados aqui <strong>são sincronizados e gravados na nuvem do Firestore em tempo real</strong>!
-              </p>
-              <p className="text-xs font-sans text-emerald-300 font-bold leading-relaxed">
-                🚀 Todos os jogadores e fãs do PK XD verão as atualizações do seu painel de forma instantaneamente global e segura.
-              </p>
-            </div>
-          )}
-
-          {/* Category Switcher (Beautiful bento-style grid) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="pkxd-admin-body p-5 sm:p-6 space-y-6 bg-white text-[#120624]">
+          {/* Category Switcher (Modern PK XD Pop Cards) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <button
               type="button"
               onClick={() => { playTapSound(); setActiveCategory('content'); setActiveTab('news'); }}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md ${
+              className={`p-3.5 rounded-2xl border-[2.5px] font-sans font-extrabold text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 ${
                 activeCategory === 'content'
-                  ? 'bg-gradient-to-b from-purple-800 to-purple-950 text-white border-purple-500 shadow-[0_4px_15px_rgba(168,85,247,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-purple-500/30 hover:text-gray-200'
+                  ? 'bg-[#6D28D9] text-white border-[#120624] shadow-[0_4px_0_#120624]'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-[#6D28D9] hover:bg-violet-50'
               }`}
             >
-              <Video className="w-5 h-5 text-purple-400" />
+              <Video className={`w-5 h-5 ${activeCategory === 'content' ? 'text-[#F9C826]' : 'text-[#6D28D9]'}`} />
               <span className="text-center">Mídias & Spoilers</span>
             </button>
 
             <button
               type="button"
               onClick={() => { playTapSound(); setActiveCategory('timers'); setActiveTab('featured'); }}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md ${
+              className={`p-3.5 rounded-2xl border-[2.5px] font-sans font-extrabold text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 ${
                 activeCategory === 'timers'
-                  ? 'bg-gradient-to-b from-cyan-800 to-cyan-950 text-white border-cyan-500 shadow-[0_4px_15px_rgba(6,182,212,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-cyan-500/30 hover:text-gray-200'
+                  ? 'bg-[#0284C7] text-white border-[#120624] shadow-[0_4px_0_#120624]'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-[#0284C7] hover:bg-sky-50'
               }`}
             >
-              <Clock className="w-5 h-5 text-cyan-400" />
+              <Clock className={`w-5 h-5 ${activeCategory === 'timers' ? 'text-[#F9C826]' : 'text-[#0284C7]'}`} />
               <span className="text-center">Sistemas & Timers</span>
             </button>
 
             <button
               type="button"
               onClick={() => { playTapSound(); setActiveCategory('community'); setActiveTab('applications'); }}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md relative ${
+              className={`p-3.5 rounded-2xl border-[2.5px] font-sans font-extrabold text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 relative ${
                 activeCategory === 'community'
-                  ? 'bg-gradient-to-b from-pink-850 to-pink-950 text-white border-pink-500 shadow-[0_4px_15px_rgba(236,72,153,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-pink-500/30 hover:text-gray-200'
+                  ? 'bg-[#DB2777] text-white border-[#120624] shadow-[0_4px_0_#120624]'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-[#DB2777] hover:bg-pink-50'
               }`}
             >
-              <Globe className="w-5 h-5 text-pink-400" />
+              <Globe className={`w-5 h-5 ${activeCategory === 'community' ? 'text-[#F9C826]' : 'text-[#DB2777]'}`} />
               <span className="text-center">Comunidade & Cupons</span>
               {(appsPanel.length + appsShorts.length + appsTheories.length + appsAdmin.length + allComments.filter(c => c.status === 'pending_review').length) > 0 && (
-                <span className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-bounce">
+                <span className="absolute top-1.5 right-1.5 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full border border-[#120624]">
                   {appsPanel.length + appsShorts.length + appsTheories.length + appsAdmin.length + allComments.filter(c => c.status === 'pending_review').length}
                 </span>
               )}
@@ -1727,56 +1724,64 @@ export default function AdminPanel({
             <button
               type="button"
               onClick={() => { playTapSound(); setActiveCategory('design'); setActiveTab('logo'); }}
-              className={`p-3.5 rounded-2xl border-2 font-sans font-black text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 shadow-md ${
+              className={`p-3.5 rounded-2xl border-[2.5px] font-sans font-extrabold text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 ${
                 activeCategory === 'design'
-                  ? 'bg-gradient-to-b from-yellow-800 to-yellow-950 text-white border-yellow-500 shadow-[0_4px_15px_rgba(234,179,8,0.25)]'
-                  : 'bg-zinc-900/70 text-gray-400 border-white/5 hover:border-yellow-500/30 hover:text-gray-200'
+                  ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_4px_0_#120624]'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-amber-500 hover:bg-amber-50'
               }`}
             >
-              <Wand2 className="w-5 h-5 text-yellow-400" />
-              <span className="text-center">Aparência & Custom</span>
+              <Wand2 className={`w-5 h-5 ${activeCategory === 'design' ? 'text-[#120624]' : 'text-amber-600'}`} />
+              <span className="text-center">Aparência & Logo</span>
             </button>
           </div>
 
           {/* Sub tabs navigation */}
-          <div className="flex flex-wrap gap-2 border-b border-white/5 pb-4 mb-4">
+          <div className="flex flex-wrap gap-2 border-b-2 border-slate-200 pb-4">
             {activeCategory === 'content' && (
               <>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('news'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'news' ? 'bg-purple-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'news'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  📹 Códigos / Lives ({newsToEdit ? 'Editando' : 'Novo'})
+                  Notícias / Lives ({newsToEdit ? 'Editando' : 'Novo'})
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('spoiler'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'spoiler' ? 'bg-purple-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'spoiler'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  🔮 Mudar Spoilers
+                  Mudar Spoilers
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('theories'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'theories' ? 'bg-purple-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'theories'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  💬 Publicar Teorias
+                  Publicar Teorias
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('shorts'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'shorts' ? 'bg-purple-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'shorts'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  📱 Shorts Curados
+                  Shorts Curados
                 </button>
               </>
             )}
@@ -1786,38 +1791,46 @@ export default function AdminPanel({
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('featured'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'featured' ? 'bg-cyan-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'featured'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  🎬 Vídeos Destaque
+                  Vídeos Destaque
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('extratimer'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'extratimer' ? 'bg-cyan-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'extratimer'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  ⏰ Contagem Alternativa
+                  Contagem Alternativa
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('giftcountdown'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'giftcountdown' ? 'bg-cyan-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'giftcountdown'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  🎁 Soltar Presente/Código
+                  Soltar Presente / Código
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('push'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'push' ? 'bg-cyan-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                    activeTab === 'push'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  🔔 Notificar / Atrasar
+                  Notificar / Atrasar
                 </button>
               </>
             )}
@@ -1827,90 +1840,70 @@ export default function AdminPanel({
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('applications'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer relative ${
-                    activeTab === 'applications' ? 'bg-pink-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 relative ${
+                    activeTab === 'applications'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  📝 Inscrições ({appsPanel.length + appsShorts.length + appsTheories.length + appsAdmin.length})
-                  {(appsPanel.length + appsShorts.length + appsTheories.length + appsAdmin.length) > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center animate-bounce">
-                      {appsPanel.length + appsShorts.length + appsTheories.length + appsAdmin.length}
-                    </span>
-                  )}
+                  Inscrições ({appsPanel.length + appsShorts.length + appsTheories.length + appsAdmin.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('moderation'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer relative ${
-                    activeTab === 'moderation' ? 'bg-pink-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 relative ${
+                    activeTab === 'moderation'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  🛡️ Moderação
-                  {allComments.filter(c => c.status === 'pending_review').length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-pink-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center animate-bounce">
-                      {allComments.filter(c => c.status === 'pending_review').length}
-                    </span>
-                  )}
+                  Moderação ({allComments.filter(c => c.status === 'pending_review').length})
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('promocodes'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer relative ${
-                    activeTab === 'promocodes' ? 'bg-pink-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 relative ${
+                    activeTab === 'promocodes'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  🎟️ Promo Codes
-                  {generatedCodes.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-amber-550 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center">
-                      {generatedCodes.length}
-                    </span>
-                  )}
+                  Promo Codes ({generatedCodes.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => { playTapSound(); setActiveTab('polls'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer relative ${
-                    activeTab === 'polls' ? 'bg-pink-600 text-white font-black' : 'bg-zinc-900 text-gray-300'
+                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 relative ${
+                    activeTab === 'polls'
+                      ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                      : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
                   }`}
                 >
-                  📊 Enquetes
-                  {adminPolls.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-cyan-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center">
-                      {adminPolls.length}
-                    </span>
-                  )}
+                  Enquetes ({adminPolls.length})
                 </button>
               </>
             )}
 
             {activeCategory === 'design' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => { playTapSound(); setActiveTab('logo'); }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer ${
-                    activeTab === 'logo' ? 'bg-yellow-400 text-black font-black' : 'bg-zinc-900 text-gray-300'
-                  }`}
-                >
-                  🖼️ Logo e Banner
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => { playTapSound(); setActiveTab('logo'); }}
+                className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer border-2 ${
+                  activeTab === 'logo'
+                    ? 'bg-[#F9C826] text-[#120624] border-[#120624] shadow-[0_2px_0_#120624]'
+                    : 'bg-slate-100 text-slate-700 border-transparent hover:border-slate-300'
+                }`}
+              >
+                Logo e Banner
+              </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => { playTapSound(); onResetToDefaults(); showStatus('Restaurado para os links iniciais! 🪄'); }}
-              className="ml-auto text-[10px] font-bold text-gray-400 hover:text-white uppercase flex items-center gap-1 cursor-pointer bg-zinc-900 px-2.5 py-1.5 rounded-xl border border-zinc-800 transition-colors hover:bg-zinc-800"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Restaurar Padrões</span>
-            </button>
           </div>
 
-          Status message notice
+          {/* Status message notice */}
           {statusMsg && (
-            <div className="bg-yellow-400/10 text-yellow-300 border border-yellow-400/20 p-3.5 rounded-xl text-xs font-semibold animate-pulse text-left">
-              ✔ {statusMsg}
+            <div className="bg-emerald-50 text-emerald-950 border-2 border-emerald-400 p-3.5 rounded-2xl text-xs font-bold text-left flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{statusMsg}</span>
             </div>
           )}
 

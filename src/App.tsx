@@ -1854,11 +1854,11 @@ export default function App() {
       await setDoc(docRef, fresh);
       setNewsToEdit(null);
       triggerAudio('success');
-      setNotifMessage("✅ Código atualizado com sucesso! 🌐");
+      setNotifMessage("Notícia atualizada com sucesso!");
       setTimeout(() => setNotifMessage(null), 4500);
     } catch (err: any) {
       console.error(err);
-      setNotifMessage(`❌ Erro ao atualizar código: ${err?.message || String(err)}`);
+      setNotifMessage(`Erro ao atualizar notícia: ${err?.message || String(err)}`);
       setTimeout(() => setNotifMessage(null), 8000);
     }
   };
@@ -2915,47 +2915,69 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Unified Admin Ecosystem + Content CMS */}
-                <AdminEcosystemPanel initialSection="stats">
-                  <div className="bg-[#15102A] text-white rounded-3xl p-4 sm:p-6 border-[3px] border-[#120624] shadow-[0_6px_0_#16032E]">
-                    <AdminPanel
-                      user={user}
-                      onAddNews={handleAddNews}
-                      onUpdateSpoiler={handleUpdateSpoilerSettings}
-                      activeSpoilerTitle={spoilerTitle}
-                      activeSpoilerDesc={spoilerDesc}
-                      activeSpoilerImage={spoilerImage}
-                      activeSpoilerForceReveal={forceReveal}
-                      onResetToDefaults={handleResetToDefaults}
-                      newsToEdit={newsToEdit}
-                      onCancelEdit={() => setNewsToEdit(null)}
-                      onSaveEdit={handleSaveEdit}
-                      siteLogoUrl={siteLogoUrl}
-                      onUpdateLogo={handleUpdateLogoSettings}
-                      onAddFeaturedVideo={handleAddFeaturedVideo}
-                      onAddTheory={handleAddTheory}
-                      onAddShort={handleAddShort}
-                      onUpdateExtraCountdown={handleUpdateExtraCountdown}
-                      activeExtraCountdownTitle={extraCountdownTitle}
-                      activeExtraCountdownDate={extraCountdownDate}
-                      activeExtraCountdownEnabled={extraCountdownEnabled}
-                      pastSpoilerToEdit={pastSpoilerToEdit}
-                      onSaveEditPastSpoiler={handleSaveEditPastSpoiler}
-                      onCancelEditPastSpoiler={() => setPastSpoilerToEdit(null)}
-                      isDelayed={isDelayed}
-                      delayMessage={delayMessage}
-                      onUpdateDelay={handleUpdateDelay}
-                      onSendCustomNotification={handleSendCustomNotification}
-                      onDirectArchivePastSpoiler={handleDirectArchivePastSpoiler}
-                      onArchiveAndClearActiveSpoiler={handleArchiveAndClearActiveSpoiler}
-                      onDeleteActiveSpoiler={handleDeleteActiveSpoiler}
-                      activeGiftCountdownTitle={giftCountdownTitle}
-                      activeGiftCountdownDate={giftCountdownDate}
-                      activeGiftCountdownEnabled={giftCountdownEnabled}
-                      activeGiftCountdownContent={giftCountdownContent}
-                      onUpdateGiftCountdown={handleUpdateGiftCountdown}
-                    />
-                  </div>
+                {/* Unified Admin Ecosystem + Exclusive News Manager + Content CMS */}
+                <AdminEcosystemPanel
+                  initialSection={
+                    currentPath.toLowerCase().includes('#noticias') || newsToEdit
+                      ? 'noticias'
+                      : pastSpoilerToEdit
+                      ? 'conteudo'
+                      : 'noticias'
+                  }
+                  forceSection={
+                    currentPath.toLowerCase().includes('#noticias') || newsToEdit
+                      ? 'noticias'
+                      : pastSpoilerToEdit
+                      ? 'conteudo'
+                      : undefined
+                  }
+                  newsList={newsList}
+                  newsToEdit={newsToEdit}
+                  onAddNews={handleAddNews}
+                  onSaveEditNews={handleSaveEdit}
+                  onCancelEditNews={() => setNewsToEdit(null)}
+                  onDeleteNews={handleDeleteNews}
+                  onSelectEditNews={(item) => setNewsToEdit(item)}
+                  onNavigate={navigateTo}
+                  triggerAudio={triggerAudio}
+                >
+                  <AdminPanel
+                    user={user}
+                    onAddNews={handleAddNews}
+                    onUpdateSpoiler={handleUpdateSpoilerSettings}
+                    activeSpoilerTitle={spoilerTitle}
+                    activeSpoilerDesc={spoilerDesc}
+                    activeSpoilerImage={spoilerImage}
+                    activeSpoilerForceReveal={forceReveal}
+                    onResetToDefaults={handleResetToDefaults}
+                    newsToEdit={newsToEdit}
+                    onCancelEdit={() => setNewsToEdit(null)}
+                    onSaveEdit={handleSaveEdit}
+                    siteLogoUrl={siteLogoUrl}
+                    onUpdateLogo={handleUpdateLogoSettings}
+                    onAddFeaturedVideo={handleAddFeaturedVideo}
+                    onAddTheory={handleAddTheory}
+                    onAddShort={handleAddShort}
+                    onUpdateExtraCountdown={handleUpdateExtraCountdown}
+                    activeExtraCountdownTitle={extraCountdownTitle}
+                    activeExtraCountdownDate={extraCountdownDate}
+                    activeExtraCountdownEnabled={extraCountdownEnabled}
+                    pastSpoilerToEdit={pastSpoilerToEdit}
+                    onSaveEditPastSpoiler={handleSaveEditPastSpoiler}
+                    onCancelEditPastSpoiler={() => setPastSpoilerToEdit(null)}
+                    isDelayed={isDelayed}
+                    delayMessage={delayMessage}
+                    onUpdateDelay={handleUpdateDelay}
+                    onSendCustomNotification={handleSendCustomNotification}
+                    onDirectArchivePastSpoiler={handleDirectArchivePastSpoiler}
+                    onArchiveAndClearActiveSpoiler={handleArchiveAndClearActiveSpoiler}
+                    onDeleteActiveSpoiler={handleDeleteActiveSpoiler}
+                    activeGiftCountdownTitle={giftCountdownTitle}
+                    activeGiftCountdownDate={giftCountdownDate}
+                    activeGiftCountdownEnabled={giftCountdownEnabled}
+                    activeGiftCountdownContent={giftCountdownContent}
+                    onUpdateGiftCountdown={handleUpdateGiftCountdown}
+                  />
                 </AdminEcosystemPanel>
               </div>
             ) : (
@@ -3234,7 +3256,7 @@ export default function App() {
             }}
             onEditNews={(item) => {
               handleEditNewsRequest(item);
-              navigateTo('/admin');
+              navigateTo('/admin#noticias');
             }}
             onDeleteNews={handleDeleteNews}
             onNavigate={navigateTo}
