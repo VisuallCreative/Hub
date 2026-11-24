@@ -111,18 +111,18 @@ export default function PrivacyCenterView({
 
   return (
     <div id="privacy-center-view" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 text-slate-900 text-left">
-      <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-purple-200/80">
+      <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-purple-200/40">
         <button
           onClick={handleBack}
-          className="pkxd-btn-outline px-4 py-2 text-xs flex items-center gap-1.5 cursor-pointer"
+          className="pkxd-pop-btn px-4 py-2 text-xs flex items-center gap-1.5 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Voltar ao Portal</span>
         </button>
 
-        <span className="text-xs text-emerald-700 font-extrabold bg-[#ECFDF5] border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+        <span className="text-xs text-emerald-800 font-extrabold bg-[#ECFDF5] border-2 border-[#120624] px-3 py-1 rounded-full flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-          <span>LGPD Compliant</span>
+          <span>LGPD & Google API</span>
         </span>
       </div>
 
@@ -139,7 +139,7 @@ export default function PrivacyCenterView({
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
-            Sua privacidade e o controle sobre suas informações são prioridades no PKXD Central. Gerencie cookies, consulte nossos termos e exerça seus direitos de forma simples.
+            Controle completo sobre seus dados no <strong>PK XD Central</strong> — incluindo conta Google/Firebase, Identidade PK XD, Eventos e Agenda, Sistema de XP, Notificações Push e integração opcional com o YouTube no Progresso Creator.
           </p>
         </div>
       </div>
