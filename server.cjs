@@ -1668,7 +1668,7 @@ app.get("/api/admin/stats", async (req, res) => {
 var aiClient = null;
 function getAI() {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY n\xE3o encontrada no servidor. Configure-a no painel de Secrets.");
     }
@@ -1848,6 +1848,54 @@ app.get("/api/youtube/channel", async (req, res) => {
     res.status(404).json({
       error: err.message || "Canal n\xE3o encontrado ou indispon\xEDvel publicamente."
     });
+  }
+});
+var ALLOWED_AVATAR_HOSTS = /* @__PURE__ */ new Set([
+  "yt3.googleusercontent.com",
+  "yt3.ggpht.com",
+  "i.ytimg.com",
+  "lh3.googleusercontent.com"
+]);
+app.get("/api/youtube/avatar", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  const rawUrl = typeof req.query.url === "string" ? req.query.url.trim() : "";
+  if (!rawUrl) {
+    res.status(400).json({ error: "URL da imagem \xE9 obrigat\xF3ria." });
+    return;
+  }
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    res.status(400).json({ error: "URL inv\xE1lida." });
+    return;
+  }
+  if (parsed.protocol !== "https:" || !ALLOWED_AVATAR_HOSTS.has(parsed.hostname.toLowerCase())) {
+    res.status(403).json({ error: "Dom\xEDnio de imagem n\xE3o permitido." });
+    return;
+  }
+  try {
+    const upstream = await fetch(parsed.toString(), {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+    if (!upstream.ok) {
+      res.status(502).json({ error: `Falha ao carregar avatar (${upstream.status}).` });
+      return;
+    }
+    const contentType = upstream.headers.get("content-type") || "image/jpeg";
+    if (!contentType.startsWith("image/")) {
+      res.status(400).json({ error: "Resposta n\xE3o \xE9 uma imagem v\xE1lida." });
+      return;
+    }
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error("[Avatar Proxy] Erro ao carregar avatar:", err);
+    res.status(502).json({ error: "N\xE3o foi poss\xEDvel carregar o avatar do canal." });
   }
 });
 var FIREBASE_AUTH_ORIGIN = "https://pkxd-e817c.firebaseapp.com";
