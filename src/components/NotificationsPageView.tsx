@@ -28,7 +28,7 @@ interface NotificationsPageViewProps {
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onDeleteNotification: (id: string, isPersonalPet?: boolean) => void;
-  onEnablePush: () => Promise<void>;
+  onEnablePush: () => Promise<unknown> | void;
   onNavigate: (path: string) => void;
   triggerAudio: (type: 'tap' | 'success' | 'levelUp') => void;
 }

@@ -25,6 +25,8 @@ import {
   MessageCircle,
   Send,
   HeartHandshake,
+  BellRing,
+  Bell,
 } from 'lucide-react';
 import {
   collection,
@@ -45,6 +47,9 @@ interface PetsSectionViewProps {
   currentUser: any;
   isAdmin: boolean;
   playerTag?: string;
+  hasPushPermission?: boolean;
+  onEnablePush?: () => Promise<'granted' | 'denied' | 'default' | 'unsupported' | void> | void;
+  onOpenNotifications?: () => void;
   onOpenAuth: (mode?: 'login' | 'register') => void;
   onAddXP?: (amount: number, reason: string, rewardKey?: string) => void;
   triggerAudio: (type: 'tap' | 'success' | 'levelUp') => void;
@@ -216,6 +221,9 @@ export default function PetsSectionView({
   currentUser,
   isAdmin,
   playerTag,
+  hasPushPermission = false,
+  onEnablePush,
+  onOpenNotifications,
   onOpenAuth,
   onAddXP,
   triggerAudio,
@@ -257,6 +265,49 @@ export default function PetsSectionView({
   const [selectedPet, setSelectedPet] = useState<PetListing | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [busyCardId, setBusyCardId] = useState<string | null>(null);
+
+  // Post-publish notification activation modal & reminder
+  const [publishedSuccessPet, setPublishedSuccessPet] = useState<{
+    petName: string;
+    listingType: PetListingType;
+  } | null>(null);
+  const [pushActionState, setPushActionState] = useState<
+    'idle' | 'requesting' | 'enabled' | 'denied' | 'unsupported'
+  >('idle');
+  const [dismissedNotifReminder, setDismissedNotifReminder] = useState(false);
+
+  const handleRequestPushActivation = async () => {
+    triggerAudio('tap');
+    setPushActionState('requesting');
+    try {
+      if (onEnablePush) {
+        const result = await onEnablePush();
+        if (result === 'granted') {
+          setPushActionState('enabled');
+        } else if (result === 'denied') {
+          setPushActionState('denied');
+        } else if (result === 'unsupported') {
+          setPushActionState('unsupported');
+        } else {
+          setPushActionState('idle');
+        }
+      } else if (typeof window !== 'undefined' && 'Notification' in window) {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          triggerAudio('success');
+          setPushActionState('enabled');
+        } else if (perm === 'denied') {
+          setPushActionState('denied');
+        } else {
+          setPushActionState('idle');
+        }
+      } else {
+        setPushActionState('unsupported');
+      }
+    } catch {
+      setPushActionState('idle');
+    }
+  };
 
   // "Eu quero!" interest modal state
   const [wantPet, setWantPet] = useState<PetListing | null>(null);
@@ -655,6 +706,8 @@ export default function PetsSectionView({
           'success',
           `Pet "${cleanPetName}" publicado para ${listingType === 'doacao' ? 'doação gratuita' : 'troca'}!`
         );
+        setPushActionState(hasPushPermission ? 'enabled' : 'idle');
+        setPublishedSuccessPet({ petName: cleanPetName, listingType });
       }
       setIsFormOpen(false);
       setEditingPet(null);
@@ -826,6 +879,52 @@ export default function PetsSectionView({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+          )}
+
+          {/* REMINDER BAR FOR PUBLISHERS WITHOUT NOTIFICATIONS ENABLED */}
+          {currentUser && stats.mineCount > 0 && !hasPushPermission && !dismissedNotifReminder && (
+            <div
+              role="region"
+              aria-label="Ativar notificações para seus pets"
+              className="rounded-2xl bg-[#FEF9C3] border-[3px] border-[#120624] shadow-[0_4px_0_#16032E] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[#120624]"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#F9C826] border-2 border-[#120624] text-[#120624] flex items-center justify-center shrink-0">
+                  <BellRing className="w-5 h-5" />
+                </div>
+                <div className="space-y-0.5 text-left">
+                  <h3 className="font-display font-bold text-sm sm:text-base text-[#120624]">
+                    Ative as notificações para saber quem quer seu pet!
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-700 leading-relaxed">
+                    Quando alguém clicar em <strong>"Eu quero!"</strong>, enviamos o Nome #, @ ou WhatsApp direto nas suas notificações.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  disabled={pushActionState === 'requesting'}
+                  onClick={handleRequestPushActivation}
+                  className="pkxd-btn-purple px-4 py-2 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-60"
+                >
+                  <BellRing className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    {pushActionState === 'requesting'
+                      ? 'Ativando...'
+                      : 'Ativar Notificações'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDismissedNotifReminder(true)}
+                  className="p-2 rounded-xl hover:bg-black/10 text-[#120624] cursor-pointer"
+                  aria-label="Dispensar lembrete"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -2012,6 +2111,148 @@ export default function PetsSectionView({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* POST-PUBLISH NOTIFICATION ACTIVATION MODAL (PORTAL CENTERED) */}
+      {publishedSuccessPet &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[120] bg-[#120624]/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+            onClick={() => setPublishedSuccessPet(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pet-published-notif-title"
+              className="w-full max-w-md bg-white text-[#120624] border-[3.5px] border-[#120624] rounded-[28px] shadow-[0_8px_0_#16032E] overflow-hidden my-auto"
+            >
+              <div className="bg-[#2D0859] text-white px-5 sm:px-6 py-4 border-b-[3px] border-[#120624] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#F9C826] border-2 border-[#120624] text-[#120624] flex items-center justify-center shrink-0">
+                    <BellRing className="w-5 h-5" />
+                  </div>
+                  <h2
+                    id="pet-published-notif-title"
+                    className="font-display font-bold text-lg sm:text-xl text-white truncate"
+                  >
+                    Pet publicado!
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPublishedSuccessPet(null)}
+                  className="w-9 h-9 rounded-full bg-[#F9C826] border-2 border-[#120624] text-[#120624] flex items-center justify-center cursor-pointer shrink-0"
+                  aria-label="Fechar aviso"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-4 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-[#DCFCE7] border-[2.5px] border-[#120624] text-[#14532D] flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <h3 className="font-display font-bold text-xl text-[#120624] leading-snug">
+                    "{publishedSuccessPet.petName}" já está no ar!
+                  </h3>
+                  <p className="text-xs sm:text-sm font-semibold text-slate-600 leading-relaxed">
+                    Seu pet foi anunciado para{' '}
+                    <strong>
+                      {publishedSuccessPet.listingType === 'doacao'
+                        ? 'doação gratuita'
+                        : 'troca'}
+                    </strong>
+                    .
+                  </p>
+                </div>
+
+                {hasPushPermission || pushActionState === 'enabled' ? (
+                  <div className="rounded-2xl bg-[#DCFCE7] border-2 border-[#120624] p-4 text-left flex items-start gap-3">
+                    <Bell className="w-5 h-5 text-[#14532D] shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-extrabold text-[#14532D]">
+                        Notificações ativadas!
+                      </p>
+                      <p className="text-xs font-semibold text-[#166534] leading-relaxed">
+                        Assim que alguém clicar em <strong>"Eu quero!"</strong> no seu pet, você será avisado com o <strong>Nome #</strong> e o <strong>@ ou WhatsApp</strong> da pessoa.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-[#FEF9C3] border-[2.5px] border-[#120624] p-4 text-left space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <BellRing className="w-5 h-5 text-[#2D0859] shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-extrabold text-[#120624]">
+                          Importante: ative as notificações!
+                        </p>
+                        <p className="text-xs font-semibold text-slate-800 leading-relaxed">
+                          Quando alguém clicar em <strong>"Eu quero!"</strong> no seu pet, o <strong>Nome #</strong> e o <strong>@ ou WhatsApp</strong> dessa pessoa chegam nas suas <strong>Notificações</strong>. Ative agora para ser avisado na hora!
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={pushActionState === 'requesting'}
+                      onClick={handleRequestPushActivation}
+                      className="w-full min-h-[46px] pkxd-btn-gold px-5 py-2.5 text-sm font-extrabold inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    >
+                      <BellRing className="w-4 h-4 shrink-0" />
+                      <span>
+                        {pushActionState === 'requesting'
+                          ? 'Solicitando permissão...'
+                          : 'Ativar Notificações Agora'}
+                      </span>
+                    </button>
+
+                    {pushActionState === 'denied' && (
+                      <p className="text-xs font-bold text-rose-800 bg-rose-100 border border-rose-300 rounded-xl p-2.5 leading-relaxed">
+                        Seu navegador bloqueou as notificações. Clique no cadeado ao lado do endereço do site para permitir, ou acompanhe seus pedidos pelo sino de Notificações aqui no site.
+                      </p>
+                    )}
+
+                    {pushActionState === 'unsupported' && (
+                      <p className="text-xs font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded-xl p-2.5 leading-relaxed">
+                        Este navegador não suporta alertas push, mas você receberá todos os pedidos "Eu quero!" no sino de Notificações do site.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                  {onOpenNotifications && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerAudio('tap');
+                        setPublishedSuccessPet(null);
+                        onOpenNotifications();
+                      }}
+                      className="px-4 py-2.5 rounded-full border-2 border-[#120624] bg-[#F5F3FF] hover:bg-[#EDE9FE] text-xs font-extrabold text-[#2D0859] inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Bell className="w-3.5 h-3.5" />
+                      <span>Ver Notificações</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerAudio('tap');
+                      setPublishedSuccessPet(null);
+                    }}
+                    className="pkxd-btn-purple px-5 py-2.5 text-xs font-extrabold cursor-pointer"
+                  >
+                    Entendi, ver pets
+                  </button>
+                </div>
+              </div>
             </div>
           </div>,
           document.body

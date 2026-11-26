@@ -2545,17 +2545,40 @@ export default function App() {
 
           items.push(notifItem);
 
-          // Live toast alert when a fresh "Eu quero!" arrives during this session
+          // Live toast + browser push alert when a fresh "Eu quero!" arrives during this session
           if (
             createdAt > sessionStartRef.current &&
             !alertedPetNotifIdsRef.current.has(docSnap.id)
           ) {
             alertedPetNotifIdsRef.current.add(docSnap.id);
             triggerAudio('success');
+            const alertBody = `${senderName} #${senderTagNumber} clicou em "Eu quero!" no seu pet ${petName} (${contactType === 'whatsapp' ? 'WhatsApp' : '@'}: ${contactValue}).`;
             setNotifMessage(
               `🐾 ${senderName} #${senderTagNumber} clicou em "Eu quero" no seu pet ${petName}! Abra Notificações para ver o contato.`
             );
             setTimeout(() => setNotifMessage(null), 7000);
+
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              const pushTitle = `🐾 Novo "Eu quero!" em ${petName}`;
+              const pushOptions = {
+                body: alertBody,
+                icon: '/favicon.png',
+                badge: '/favicon.png',
+              };
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready
+                  .then((reg) => reg.showNotification(pushTitle, pushOptions))
+                  .catch(() => {
+                    try {
+                      new Notification(pushTitle, pushOptions);
+                    } catch {}
+                  });
+              } else {
+                try {
+                  new Notification(pushTitle, pushOptions);
+                } catch {}
+              }
+            }
           }
         });
 
@@ -2856,11 +2879,11 @@ export default function App() {
     });
   };
 
-  const handleEnableBrowserPush = async () => {
-    if (!('Notification' in window)) {
-      setNotifMessage('Este navegador não suporta notificações de sistema.');
+  const handleEnableBrowserPush = async (): Promise<'granted' | 'denied' | 'default' | 'unsupported'> => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotifMessage('Este navegador não suporta notificações de sistema. Você ainda verá os avisos no sino do site.');
       setTimeout(() => setNotifMessage(null), 5000);
-      return;
+      return 'unsupported';
     }
     try {
       const perm = await Notification.requestPermission();
@@ -2868,11 +2891,35 @@ export default function App() {
       if (perm === 'granted') {
         triggerAudio('success');
         setTimeout(() => subscribeUserToPush(), 200);
-        setNotifMessage('Notificações push ativadas com sucesso!');
-        setTimeout(() => setNotifMessage(null), 4000);
+        setNotifMessage('Notificações ativadas! Você receberá avisos quando alguém clicar em "Eu quero!" no seu pet.');
+        setTimeout(() => setNotifMessage(null), 5000);
+        const welcomeTitle = 'PK XD Central — Notificações Ativadas!';
+        const welcomeOptions = {
+          body: 'Tudo pronto! Você será avisado aqui sobre seus pets, spoilers e novidades.',
+          icon: '/favicon.png',
+          badge: '/favicon.png',
+        };
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready
+            .then((reg) => reg.showNotification(welcomeTitle, welcomeOptions))
+            .catch(() => {
+              try {
+                new Notification(welcomeTitle, welcomeOptions);
+              } catch {}
+            });
+        } else {
+          try {
+            new Notification(welcomeTitle, welcomeOptions);
+          } catch {}
+        }
+      } else if (perm === 'denied') {
+        setNotifMessage('As notificações foram bloqueadas no navegador. Libere nas configurações do site para receber alertas.');
+        setTimeout(() => setNotifMessage(null), 6000);
       }
+      return perm;
     } catch (err) {
       console.warn(err);
+      return 'default';
     }
   };
 
@@ -3366,6 +3413,9 @@ export default function App() {
             currentUser={user}
             isAdmin={isAdmin}
             playerTag={currentPlayerTag}
+            hasPushPermission={hasNotificationPermission}
+            onEnablePush={handleEnableBrowserPush}
+            onOpenNotifications={() => navigateTo('/notificacoes')}
             onOpenAuth={(mode) => {
               setExplicitAuthMode(mode || 'login');
               setExplicitAuthModalOpen(true);
