@@ -18,6 +18,7 @@ import PassportSection from './components/PassportSection';
 import Navbar2, { NavRouteKey } from './components/Navbar2';
 import PKXDHomeView from './components/PKXDHomeView';
 import NewsSectionView from './components/NewsSectionView';
+import PetsSectionView from './components/PetsSectionView';
 import NotificationsPageView from './components/NotificationsPageView';
 import UserProfileView from './components/UserProfileView';
 import PWAInstaller from './components/PWAInstaller';
@@ -360,7 +361,7 @@ export default function App() {
       if (isGitHubPages) {
         const segments = window.location.pathname.split('/');
         const base = segments[1];
-        const specialRoutes = ['admin', 'inscricoes', 'criadores', 'progresso-creator', 'progresso', 'creator', 'artes', 'eventos', 'minha-agenda', 'criar-evento', 'noticias', 'notificacoes', 'perfil', 'passaporte', 'pkxd-id', 'comunidade', 'missoes', 'login', 'createaccount', 'register', 'resetpassword', 'recuperarsenha', 'privacidade', 'termos-de-uso', 'termos', 'direitos', 'privacidade-e-direitos'];
+        const specialRoutes = ['admin', 'inscricoes', 'criadores', 'progresso-creator', 'progresso', 'creator', 'artes', 'eventos', 'minha-agenda', 'criar-evento', 'pets', 'noticias', 'notificacoes', 'perfil', 'passaporte', 'pkxd-id', 'comunidade', 'missoes', 'login', 'createaccount', 'register', 'resetpassword', 'recuperarsenha', 'privacidade', 'termos-de-uso', 'termos', 'direitos', 'privacidade-e-direitos'];
         const baseIsSpecial = base && specialRoutes.some(r => base.toLowerCase() === r);
         const prefix = baseIsSpecial || !base ? '' : `/${base}`;
 
@@ -381,6 +382,9 @@ export default function App() {
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('criar-evento')) {
           targetPath = `${prefix}/criar-evento/${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('/pets') || pLower === 'pets') {
+          targetPath = `${prefix}/pets/${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('/noticias/')) {
           const articlePart = path.replace(/^.*\/noticias\//i, '').split('#')[0].replace(/\/$/, '');
@@ -453,6 +457,9 @@ export default function App() {
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('criar-evento')) {
           targetPath = `/criar-evento${hashSuffix}`;
+          setShowCreatorAnalyzer(false);
+        } else if (pLower.includes('/pets') || pLower === 'pets') {
+          targetPath = `/pets${hashSuffix}`;
           setShowCreatorAnalyzer(false);
         } else if (pLower.includes('/noticias/')) {
           const articlePart = path.replace(/^.*\/noticias\//i, '').split('#')[0].replace(/\/$/, '');
@@ -685,6 +692,7 @@ export default function App() {
   const [scrollY, setScrollY] = useState(0);
   const isMyAgendaRoute = currentPath.toLowerCase().includes('minha-agenda');
   const isCreateEventRoute = currentPath.toLowerCase().includes('criar-evento');
+  const isPetsRoute = /(?:^|\/|\s)pets(?:\/|\s|#|\?|$)/i.test(currentPath);
   const isNewsRoute = currentPath.toLowerCase().includes('/noticias');
   const isNotificationsRoute = currentPath.toLowerCase().includes('/notificacoes') || currentPath.toLowerCase().includes('/notificações');
   const isProfileRoute = currentPath.toLowerCase().includes('/perfil');
@@ -715,6 +723,8 @@ export default function App() {
     try {
       if (isAdminRoute) {
         document.title = "PKXD Central - Painel Admin";
+      } else if (isPetsRoute) {
+        document.title = "PKXD Central - Pets (Doação e Troca)";
       } else if (isNewsRoute) {
         document.title = "PKXD Central - Notícias PK XD";
       } else if (isNotificationsRoute) {
@@ -754,6 +764,9 @@ export default function App() {
   const [isDelayed, setIsDelayed] = useState(false);
   const [delayMessage, setDelayMessage] = useState('');
   const [notificationList, setNotificationList] = useState<AppNotification[]>([]);
+  const [personalPetNotifications, setPersonalPetNotifications] = useState<AppNotification[]>([]);
+  const sessionStartRef = useRef<number>(Date.now());
+  const alertedPetNotifIdsRef = useRef<Set<string>>(new Set());
   const [notificationReactions, setNotificationReactions] = useState<Record<string, 'like' | 'dislike'>>(() => {
     try {
       const saved = localStorage.getItem('pkxd_notif_reactions');
@@ -2473,8 +2486,106 @@ export default function App() {
     }
   };
 
-  // Delete notification handler (admin exclusive)
-  const handleDeleteNotification = async (id: string) => {
+  // Realtime personal Pet Interest notifications subscription (delivered to pet owner)
+  useEffect(() => {
+    const uid = user?.uid || '';
+    const normalizedTag = (currentPlayerTag || '').trim().toUpperCase();
+    if (!uid && !normalizedTag) {
+      setPersonalPetNotifications([]);
+      return;
+    }
+
+    const colRef = collection(db, 'user_passports');
+    const unsubscribe = onSnapshot(
+      colRef,
+      (snapshot) => {
+        const items: AppNotification[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as any;
+          if (data?.entityType !== 'pet_interest_notification') return;
+          const matchesUid = Boolean(uid && data.recipientUserId && data.recipientUserId === uid);
+          const matchesTag = Boolean(
+            normalizedTag &&
+              data.recipientOwnerTag &&
+              String(data.recipientOwnerTag).trim().toUpperCase() === normalizedTag
+          );
+          if (!matchesUid && !matchesTag) return;
+
+          const senderName = String(data.senderName || 'Jogador');
+          const senderTagNumber = String(data.senderTagNumber || '000');
+          const contactType: 'social' | 'whatsapp' =
+            data.contactType === 'whatsapp' ? 'whatsapp' : 'social';
+          const contactValue = String(data.contactValue || '');
+          const petName = String(data.petName || 'seu pet');
+          const petListingType: 'doacao' | 'troca' =
+            data.petListingType === 'troca' ? 'troca' : 'doacao';
+          const createdAt = typeof data.createdAt === 'number' ? data.createdAt : Date.now();
+          const contactLabel = contactType === 'whatsapp' ? `WhatsApp: ${contactValue}` : `Contato: ${contactValue}`;
+
+          const notifItem: AppNotification = {
+            id: docSnap.id,
+            type: 'pet_interest',
+            title: `Eu quero seu pet: ${petName}!`,
+            body: `${senderName} #${senderTagNumber} tem interesse na ${petListingType === 'doacao' ? 'doação' : 'troca'} do seu pet (${contactLabel}).`,
+            targetUrl: '/pets',
+            createdAt,
+            isPersonalPetNotification: true,
+            petInterest: {
+              petId: String(data.petId || ''),
+              petName,
+              petListingType,
+              recipientUserId: String(data.recipientUserId || ''),
+              senderName,
+              senderTagNumber,
+              contactType,
+              contactValue,
+              message: data.message ? String(data.message) : undefined,
+            },
+          };
+
+          items.push(notifItem);
+
+          // Live toast alert when a fresh "Eu quero!" arrives during this session
+          if (
+            createdAt > sessionStartRef.current &&
+            !alertedPetNotifIdsRef.current.has(docSnap.id)
+          ) {
+            alertedPetNotifIdsRef.current.add(docSnap.id);
+            triggerAudio('success');
+            setNotifMessage(
+              `🐾 ${senderName} #${senderTagNumber} clicou em "Eu quero" no seu pet ${petName}! Abra Notificações para ver o contato.`
+            );
+            setTimeout(() => setNotifMessage(null), 7000);
+          }
+        });
+
+        items.sort((a, b) => b.createdAt - a.createdAt);
+        setPersonalPetNotifications(items);
+      },
+      (error) => {
+        console.warn('Could not fetch pet interest notifications:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid, currentPlayerTag]);
+
+  // Delete notification handler (admin for global notifications, recipient/admin for personal pet notifications)
+  const handleDeleteNotification = async (id: string, isPersonalPet?: boolean) => {
+    if (isPersonalPet) {
+      try {
+        await deleteDoc(doc(db, 'user_passports', id));
+        triggerAudio('tap');
+        setNotifMessage('✅ Notificação de pet removida!');
+        setTimeout(() => setNotifMessage(null), 3000);
+      } catch (err: any) {
+        console.error('Error deleting personal pet notification:', err);
+        setNotifMessage('❌ Não foi possível remover esta notificação.');
+        setTimeout(() => setNotifMessage(null), 5000);
+      }
+      return;
+    }
+
     if (!checkAdminWritePermission()) return;
     try {
       await deleteDoc(doc(db, 'notifications', id));
@@ -2666,13 +2777,20 @@ export default function App() {
     }
   };
 
-  const unreadNotifications = notificationList.filter(n => !seenNotifIds.includes(n.id));
+  const combinedNotifications: AppNotification[] = [
+    ...personalPetNotifications,
+    ...notificationList,
+  ].sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+
+  const unreadNotifications = combinedNotifications.filter(n => !seenNotifIds.includes(n.id));
   const unreadCount = unreadNotifications.length;
 
   const totalXpDisplay = xpProfile?.totalXp ?? ((fanLevel - 1) * 100 + fanXP);
 
   const activeNavKey: NavRouteKey = isAdminRoute
     ? 'admin'
+    : isPetsRoute
+    ? 'pets'
     : isNewsRoute
     ? 'noticias'
     : isNotificationsRoute
@@ -2701,6 +2819,7 @@ export default function App() {
 
   const isCommunityViewActive =
     !isAdminRoute &&
+    !isPetsRoute &&
     !isNewsRoute &&
     !isNotificationsRoute &&
     !isProfileRoute &&
@@ -2727,7 +2846,7 @@ export default function App() {
   };
 
   const markAllNotificationsRead = () => {
-    const allIds = notificationList.map((n) => n.id);
+    const allIds = combinedNotifications.map((n) => n.id);
     setSeenNotifIds((prev) => {
       const unique = Array.from(new Set([...prev, ...allIds]));
       try {
@@ -3242,6 +3361,18 @@ export default function App() {
               onAddFeaturedVideo={handleAddFeaturedVideo}
             />
           </div>
+        ) : isPetsRoute ? (
+          <PetsSectionView
+            currentUser={user}
+            isAdmin={isAdmin}
+            playerTag={currentPlayerTag}
+            onOpenAuth={(mode) => {
+              setExplicitAuthMode(mode || 'login');
+              setExplicitAuthModalOpen(true);
+            }}
+            onAddXP={handleAddFanXP}
+            triggerAudio={triggerAudio}
+          />
         ) : isNewsRoute ? (
           <NewsSectionView
             newsList={newsList}
@@ -3264,7 +3395,7 @@ export default function App() {
           />
         ) : isNotificationsRoute ? (
           <NotificationsPageView
-            notifications={notificationList}
+            notifications={combinedNotifications}
             seenIds={seenNotifIds}
             isAdmin={isAdmin}
             hasPushPermission={hasNotificationPermission}
@@ -3505,7 +3636,7 @@ export default function App() {
             theoriesList={theoriesList}
             shortsList={shortsList}
             pastSpoilers={pastSpoilers}
-            notifications={notificationList}
+            notifications={combinedNotifications}
             spoilerTitle={spoilerTitle}
             spoilerDesc={spoilerDesc}
             spoilerImage={spoilerImage}
@@ -3537,6 +3668,8 @@ export default function App() {
             onRatePastSpoiler={handleRatePastSpoiler}
             onReactPastSpoiler={handleReactPastSpoiler}
             onSelectNewsArticle={(id) => navigateTo(`/noticias/${id}`)}
+            onDeleteFeaturedVideo={handleDeleteFeaturedVideo}
+            onDeleteShort={handleDeleteShort}
             triggerAudio={triggerAudio}
           />
         )}
@@ -3574,6 +3707,7 @@ export default function App() {
                   { label: 'Eventos', path: '/eventos' },
                   { label: 'Minha Agenda', path: '/minha-agenda' },
                   { label: 'Criar Evento', path: '/criar-evento' },
+                  { label: 'Pets (Doação/Troca)', path: '/pets' },
                   { label: 'Notícias', path: '/noticias' },
                   { label: 'Creators', path: '/criadores' },
                   { label: 'Notificações', path: '/notificacoes' },
@@ -3831,30 +3965,41 @@ export default function App() {
 
             {/* Notification feed */}
             <div className="space-y-3 overflow-y-auto max-h-[380px] pr-1 custom-scrollbar">
-              {notificationList.length === 0 ? (
+              {combinedNotifications.length === 0 ? (
                 <div className="py-10 text-center text-slate-500 space-y-1">
                   <p className="text-sm font-semibold">Nenhuma notificação recente.</p>
-                  <p className="text-xs">Novos comunicados e spoilers aparecerão aqui.</p>
+                  <p className="text-xs">Novos comunicados, spoilers e pedidos de pets aparecerão aqui.</p>
                 </div>
               ) : (
-                notificationList.map((notif) => {
+                combinedNotifications.map((notif) => {
                   const userReaction = notificationReactions[notif.id];
                   const baseLikes = (notif.createdAt % 29) + 8;
                   const baseDislikes = notif.createdAt % 7;
                   const displayLikes = baseLikes + (userReaction === 'like' ? 1 : 0);
                   const displayDislikes = baseDislikes + (userReaction === 'dislike' ? 1 : 0);
+                  const isPetInterest = notif.type === 'pet_interest' && Boolean(notif.petInterest);
+                  const canDelete = isAdmin || Boolean(notif.isPersonalPetNotification);
 
                   return (
                     <div
                       key={notif.id}
-                      className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2"
+                      className={`p-4 border rounded-2xl space-y-2 ${
+                        isPetInterest
+                          ? 'bg-emerald-50/70 border-emerald-200'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="font-bold text-slate-900 text-sm">{notif.title}</h4>
-                        {isAdmin && (
+                        {canDelete && (
                           <button
                             type="button"
-                            onClick={() => handleDeleteNotification(notif.id)}
+                            onClick={() =>
+                              handleDeleteNotification(
+                                notif.id,
+                                Boolean(notif.isPersonalPetNotification),
+                              )
+                            }
                             title="Apagar Notificação"
                             className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg cursor-pointer shrink-0"
                           >
@@ -3863,36 +4008,49 @@ export default function App() {
                         )}
                       </div>
                       <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{notif.body}</p>
+                      {isPetInterest && notif.petInterest && (
+                        <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-xs space-y-1">
+                          <p className="font-bold text-slate-800">
+                            PK XD: <span className="font-mono text-indigo-700">{notif.petInterest.senderName} #{notif.petInterest.senderTagNumber}</span>
+                          </p>
+                          <p className="font-bold text-slate-800">
+                            {notif.petInterest.contactType === 'whatsapp' ? 'WhatsApp: ' : 'Rede Social: '}
+                            <span className="font-mono text-emerald-700">{notif.petInterest.contactValue}</span>
+                          </p>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200 text-xs">
                         <span className="text-slate-500 tabular-nums">
                           {new Date(notif.createdAt).toLocaleString('pt-BR')}
                         </span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleNotificationReaction(notif.id, 'like')}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer tabular-nums ${
-                              userReaction === 'like'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <ThumbsUp className="w-3 h-3" />
-                            <span>{displayLikes}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleNotificationReaction(notif.id, 'dislike')}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer tabular-nums ${
-                              userReaction === 'dislike'
-                                ? 'bg-rose-50 text-rose-700 border-rose-300'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <ThumbsDown className="w-3 h-3" />
-                            <span>{displayDislikes}</span>
-                          </button>
-                        </div>
+                        {!isPetInterest && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleNotificationReaction(notif.id, 'like')}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer tabular-nums ${
+                                userReaction === 'like'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <ThumbsUp className="w-3 h-3" />
+                              <span>{displayLikes}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleNotificationReaction(notif.id, 'dislike')}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer tabular-nums ${
+                                userReaction === 'dislike'
+                                  ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <ThumbsDown className="w-3 h-3" />
+                              <span>{displayDislikes}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

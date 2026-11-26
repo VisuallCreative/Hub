@@ -116,20 +116,29 @@ async function sendPushNotificationToAll(title: string, body: string, url: strin
 
 // Start real-time Firestore listener for new notifications to push them
 try {
-  adminDb.collection("notifications").onSnapshot((snapshot) => {
-    snapshot.docChanges().forEach(async (change) => {
-      if (change.type === "added") {
-        const data = change.doc.data();
-        if (data && data.createdAt && data.createdAt > serverStartTime) {
-          await sendPushNotificationToAll(data.title, data.body, "/");
+  adminDb.collection("notifications").onSnapshot(
+    (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          if (data && data.createdAt && data.createdAt > serverStartTime) {
+            await sendPushNotificationToAll(data.title, data.body, "/");
+          }
         }
-      }
-    });
-  });
+      });
+    },
+    (err) => {
+      console.warn("[Web Push] Ouvinte Firestore indisponível neste ambiente:", err?.message || err);
+    }
+  );
   console.log("[Web Push] Ouvinte em tempo real da coleção 'notifications' ativado.");
 } catch (snapshotErr) {
   console.error("Erro ao configurar Firestore Snapshot Listener para Web Push:", snapshotErr);
 }
+
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true });
+});
 
 // Endpoint to retrieve VAPID public key dynamically
 app.get("/api/vapid-public-key", (req, res) => {
@@ -1361,7 +1370,7 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -1373,9 +1382,20 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+  });
+
+  server.on("error", (err) => {
+    console.error("HTTP server error:", err);
   });
 }
 
-startServer();
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+
+startServer().catch((err) => {
+  console.error("Fatal server startup error:", err);
+  process.exit(1);
+});

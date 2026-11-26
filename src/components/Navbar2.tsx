@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Zap,
   Award,
+  PawPrint,
 } from 'lucide-react';
 
 export type NavRouteKey =
@@ -24,6 +25,7 @@ export type NavRouteKey =
   | 'eventos'
   | 'minha-agenda'
   | 'criar-evento'
+  | 'pets'
   | 'noticias'
   | 'criadores'
   | 'progresso-creator'
@@ -71,7 +73,7 @@ export default function Navbar2({
   const desktopNavItems: { key: NavRouteKey; label: string; path: string }[] = [
     { key: 'inicio', label: 'Início', path: '/' },
     { key: 'eventos', label: 'Eventos', path: '/eventos' },
-    { key: 'minha-agenda', label: 'Agenda', path: '/minha-agenda' },
+    { key: 'pets', label: 'Pets', path: '/pets' },
     { key: 'noticias', label: 'Notícias', path: '/noticias' },
     { key: 'criadores', label: 'Creators', path: '/criadores' },
   ];
@@ -274,6 +276,7 @@ export default function Navbar2({
                 { key: 'minha-agenda', label: 'Minha Agenda', path: '/minha-agenda', icon: CalendarCheck, bg: 'bg-[#FEF9C3]' },
                 { key: 'progresso-creator', label: 'Analisador Creator', path: '/progresso-creator', icon: Award, bg: 'bg-[#FEF9C3]' },
                 { key: 'criar-evento', label: 'Criar Evento', path: '/criar-evento', icon: PlusCircle, bg: 'bg-[#FCE7F3]' },
+                { key: 'pets', label: 'Pets (Doação/Troca)', path: '/pets', icon: PawPrint, bg: 'bg-[#DCFCE7]' },
                 { key: 'noticias', label: 'Notícias', path: '/noticias', icon: Newspaper, bg: 'bg-[#DBEAFE]' },
                 { key: 'criadores', label: 'Creators', path: '/criadores', icon: Users, bg: 'bg-[#EDE9FE]' },
                 { key: 'notificacoes', label: 'Notificações', path: '/notificacoes', icon: Bell, bg: 'bg-[#FCE7F3]' },

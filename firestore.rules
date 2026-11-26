@@ -51,6 +51,58 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidPetListing(data) {
+      return data.keys().hasAll([
+          'id',
+          'petName',
+          'petPhotoUrl',
+          'listingType',
+          'ownerName',
+          'ownerTagNumber',
+          'status',
+          'authorId',
+          'reportsCount',
+          'reportedBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'petName',
+          'petPhotoUrl',
+          'listingType',
+          'ownerName',
+          'ownerTagNumber',
+          'wantedPet',
+          'notes',
+          'status',
+          'authorId',
+          'reportsCount',
+          'reportedBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.petName is string && data.petName.size() >= 2 && data.petName.size() <= 60
+        && data.petPhotoUrl is string && data.petPhotoUrl.size() >= 10 && data.petPhotoUrl.size() <= 350000
+        && (data.petPhotoUrl.matches('^https://.*') || data.petPhotoUrl.matches('^data:image/(jpeg|jpg|png|webp);base64,.*'))
+        && data.listingType in ['doacao', 'troca']
+        && data.ownerName is string && data.ownerName.size() >= 2 && data.ownerName.size() <= 32
+        && data.ownerTagNumber is string && data.ownerTagNumber.size() >= 1 && data.ownerTagNumber.size() <= 8 && data.ownerTagNumber.matches('^[0-9]+$')
+        && (!('wantedPet' in data) || (data.wantedPet is string && data.wantedPet.size() <= 80))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 200))
+        && data.status in ['disponivel', 'concluido']
+        && data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128
+        && data.reportsCount is int && data.reportsCount >= 0 && data.reportsCount <= 1000
+        && data.reportedBy is list && data.reportedBy.size() <= 50
+        && data.createdAt is number && data.createdAt > 0
+        && data.updatedAt is number && data.updatedAt > 0;
+    }
+
     // =========================
     // News
     // =========================
@@ -316,6 +368,62 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isSignedIn() && request.auth.uid == profileId || isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // =========================
+    // Pets (Doação e Troca — Vendas Proibidas)
+    // =========================
+    match /pet_listings/{petId} {
+      allow list: if true;
+      allow get: if isValidId(petId);
+
+      allow create: if isSignedIn()
+        && isValidId(petId)
+        && isValidPetListing(incoming())
+        && incoming().id == petId
+        && incoming().authorId == request.auth.uid
+        && incoming().status == 'disponivel'
+        && incoming().reportsCount == 0
+        && incoming().reportedBy.size() == 0;
+
+      allow update: if isSignedIn()
+        && isValidId(petId)
+        && isValidPetListing(incoming())
+        && incoming().id == existing().id
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && (
+          isEmailAdmin()
+          || (
+            existing().authorId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'petName',
+              'petPhotoUrl',
+              'listingType',
+              'ownerName',
+              'ownerTagNumber',
+              'wantedPet',
+              'notes',
+              'status',
+              'updatedAt'
+            ])
+          )
+          || (
+            existing().authorId != request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'reportsCount',
+              'reportedBy',
+              'updatedAt'
+            ])
+            && incoming().reportsCount == existing().reportsCount + 1
+            && !(request.auth.uid in existing().reportedBy)
+            && (request.auth.uid in incoming().reportedBy)
+            && incoming().reportedBy.size() == existing().reportedBy.size() + 1
+          )
+        );
+
+      allow delete: if isValidId(petId)
+        && (isEmailAdmin() || (isSignedIn() && existing().authorId == request.auth.uid));
     }
 
     // =========================

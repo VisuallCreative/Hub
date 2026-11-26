@@ -29,6 +29,8 @@ import PastSpoilersSection from './PastSpoilersSection';
 import UpcomingStreamsSection from './UpcomingStreamsSection';
 import WhatsAppPromo from './WhatsAppPromo';
 import PartnerChannelPromo from './PartnerChannelPromo';
+import FeaturedVideos from './FeaturedVideos';
+import BestShorts from './BestShorts';
 
 interface PKXDHomeViewProps {
   user: any;
@@ -69,6 +71,8 @@ interface PKXDHomeViewProps {
   onRatePastSpoiler: (id: string, rating: number) => void;
   onReactPastSpoiler: (id: string, emoji: string) => void;
   onSelectNewsArticle: (id: string) => void;
+  onDeleteFeaturedVideo: (id: string) => void;
+  onDeleteShort: (id: string) => void;
   triggerAudio: (type: 'tap' | 'success' | 'levelUp') => void;
 }
 
@@ -120,6 +124,8 @@ export default function PKXDHomeView({
   onRatePastSpoiler,
   onReactPastSpoiler,
   onSelectNewsArticle,
+  onDeleteFeaturedVideo,
+  onDeleteShort,
   triggerAudio,
 }: PKXDHomeViewProps) {
   const [events, setEvents] = useState<CommunityEvent[]>([]);
@@ -722,6 +728,25 @@ export default function PKXDHomeView({
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
+          </div>
+
+          {/* PAINEL DE VÍDEOS & SHORTS EM DESTAQUE */}
+          <div className="space-y-6">
+            <FeaturedVideos
+              videos={featuredList}
+              isAdmin={isAdmin}
+              currentUser={user}
+              onDelete={onDeleteFeaturedVideo}
+              onAddXP={onAddXP}
+              onNavigate={onNavigate}
+            />
+
+            <BestShorts
+              shorts={shortsList}
+              isAdmin={isAdmin}
+              onDelete={onDeleteShort}
+              onNavigate={onNavigate}
+            />
           </div>
 
           {featuredCreators.length === 0 ? (

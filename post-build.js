@@ -45,6 +45,8 @@ if (fs.existsSync(mainIndexFile)) {
     path.join(distPath, 'Artes', 'index.html'),
     path.join(distPath, 'comunidade', 'index.html'),
     path.join(distPath, 'missoes', 'index.html'),
+    path.join(distPath, 'pets', 'index.html'),
+    path.join(distPath, 'Pets', 'index.html'),
   ];
 
   mainTargets.forEach((target) => {

@@ -78,7 +78,20 @@ export type NotificationCategory =
   | 'presence_confirmed'
   | 'new_tournament'
   | 'important_news'
-  | 'admin_announcement';
+  | 'admin_announcement'
+  | 'pet_interest';
+
+export interface PetInterestPayload {
+  petId: string;
+  petName: string;
+  petListingType: 'doacao' | 'troca';
+  recipientUserId: string;
+  senderName: string;
+  senderTagNumber: string;
+  contactType: 'social' | 'whatsapp';
+  contactValue: string;
+  message?: string;
+}
 
 export interface AppNotification {
   id: string;
@@ -87,6 +100,8 @@ export interface AppNotification {
   type: NotificationCategory;
   targetUrl?: string;
   createdAt: number;
+  petInterest?: PetInterestPayload;
+  isPersonalPetNotification?: boolean;
 }
 
 export interface AppComment {
@@ -374,4 +389,28 @@ export interface UpcomingStreamItem {
   status?: 'scheduled' | 'live_now' | 'completed';
   remindersCount?: number;
   createdAt: number;
+}
+
+// ===================================
+// PETS (DOAÇÃO E TROCA — SEM VENDAS)
+// ===================================
+
+export type PetListingType = 'doacao' | 'troca';
+export type PetListingStatus = 'disponivel' | 'concluido';
+
+export interface PetListing {
+  id: string;
+  petName: string;
+  petPhotoUrl: string;
+  listingType: PetListingType;
+  ownerName: string;
+  ownerTagNumber: string;
+  wantedPet?: string;
+  notes?: string;
+  status: PetListingStatus;
+  authorId: string;
+  reportsCount: number;
+  reportedBy: string[];
+  createdAt: number;
+  updatedAt: number;
 }

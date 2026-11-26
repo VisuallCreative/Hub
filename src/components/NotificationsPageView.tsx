@@ -12,6 +12,11 @@ import {
   Clock,
   CheckCircle2,
   Sparkles,
+  PawPrint,
+  Copy,
+  MessageCircle,
+  AtSign,
+  ExternalLink,
 } from 'lucide-react';
 import { AppNotification, NotificationCategory } from '../types';
 
@@ -22,13 +27,14 @@ interface NotificationsPageViewProps {
   hasPushPermission: boolean;
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
-  onDeleteNotification: (id: string) => void;
+  onDeleteNotification: (id: string, isPersonalPet?: boolean) => void;
   onEnablePush: () => Promise<void>;
   onNavigate: (path: string) => void;
   triggerAudio: (type: 'tap' | 'success' | 'levelUp') => void;
 }
 
 const NOTIF_META: Record<string, { label: string; icon: any; bg: string }> = {
+  pet_interest: { label: 'Interesse no seu Pet', icon: PawPrint, bg: 'bg-[#DCFCE7]' },
   new_event: { label: 'Novo Evento', icon: Calendar, bg: 'bg-[#FEF9C3]' },
   upcoming_event: { label: 'Evento Próximo', icon: Clock, bg: 'bg-[#DBEAFE]' },
   schedule_change: { label: 'Alteração de Horário', icon: Clock, bg: 'bg-amber-100' },
@@ -45,6 +51,7 @@ const NOTIF_META: Record<string, { label: string; icon: any; bg: string }> = {
 const FILTER_OPTIONS: { id: 'all' | 'unread' | NotificationCategory; label: string }[] = [
   { id: 'all', label: 'Todas' },
   { id: 'unread', label: 'Não lidas' },
+  { id: 'pet_interest', label: 'Pets' },
   { id: 'new_event', label: 'Novos Eventos' },
   { id: 'new_tournament', label: 'Torneios' },
   { id: 'schedule_change', label: 'Horários' },
@@ -65,6 +72,25 @@ export default function NotificationsPageView({
   triggerAudio,
 }: NotificationsPageViewProps) {
   const [filter, setFilter] = useState<'all' | 'unread' | NotificationCategory>('all');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopyValue = (key: string, value: string) => {
+    triggerAudio('tap');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(value).catch(() => {});
+    }
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 2200);
+  };
+
+  const buildWhatsappHref = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) return '';
+    const withCountry = digits.length <= 11 ? `55${digits}` : digits;
+    return `https://wa.me/${withCountry}`;
+  };
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !seenIds.includes(n.id)).length,
@@ -227,6 +253,100 @@ export default function NotificationsPageView({
                           {notif.title}
                         </h3>
                         <p className="text-sm text-slate-700 leading-relaxed">{notif.body}</p>
+
+                        {notif.type === 'pet_interest' && notif.petInterest && (
+                          <div className="mt-3 rounded-2xl bg-[#F8FAFC] border-2 border-[#120624] p-3.5 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-xs sm:text-sm font-extrabold text-[#120624]">
+                                <span className="text-slate-500 font-bold mr-1.5">Jogador PK XD:</span>
+                                {notif.petInterest.senderName}{' '}
+                                <span className="font-mono text-[#6D28D9] tabular-nums">
+                                  #{notif.petInterest.senderTagNumber}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopyValue(
+                                    `${notif.id}_tag`,
+                                    `${notif.petInterest!.senderName}#${notif.petInterest!.senderTagNumber}`
+                                  )
+                                }
+                                className="px-3 py-1 rounded-xl border-2 border-[#120624] bg-[#FEF9C3] hover:bg-[#F9C826] text-[#120624] text-xs font-extrabold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                              >
+                                {copiedKey === `${notif.id}_tag` ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Copiado</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>Copiar Nome #</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
+                              <div className="text-xs sm:text-sm font-extrabold text-[#120624] inline-flex items-center gap-1.5 break-all">
+                                {notif.petInterest.contactType === 'whatsapp' ? (
+                                  <MessageCircle className="w-4 h-4 text-emerald-700 shrink-0" />
+                                ) : (
+                                  <AtSign className="w-4 h-4 text-[#6D28D9] shrink-0" />
+                                )}
+                                <span className="text-slate-500 font-bold">
+                                  {notif.petInterest.contactType === 'whatsapp' ? 'WhatsApp:' : 'Contato @:'}
+                                </span>
+                                <span className="font-mono">{notif.petInterest.contactValue}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCopyValue(
+                                      `${notif.id}_contact`,
+                                      notif.petInterest!.contactValue
+                                    )
+                                  }
+                                  className="px-3 py-1 rounded-xl border-2 border-[#120624] bg-white hover:bg-slate-100 text-[#120624] text-xs font-extrabold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                                >
+                                  {copiedKey === `${notif.id}_contact` ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>Copiado</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5" />
+                                      <span>Copiar</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                {notif.petInterest.contactType === 'whatsapp' &&
+                                  buildWhatsappHref(notif.petInterest.contactValue) && (
+                                    <a
+                                      href={buildWhatsappHref(notif.petInterest.contactValue)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-1 rounded-xl border-2 border-[#120624] bg-[#DCFCE7] hover:bg-[#BBF7D0] text-[#14532D] text-xs font-extrabold inline-flex items-center gap-1 whitespace-nowrap"
+                                    >
+                                      <span>Abrir WhatsApp</span>
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                              </div>
+                            </div>
+
+                            {notif.petInterest.message && (
+                              <p className="text-xs font-semibold text-slate-700 pt-2 border-t border-slate-200">
+                                <strong className="text-[#120624]">Recado:</strong> {notif.petInterest.message}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -256,10 +376,12 @@ export default function NotificationsPageView({
                           Abrir
                         </button>
                       )}
-                      {isAdmin && (
+                      {(isAdmin || notif.isPersonalPetNotification) && (
                         <button
                           type="button"
-                          onClick={() => onDeleteNotification(notif.id)}
+                          onClick={() =>
+                            onDeleteNotification(notif.id, Boolean(notif.isPersonalPetNotification))
+                          }
                           className="p-2 rounded-full border-2 border-[#120624] bg-rose-100 text-rose-700 cursor-pointer"
                           title="Excluir notificação"
                         >
