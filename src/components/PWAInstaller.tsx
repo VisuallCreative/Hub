@@ -160,9 +160,9 @@ export default function PWAInstaller({ onAddXP, triggerAudio, forceOpenModal, hi
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then((reg) => {
             reg.showNotification('PKXD Central', {
-              body: 'Tudo pronto! Você receberá alertas de torneios, spoilers e códigos do jogo.',
-              icon: '/favicon.png',
-              badge: '/favicon.png'
+              body: 'Tudo pronto! Você receberá alertas de pets, torneios, spoilers e códigos do jogo.',
+              icon: '/assets/aistudio/file_000000004688820e877cea70c3a4dcc9_6049124b.png',
+              badge: '/assets/aistudio/file_000000004688820e877cea70c3a4dcc9_6049124b.png'
             });
           });
         }

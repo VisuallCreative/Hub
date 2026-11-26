@@ -2132,8 +2132,12 @@ export default function PetsSectionView({
             >
               <div className="bg-[#2D0859] text-white px-5 sm:px-6 py-4 border-b-[3px] border-[#120624] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-[#F9C826] border-2 border-[#120624] text-[#120624] flex items-center justify-center shrink-0">
-                    <BellRing className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-xl bg-white border-2 border-[#120624] flex items-center justify-center p-1 shrink-0">
+                    <img
+                      src="/assets/aistudio/file_000000004688820e877cea70c3a4dcc9_6049124b.png"
+                      alt="PK XD Central"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <h2
                     id="pet-published-notif-title"
@@ -2177,10 +2181,10 @@ export default function PetsSectionView({
                     <Bell className="w-5 h-5 text-[#14532D] shrink-0 mt-0.5" />
                     <div className="space-y-1">
                       <p className="text-sm font-extrabold text-[#14532D]">
-                        Notificações ativadas!
+                        Notificações Pop-up ativadas!
                       </p>
                       <p className="text-xs font-semibold text-[#166534] leading-relaxed">
-                        Assim que alguém clicar em <strong>"Eu quero!"</strong> no seu pet, você será avisado com o <strong>Nome #</strong> e o <strong>@ ou WhatsApp</strong> da pessoa.
+                        Assim que alguém clicar em <strong>"Eu quero!"</strong> no seu pet, vai subir um <strong>pop-up na hora</strong> com o <strong>Nome #</strong> e o <strong>@ ou WhatsApp</strong> da pessoa.
                       </p>
                     </div>
                   </div>
@@ -2190,10 +2194,10 @@ export default function PetsSectionView({
                       <BellRing className="w-5 h-5 text-[#2D0859] shrink-0 mt-0.5" />
                       <div className="space-y-1">
                         <p className="text-sm font-extrabold text-[#120624]">
-                          Importante: ative as notificações!
+                          Importante: ative as notificações pop-up!
                         </p>
                         <p className="text-xs font-semibold text-slate-800 leading-relaxed">
-                          Quando alguém clicar em <strong>"Eu quero!"</strong> no seu pet, o <strong>Nome #</strong> e o <strong>@ ou WhatsApp</strong> dessa pessoa chegam nas suas <strong>Notificações</strong>. Ative agora para ser avisado na hora!
+                          Quando alguém clicar em <strong>"Eu quero!"</strong> no seu pet, o <strong>Nome #</strong> e o <strong>@ ou WhatsApp</strong> dessa pessoa chegam em um <strong>pop-up na sua tela</strong> e nas <strong>Notificações</strong>. Ative agora para não perder!
                         </p>
                       </div>
                     </div>
@@ -2208,7 +2212,7 @@ export default function PetsSectionView({
                       <span>
                         {pushActionState === 'requesting'
                           ? 'Solicitando permissão...'
-                          : 'Ativar Notificações Agora'}
+                          : 'Ativar Notificações Pop-up Agora'}
                       </span>
                     </button>
 

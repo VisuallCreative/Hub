@@ -20,6 +20,10 @@ import PKXDHomeView from './components/PKXDHomeView';
 import NewsSectionView from './components/NewsSectionView';
 import PetsSectionView from './components/PetsSectionView';
 import NotificationsPageView from './components/NotificationsPageView';
+import NotificationPopupBanner, {
+  PopupNotificationItem,
+  SITE_FAVICON_URL,
+} from './components/NotificationPopupBanner';
 import UserProfileView from './components/UserProfileView';
 import PWAInstaller from './components/PWAInstaller';
 import CreatorsHubView from './components/CreatorsHubView';
@@ -682,6 +686,7 @@ export default function App() {
   
   const [newsToEdit, setNewsToEdit] = useState<NewsItem | null>(null);
   const [notifMessage, setNotifMessage] = useState<string | null>(null);
+  const [popupNotification, setPopupNotification] = useState<PopupNotificationItem | null>(null);
 
   // Global Privacy, Cookie Preferences & Data Request State
   const [isCookiePreferencesOpen, setIsCookiePreferencesOpen] = useState(false);
@@ -1042,28 +1047,25 @@ export default function App() {
       });
   }, []);
 
-  // Register service worker for mobile notifications support & restore favicon dynamic updates as requested
+  // Ensure site favicon always uses the official uploaded PK XD Central favicon
   useEffect(() => {
-    let logoIconUrl = siteLogoUrl;
-    if (!logoIconUrl || logoIconUrl.includes("photos.app.goo.gl") || logoIconUrl.includes("google.com/photos")) {
-      logoIconUrl = "./favicon.png";
+    let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
     }
-    
-    if (logoIconUrl) {
-      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = logoIconUrl;
-      if (logoIconUrl.endsWith('.svg')) {
-        link.setAttribute('type', 'image/svg+xml');
-      } else {
-        link.removeAttribute('type');
-      }
+    link.href = SITE_FAVICON_URL;
+    link.setAttribute('type', 'image/png');
+
+    let appleLink: HTMLLinkElement | null = document.querySelector("link[rel='apple-touch-icon']");
+    if (!appleLink) {
+      appleLink = document.createElement('link');
+      appleLink.rel = 'apple-touch-icon';
+      document.head.appendChild(appleLink);
     }
-  }, [siteLogoUrl]);
+    appleLink.href = SITE_FAVICON_URL;
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -1257,27 +1259,33 @@ export default function App() {
 
       if (newNotif) {
         triggerAudio('success');
-        // Let's set the message text
-        setNotifMessage(`📢 ${newNotif.title.toUpperCase()}: ${newNotif.body}`);
+        setPopupNotification({
+          id: newNotif.id,
+          title: newNotif.title,
+          body: newNotif.body,
+          categoryLabel: 'Nova Notificação PK XD Central',
+          targetUrl: newNotif.targetUrl || '/notificacoes',
+          createdAt: newNotif.createdAt,
+        });
 
-        // Trigger native system notification (using service worker wrapper for mobile compatibility!)
+        // Trigger native system pop-up notification with site favicon
         if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
           try {
             const notifTitle = newNotif.title;
-            const notifOptions = {
+            const notifOptions: NotificationOptions = {
               body: newNotif.body,
               tag: newNotif.id,
-              icon: 'https://img.icons8.com/color/96/000000/bell.png',
-              badge: '/favicon.png',
-              vibrate: [100, 50, 100]
+              icon: SITE_FAVICON_URL,
+              badge: SITE_FAVICON_URL,
+              data: { url: newNotif.targetUrl || '/notificacoes' },
             };
 
             if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.ready.then((reg) => {
-                reg.showNotification(notifTitle, notifOptions);
-              }).catch(() => {
-                new Notification(notifTitle, notifOptions);
-              });
+              navigator.serviceWorker.ready
+                .then((reg) => reg.showNotification(notifTitle, notifOptions))
+                .catch(() => {
+                  new Notification(notifTitle, notifOptions);
+                });
             } else {
               new Notification(notifTitle, notifOptions);
             }
@@ -1285,9 +1293,6 @@ export default function App() {
             console.warn("Could not dispatch native browser notification:", err);
           }
         }
-
-        // Auto clear after 8 seconds
-        setTimeout(() => setNotifMessage(null), 8000);
       }
     }, (error) => {
       console.warn("Could not fetch notifications:", error);
@@ -2545,37 +2550,45 @@ export default function App() {
 
           items.push(notifItem);
 
-          // Live toast + browser push alert when a fresh "Eu quero!" arrives during this session
+          // Live pop-up notification + native browser push alert when a fresh "Eu quero!" arrives during this session
           if (
             createdAt > sessionStartRef.current &&
             !alertedPetNotifIdsRef.current.has(docSnap.id)
           ) {
             alertedPetNotifIdsRef.current.add(docSnap.id);
             triggerAudio('success');
-            const alertBody = `${senderName} #${senderTagNumber} clicou em "Eu quero!" no seu pet ${petName} (${contactType === 'whatsapp' ? 'WhatsApp' : '@'}: ${contactValue}).`;
-            setNotifMessage(
-              `🐾 ${senderName} #${senderTagNumber} clicou em "Eu quero" no seu pet ${petName}! Abra Notificações para ver o contato.`
-            );
-            setTimeout(() => setNotifMessage(null), 7000);
+            const alertTitle = `🐾 Novo "Eu quero!" em ${petName}`;
+            const alertBody = `${senderName} #${senderTagNumber} quer seu pet (${contactType === 'whatsapp' ? 'WhatsApp' : '@'}: ${contactValue}).`;
+
+            setPopupNotification({
+              id: docSnap.id,
+              title: alertTitle,
+              body: data.message ? `${alertBody} "${String(data.message)}"` : alertBody,
+              categoryLabel: 'Interesse no seu Pet',
+              targetUrl: '/notificacoes',
+              petInterest: notifItem.petInterest,
+              createdAt,
+            });
 
             if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              const pushTitle = `🐾 Novo "Eu quero!" em ${petName}`;
-              const pushOptions = {
+              const pushOptions: NotificationOptions = {
                 body: alertBody,
-                icon: '/favicon.png',
-                badge: '/favicon.png',
+                tag: docSnap.id,
+                icon: SITE_FAVICON_URL,
+                badge: SITE_FAVICON_URL,
+                data: { url: '/notificacoes' },
               };
               if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.ready
-                  .then((reg) => reg.showNotification(pushTitle, pushOptions))
+                  .then((reg) => reg.showNotification(alertTitle, pushOptions))
                   .catch(() => {
                     try {
-                      new Notification(pushTitle, pushOptions);
+                      new Notification(alertTitle, pushOptions);
                     } catch {}
                   });
               } else {
                 try {
-                  new Notification(pushTitle, pushOptions);
+                  new Notification(alertTitle, pushOptions);
                 } catch {}
               }
             }
@@ -2879,10 +2892,56 @@ export default function App() {
     });
   };
 
+  const dispatchNativePopup = (title: string, body: string, url = '/notificacoes') => {
+    if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+    const opts: NotificationOptions = {
+      body,
+      icon: SITE_FAVICON_URL,
+      badge: SITE_FAVICON_URL,
+      data: { url },
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.showNotification(title, opts))
+        .catch(() => {
+          try {
+            new Notification(title, opts);
+          } catch {}
+        });
+    } else {
+      try {
+        new Notification(title, opts);
+      } catch {}
+    }
+  };
+
+  const handleTestPopupNotification = () => {
+    triggerAudio('success');
+    const title = 'PK XD Central — Pop-up Ativo!';
+    const body = 'É assim que você vai receber avisos instantâneos quando alguém clicar em "Eu quero!" no seu pet ou sair novidade.';
+    setPopupNotification({
+      id: `test_popup_${Date.now()}`,
+      title,
+      body,
+      categoryLabel: 'Prévia de Notificação Pop-up',
+      targetUrl: '/notificacoes',
+      createdAt: Date.now(),
+    });
+    dispatchNativePopup(title, body, '/notificacoes');
+  };
+
   const handleEnableBrowserPush = async (): Promise<'granted' | 'denied' | 'default' | 'unsupported'> => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      setNotifMessage('Este navegador não suporta notificações de sistema. Você ainda verá os avisos no sino do site.');
-      setTimeout(() => setNotifMessage(null), 5000);
+      setPopupNotification({
+        id: `push_fallback_${Date.now()}`,
+        title: 'Pop-up ativado dentro do site!',
+        body: 'Este navegador não suporta alertas fora do site, mas você continuará recebendo notificações pop-up aqui no topo da tela.',
+        categoryLabel: 'Notificações PK XD Central',
+        targetUrl: '/notificacoes',
+        createdAt: Date.now(),
+      });
       return 'unsupported';
     }
     try {
@@ -2891,29 +2950,19 @@ export default function App() {
       if (perm === 'granted') {
         triggerAudio('success');
         setTimeout(() => subscribeUserToPush(), 200);
-        setNotifMessage('Notificações ativadas! Você receberá avisos quando alguém clicar em "Eu quero!" no seu pet.');
-        setTimeout(() => setNotifMessage(null), 5000);
-        const welcomeTitle = 'PK XD Central — Notificações Ativadas!';
-        const welcomeOptions = {
-          body: 'Tudo pronto! Você será avisado aqui sobre seus pets, spoilers e novidades.',
-          icon: '/favicon.png',
-          badge: '/favicon.png',
-        };
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.ready
-            .then((reg) => reg.showNotification(welcomeTitle, welcomeOptions))
-            .catch(() => {
-              try {
-                new Notification(welcomeTitle, welcomeOptions);
-              } catch {}
-            });
-        } else {
-          try {
-            new Notification(welcomeTitle, welcomeOptions);
-          } catch {}
-        }
+        const welcomeTitle = 'Notificações Pop-up Ativadas!';
+        const welcomeBody = 'Tudo pronto! Você receberá alertas pop-up assim que alguém clicar em "Eu quero!" no seu pet ou saírem novidades.';
+        setPopupNotification({
+          id: `push_welcome_${Date.now()}`,
+          title: welcomeTitle,
+          body: welcomeBody,
+          categoryLabel: 'PK XD Central',
+          targetUrl: '/notificacoes',
+          createdAt: Date.now(),
+        });
+        dispatchNativePopup(`PK XD Central — ${welcomeTitle}`, welcomeBody, '/notificacoes');
       } else if (perm === 'denied') {
-        setNotifMessage('As notificações foram bloqueadas no navegador. Libere nas configurações do site para receber alertas.');
+        setNotifMessage('As notificações foram bloqueadas no navegador. Libere no cadeado ao lado do endereço do site para receber pop-ups do sistema.');
         setTimeout(() => setNotifMessage(null), 6000);
       }
       return perm;
@@ -2968,6 +3017,20 @@ export default function App() {
         onCloseModal={() => setShowInstallAppModal(false)}
         onAddXP={handleAddFanXP}
         triggerAudio={triggerAudio}
+      />
+
+      {/* Global Heads-Up Pop-Up Notification Card (with Site Favicon) */}
+      <NotificationPopupBanner
+        notification={popupNotification}
+        onDismiss={() => setPopupNotification(null)}
+        onOpen={(url) => {
+          triggerAudio('tap');
+          if (popupNotification?.id) {
+            markNotificationRead(popupNotification.id);
+          }
+          setPopupNotification(null);
+          navigateTo(url || '/notificacoes');
+        }}
       />
 
       {/* Floating Toast Notification */}
@@ -3453,6 +3516,7 @@ export default function App() {
             onMarkAllRead={markAllNotificationsRead}
             onDeleteNotification={handleDeleteNotification}
             onEnablePush={handleEnableBrowserPush}
+            onTestPopup={handleTestPopupNotification}
             onNavigate={navigateTo}
             triggerAudio={triggerAudio}
           />
@@ -3977,38 +4041,11 @@ export default function App() {
                   type="button"
                   onClick={async () => {
                     triggerAudio('tap');
-                    if (!('Notification' in window)) {
-                      setNotifMessage('Este navegador não suporta notificações de sistema.');
-                      setTimeout(() => setNotifMessage(null), 5000);
-                      return;
-                    }
-                    try {
-                      const perm = await Notification.requestPermission();
-                      setHasNotificationPermission(perm === 'granted');
-                      if (perm === 'granted') {
-                        triggerAudio('success');
-                        setTimeout(() => subscribeUserToPush(), 200);
-                        const welcomeTitle = 'PKXD Central';
-                        const welcomeOptions = {
-                          body: 'Notificações ativadas com sucesso! Você receberá alertas de novos spoilers e códigos.',
-                          icon: '/favicon.png',
-                          badge: '/favicon.png',
-                        };
-                        if ('serviceWorker' in navigator) {
-                          navigator.serviceWorker.ready
-                            .then((reg) => reg.showNotification(welcomeTitle, welcomeOptions))
-                            .catch(() => new Notification(welcomeTitle, welcomeOptions));
-                        } else {
-                          new Notification(welcomeTitle, welcomeOptions);
-                        }
-                      }
-                    } catch (err) {
-                      console.warn(err);
-                    }
+                    await handleEnableBrowserPush();
                   }}
                   className="pkxd-btn-primary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer shrink-0"
                 >
-                  Ativar Alertas
+                  Ativar Pop-ups
                 </button>
               )}
             </div>

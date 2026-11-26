@@ -29,6 +29,7 @@ interface NotificationsPageViewProps {
   onMarkAllRead: () => void;
   onDeleteNotification: (id: string, isPersonalPet?: boolean) => void;
   onEnablePush: () => Promise<unknown> | void;
+  onTestPopup?: () => void;
   onNavigate: (path: string) => void;
   triggerAudio: (type: 'tap' | 'success' | 'levelUp') => void;
 }
@@ -68,6 +69,7 @@ export default function NotificationsPageView({
   onMarkAllRead,
   onDeleteNotification,
   onEnablePush,
+  onTestPopup,
   onNavigate,
   triggerAudio,
 }: NotificationsPageViewProps) {
@@ -151,33 +153,53 @@ export default function NotificationsPageView({
           {/* Push Opt-in Bar */}
           <div className="pkxd-pop-card-purple p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-[#FEF9C3] border-2 border-[#120624] flex items-center justify-center shrink-0">
-                <BellRing className="w-5 h-5 text-[#2D0859]" />
+              <div className="w-12 h-12 rounded-2xl bg-[#2D0859] border-2 border-[#120624] flex items-center justify-center p-1 shrink-0">
+                <img
+                  src="/assets/aistudio/file_000000004688820e877cea70c3a4dcc9_6049124b.png"
+                  alt="PK XD Central"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div>
                 <p className="font-display font-bold text-base text-[#120624]">
-                  Alertas Push no Celular e Navegador
+                  Notificações Pop-up no Celular e Navegador
                 </p>
                 <p className="text-xs text-slate-600">
-                  Receba avisos instantâneos quando novos torneios, eventos ou comunicados forem publicados.
+                  Receba alertas pop-up instantâneos quando alguém quiser seu pet ou quando saírem novidades e spoilers.
                 </p>
               </div>
             </div>
 
-            {hasPushPermission ? (
-              <span className="px-4 py-2 rounded-full bg-emerald-200 border-2 border-[#120624] text-xs font-extrabold text-[#120624] shrink-0 inline-flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-800" />
-                <span>Alertas Ativados</span>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={onEnablePush}
-                className="pkxd-btn-purple px-5 py-2.5 text-xs cursor-pointer shrink-0"
-              >
-                Ativar Notificações Push
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {onTestPopup && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerAudio('tap');
+                    onTestPopup();
+                  }}
+                  className="px-4 py-2 rounded-full border-2 border-[#120624] bg-[#FEF9C3] hover:bg-[#F9C826] text-xs font-extrabold text-[#120624] inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <BellRing className="w-3.5 h-3.5" />
+                  <span>Testar Pop-up</span>
+                </button>
+              )}
+
+              {hasPushPermission ? (
+                <span className="px-4 py-2 rounded-full bg-emerald-200 border-2 border-[#120624] text-xs font-extrabold text-[#120624] shrink-0 inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-800" />
+                  <span>Pop-up Ativado</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onEnablePush}
+                  className="pkxd-btn-purple px-5 py-2.5 text-xs cursor-pointer shrink-0"
+                >
+                  Ativar Notificações Pop-up
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </section>

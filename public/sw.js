@@ -1,10 +1,11 @@
-const CACHE_NAME = 'pkxd-central-cache-v3';
+const CACHE_NAME = 'pkxd-central-cache-v4';
+const SITE_FAVICON = '/assets/aistudio/file_000000004688820e877cea70c3a4dcc9_6049124b.png';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.png',
-  '/favicon.svg'
+  SITE_FAVICON,
+  '/favicon.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -125,12 +126,13 @@ self.addEventListener('push', function(event) {
 
   const title = data.title || 'Novidade no PKXD Central! 🔔';
   const options = {
-    body: data.body || 'Abra o aplicativo para conferir os novos eventos e spoilers.',
-    icon: '/favicon.png',
-    badge: '/favicon.png',
-    vibrate: [100, 50, 100],
+    body: data.body || 'Abra o aplicativo para conferir os novos eventos, pets e spoilers.',
+    icon: SITE_FAVICON,
+    badge: SITE_FAVICON,
+    vibrate: [120, 60, 120],
+    requireInteraction: false,
     data: {
-      url: data.url || '/'
+      url: data.url || '/notificacoes'
     }
   };
 
@@ -141,13 +143,18 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  const urlToOpen = event.notification.data ? event.notification.data.url : '/';
-  
+  const urlToOpen = (event.notification.data && event.notification.data.url) || '/notificacoes';
+
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(function(windowClients) {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
       for (let i = 0; i < windowClients.length; i++) {
-        let client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
+        const client = windowClients[i];
+        if ('focus' in client) {
+          if ('navigate' in client && urlToOpen) {
+            try {
+              client.navigate(urlToOpen);
+            } catch (e) {}
+          }
           return client.focus();
         }
       }
