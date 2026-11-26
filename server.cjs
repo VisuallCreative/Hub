@@ -1006,6 +1006,166 @@ app.post("/api/admin-delete", async (req, res) => {
     res.status(500).json({ error: err.message || "Erro interno ao deletar" });
   }
 });
+var FIREBASE_PROJECT_ID = (() => {
+  try {
+    const raw = import_fs.default.readFileSync(import_path.default.join(process.cwd(), "firebase-applet-config.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed?.projectId) return String(parsed.projectId);
+  } catch {
+  }
+  return "pkxd-e817c";
+})();
+var PETS_FIRESTORE_COLLECTION = "user_passports";
+var PET_AUTO_DELETE_DEFAULT_MS = 15e3;
+var scheduledPetDeletions = /* @__PURE__ */ new Map();
+function getFirestoreDocRestUrl(docId) {
+  return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    FIREBASE_PROJECT_ID
+  )}/databases/(default)/documents/${PETS_FIRESTORE_COLLECTION}/${encodeURIComponent(docId)}`;
+}
+function readRestFieldString(fields, key) {
+  return typeof fields?.[key]?.stringValue === "string" ? fields[key].stringValue : "";
+}
+function readRestFieldNumber(fields, key) {
+  const val = fields?.[key];
+  if (!val) return 0;
+  if (typeof val.integerValue === "string" || typeof val.integerValue === "number") {
+    return Number(val.integerValue) || 0;
+  }
+  if (typeof val.doubleValue === "number") {
+    return val.doubleValue;
+  }
+  return 0;
+}
+async function fetchPetDocRest(petId) {
+  try {
+    const resp = await fetch(getFirestoreDocRestUrl(petId));
+    if (resp.status === 404) return null;
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    return json?.fields || null;
+  } catch (err) {
+    console.warn("[Pets Server] Erro ao consultar pet via REST:", err);
+    return null;
+  }
+}
+async function deletePetListingFromServer(petId, reason) {
+  const existingTimer = scheduledPetDeletions.get(petId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    scheduledPetDeletions.delete(petId);
+  }
+  try {
+    const resp = await fetch(getFirestoreDocRestUrl(petId), { method: "DELETE" });
+    if (resp.ok || resp.status === 404) {
+      console.log(`[Pets Server] Publica\xE7\xE3o "${petId}" apagada automaticamente (${reason}).`);
+      return true;
+    }
+    const errText = await resp.text().catch(() => "");
+    console.warn(`[Pets Server] REST DELETE retornou ${resp.status} para ${petId}:`, errText);
+  } catch (err) {
+    console.warn(`[Pets Server] Falha no REST DELETE para ${petId}:`, err);
+  }
+  try {
+    await adminDb.collection(PETS_FIRESTORE_COLLECTION).doc(petId).delete();
+    console.log(`[Pets Server] Publica\xE7\xE3o "${petId}" apagada via Admin SDK (${reason}).`);
+    return true;
+  } catch (err) {
+    console.warn(`[Pets Server] Fallback Admin DELETE falhou para ${petId}:`, err?.message || err);
+    return false;
+  }
+}
+async function sweepExpiredDonatedPets() {
+  try {
+    const listUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+      FIREBASE_PROJECT_ID
+    )}/databases/(default)/documents/${PETS_FIRESTORE_COLLECTION}?pageSize=200`;
+    const resp = await fetch(listUrl);
+    if (!resp.ok) return;
+    const json = await resp.json();
+    const docs = Array.isArray(json?.documents) ? json.documents : [];
+    const now = Date.now();
+    for (const docItem of docs) {
+      const fields = docItem?.fields;
+      if (!fields) continue;
+      const entityType = readRestFieldString(fields, "entityType");
+      if (entityType !== "pet_listing") continue;
+      const status = readRestFieldString(fields, "status");
+      if (status !== "concluido") continue;
+      const nameParts = String(docItem.name || "").split("/");
+      const docId = nameParts[nameParts.length - 1];
+      if (!docId) continue;
+      const deleteAt = readRestFieldNumber(fields, "deleteAt");
+      const completedAt = readRestFieldNumber(fields, "completedAt") || readRestFieldNumber(fields, "updatedAt");
+      if (deleteAt > 0 && deleteAt <= now || deleteAt === 0 && completedAt > 0 && now - completedAt >= PET_AUTO_DELETE_DEFAULT_MS) {
+        await deletePetListingFromServer(docId, "limpeza peri\xF3dica de pet j\xE1 doado/trocado");
+      }
+    }
+  } catch (err) {
+    console.warn("[Pets Server] Erro na limpeza peri\xF3dica de pets conclu\xEDdos:", err);
+  }
+}
+setTimeout(() => {
+  sweepExpiredDonatedPets();
+}, 5e3);
+setInterval(() => {
+  sweepExpiredDonatedPets();
+}, 3e4);
+app.post("/api/pets/mark-donated", async (req, res) => {
+  const { petId, authorId, donatedTo, delayMs } = req.body || {};
+  if (typeof petId !== "string" || !/^[a-zA-Z0-9_-]{4,100}$/.test(petId.trim())) {
+    res.status(400).json({ error: "Identificador do pet inv\xE1lido." });
+    return;
+  }
+  if (typeof authorId !== "string" || authorId.trim().length < 2) {
+    res.status(401).json({ error: "Autentica\xE7\xE3o necess\xE1ria para confirmar a doa\xE7\xE3o." });
+    return;
+  }
+  const cleanPetId = petId.trim();
+  const cleanAuthorId = authorId.trim();
+  const safeDelayMs = typeof delayMs === "number" && Number.isFinite(delayMs) ? Math.min(3e4, Math.max(4e3, Math.round(delayMs))) : PET_AUTO_DELETE_DEFAULT_MS;
+  try {
+    const fields = await fetchPetDocRest(cleanPetId);
+    if (!fields) {
+      res.json({ success: true, alreadyDeleted: true, petId: cleanPetId });
+      return;
+    }
+    const entityType = readRestFieldString(fields, "entityType");
+    if (entityType !== "pet_listing") {
+      res.status(400).json({ error: "Documento informado n\xE3o \xE9 uma publica\xE7\xE3o de pet." });
+      return;
+    }
+    const docAuthorId = readRestFieldString(fields, "authorId");
+    if (docAuthorId && docAuthorId !== cleanAuthorId) {
+      res.status(403).json({ error: "Apenas quem publicou este pet pode marcar como doado." });
+      return;
+    }
+    const existingTimer = scheduledPetDeletions.get(cleanPetId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    const deleteAt = Date.now() + safeDelayMs;
+    const recipientInfo = typeof donatedTo === "string" && donatedTo.trim() ? ` para ${donatedTo.trim()}` : "";
+    console.log(
+      `[Pets Server] Pet "${cleanPetId}" marcado como doado/trocado${recipientInfo}. Remo\xE7\xE3o agendada em ${Math.round(
+        safeDelayMs / 1e3
+      )}s.`
+    );
+    const timer = setTimeout(() => {
+      deletePetListingFromServer(cleanPetId, `pet doado/trocado${recipientInfo}`);
+    }, safeDelayMs);
+    scheduledPetDeletions.set(cleanPetId, timer);
+    res.json({
+      success: true,
+      petId: cleanPetId,
+      deleteAt,
+      delaySeconds: Math.round(safeDelayMs / 1e3)
+    });
+  } catch (err) {
+    console.error("[Pets Server] Erro ao agendar exclus\xE3o do pet doado:", err);
+    res.status(500).json({ error: "N\xE3o foi poss\xEDvel agendar a remo\xE7\xE3o autom\xE1tica agora." });
+  }
+});
 app.get("/api/feedback", async (req, res) => {
   try {
     const snap = await adminDb.collection("community_feedback").orderBy("createdAt", "desc").limit(50).get();
