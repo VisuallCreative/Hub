@@ -411,6 +411,9 @@ export interface PetListing {
   authorId: string;
   reportsCount: number;
   reportedBy: string[];
+  completedAt?: number;
+  deleteAt?: number;
+  donatedTo?: string;
   createdAt: number;
   updatedAt: number;
 }

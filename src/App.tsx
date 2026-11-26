@@ -64,7 +64,7 @@ import { playTapSound, playLevelUpSound, playSuccessSound } from './utils/audio'
 // Import Firebase config & helpers
 import { auth, db, googleProvider, OperationType, handleFirestoreError } from './firebase';
 import { onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, User, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 export const maskEmail = (email?: string | null): string => {
   if (!email) return '';
@@ -2917,6 +2917,70 @@ export default function App() {
     }
   };
 
+  const handleMarkPetDonatedFromNotification = async (
+    petId: string,
+    petName: string,
+    listingType: 'doacao' | 'troca',
+    donatedTo: string
+  ): Promise<boolean> => {
+    if (!petId) return false;
+    const delayMs = 15000;
+    const now = Date.now();
+    const deleteAt = now + delayMs;
+    const authorId = user?.uid || 'owner_notification';
+
+    try {
+      await updateDoc(doc(db, 'user_passports', petId), {
+        status: 'concluido',
+        completedAt: now,
+        deleteAt,
+        donatedTo,
+        updatedAt: now,
+      });
+    } catch (updateErr) {
+      console.warn('[Pets] Documento pode já ter sido removido:', updateErr);
+    }
+
+    let serverScheduled = false;
+    try {
+      const resp = await fetch('/api/pets/mark-donated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          petId,
+          authorId,
+          donatedTo,
+          delayMs,
+        }),
+      });
+      serverScheduled = resp.ok;
+    } catch (serverErr) {
+      console.warn('[Pets] Fallback cliente ativo para remoção automática:', serverErr);
+    }
+
+    if (!serverScheduled) {
+      window.setTimeout(() => {
+        deleteDoc(doc(db, 'user_passports', petId)).catch(() => {});
+      }, delayMs);
+    }
+
+    triggerAudio('success');
+    handleAddFanXP(
+      10,
+      `Confirmou ${listingType === 'doacao' ? 'doação' : 'troca'} do pet ${petName}`,
+      `pet_completed_${petId}`
+    );
+    setPopupNotification({
+      id: `pet_donated_${Date.now()}`,
+      title: `${petName} marcado como ${listingType === 'doacao' ? 'doado' : 'trocado'}!`,
+      body: `Obrigado por avisar! O servidor vai apagar a publicação de "${petName}" automaticamente em 15 segundos.`,
+      categoryLabel: 'Pets PK XD',
+      targetUrl: '/pets',
+      createdAt: Date.now(),
+    });
+    return true;
+  };
+
   const handleTestPopupNotification = () => {
     triggerAudio('success');
     const title = 'PK XD Central — Pop-up Ativo!';
@@ -3517,6 +3581,7 @@ export default function App() {
             onDeleteNotification={handleDeleteNotification}
             onEnablePush={handleEnableBrowserPush}
             onTestPopup={handleTestPopupNotification}
+            onMarkPetDonated={handleMarkPetDonatedFromNotification}
             onNavigate={navigateTo}
             triggerAudio={triggerAudio}
           />

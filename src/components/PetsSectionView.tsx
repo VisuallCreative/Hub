@@ -266,6 +266,12 @@ export default function PetsSectionView({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [busyCardId, setBusyCardId] = useState<string | null>(null);
 
+  // "Já doei / Já troquei" confirmation modal & live auto-delete countdown
+  const [donatedModalPet, setDonatedModalPet] = useState<PetListing | null>(null);
+  const [donatedToInput, setDonatedToInput] = useState('');
+  const [isMarkingDonated, setIsMarkingDonated] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
   // Post-publish notification activation modal & reminder
   const [publishedSuccessPet, setPublishedSuccessPet] = useState<{
     petName: string;
@@ -468,6 +474,9 @@ export default function PetsSectionView({
               authorId: data.authorId || '',
               reportsCount: typeof data.reportsCount === 'number' ? data.reportsCount : 0,
               reportedBy: Array.isArray(data.reportedBy) ? data.reportedBy : [],
+              completedAt: typeof data.completedAt === 'number' ? data.completedAt : undefined,
+              deleteAt: typeof data.deleteAt === 'number' ? data.deleteAt : undefined,
+              donatedTo: typeof data.donatedTo === 'string' ? data.donatedTo : '',
               createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
               updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : Date.now(),
             } as PetListing;
@@ -485,6 +494,26 @@ export default function PetsSectionView({
     );
     return () => unsubscribe();
   }, []);
+
+  // Live 1s countdown ticker + resilient fallback cleanup when any pet is queued for server auto-deletion
+  useEffect(() => {
+    const pendingDeletion = listings.filter((p) => p.status === 'concluido');
+    if (pendingDeletion.length === 0) return;
+
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      setNowTick(now);
+
+      pendingDeletion.forEach((pet) => {
+        // Fallback cleanup if server was unavailable (e.g., static deploy) after grace period + 8s buffer
+        if (pet.deleteAt && now > pet.deleteAt + 8000 && currentUser?.uid && pet.authorId === currentUser.uid) {
+          deleteDoc(doc(db, PETS_COLLECTION, pet.id)).catch(() => {});
+        }
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [listings, currentUser?.uid]);
 
   // Keep selectedPet in sync with live Firestore updates
   useEffect(() => {
@@ -733,24 +762,101 @@ export default function PetsSectionView({
     }, 2200);
   };
 
+  const openDonatedModal = (pet: PetListing) => {
+    triggerAudio('tap');
+    setDonatedModalPet(pet);
+    setDonatedToInput(pet.donatedTo || '');
+  };
+
+  const handleConfirmMarkDonated = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!donatedModalPet || !currentUser?.uid) return;
+
+    const targetPet = donatedModalPet;
+    const cleanDonatedTo = donatedToInput.trim().slice(0, 60);
+    const delayMs = 15000;
+    const now = Date.now();
+    const deleteAt = now + delayMs;
+
+    setIsMarkingDonated(true);
+    setBusyCardId(targetPet.id);
+    try {
+      await updateDoc(doc(db, PETS_COLLECTION, targetPet.id), {
+        status: 'concluido',
+        completedAt: now,
+        deleteAt,
+        donatedTo: cleanDonatedTo,
+        updatedAt: now,
+      });
+
+      // Ask the server to automatically delete the publication after the brief confirmation window
+      let serverScheduled = false;
+      try {
+        const resp = await fetch('/api/pets/mark-donated', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            petId: targetPet.id,
+            authorId: currentUser.uid,
+            donatedTo: cleanDonatedTo,
+            delayMs,
+          }),
+        });
+        serverScheduled = resp.ok;
+      } catch (serverErr) {
+        console.warn('[Pets] Fallback cliente ativo para remoção automática:', serverErr);
+      }
+
+      if (!serverScheduled) {
+        window.setTimeout(() => {
+          deleteDoc(doc(db, PETS_COLLECTION, targetPet.id)).catch(() => {});
+        }, delayMs);
+      }
+
+      triggerAudio('success');
+      onAddXP?.(
+        10,
+        `Confirmou ${targetPet.listingType === 'doacao' ? 'doação' : 'troca'} do pet ${targetPet.petName}`,
+        `pet_completed_${targetPet.id}`
+      );
+      showNotice(
+        'success',
+        `"${targetPet.petName}" marcado como ${
+          targetPet.listingType === 'doacao' ? 'doado' : 'trocado'
+        }! O servidor vai apagar a publicação automaticamente em 15 segundos.`
+      );
+      setDonatedModalPet(null);
+      setDonatedToInput('');
+      if (selectedPet?.id === targetPet.id) {
+        setSelectedPet(null);
+      }
+    } catch (err) {
+      console.error('[Pets] Erro ao confirmar doação do pet:', err);
+      showNotice('error', 'Não foi possível confirmar a doação agora. Tente novamente.');
+    } finally {
+      setIsMarkingDonated(false);
+      setBusyCardId(null);
+    }
+  };
+
   const handleToggleStatus = async (pet: PetListing) => {
     if (!currentUser) return;
+    if (pet.status === 'disponivel') {
+      openDonatedModal(pet);
+      return;
+    }
     triggerAudio('tap');
-    const nextStatus: PetListingStatus =
-      pet.status === 'disponivel' ? 'concluido' : 'disponivel';
     setBusyCardId(pet.id);
     try {
       await updateDoc(doc(db, PETS_COLLECTION, pet.id), {
-        status: nextStatus,
+        status: 'disponivel',
+        completedAt: 0,
+        deleteAt: 0,
+        donatedTo: '',
         updatedAt: Date.now(),
       });
       triggerAudio('success');
-      showNotice(
-        'success',
-        nextStatus === 'concluido'
-          ? `"${pet.petName}" marcado como ${pet.listingType === 'doacao' ? 'doado' : 'trocado'}!`
-          : `"${pet.petName}" reaberto como disponível.`
-      );
+      showNotice('success', `"${pet.petName}" reaberto como disponível.`);
     } catch (err) {
       console.error('[Pets] Erro ao atualizar status:', err);
       showNotice('error', 'Não foi possível atualizar o status do pet.');
@@ -1093,9 +1199,19 @@ export default function PetsSectionView({
                           className="group-hover:scale-105 transition-transform duration-300"
                         />
                         {isCompleted && (
-                          <div className="absolute inset-0 bg-[#120624]/55 flex items-center justify-center p-4">
-                            <span className="px-4 py-1.5 rounded-xl bg-white border-[2.5px] border-[#120624] text-[#120624] font-display font-bold text-sm">
-                              {pet.listingType === 'doacao' ? 'Pet já doado' : 'Pet já trocado'}
+                          <div className="absolute inset-0 bg-[#120624]/65 flex flex-col items-center justify-center gap-2 p-4 text-center">
+                            <span className="px-4 py-1.5 rounded-xl bg-[#DCFCE7] border-[2.5px] border-[#120624] text-[#14532D] font-display font-bold text-sm">
+                              {pet.listingType === 'doacao' ? 'Pet já doado!' : 'Pet já trocado!'}
+                            </span>
+                            {pet.donatedTo && (
+                              <span className="px-3 py-1 rounded-lg bg-white/95 border-2 border-[#120624] text-[#120624] text-[11px] font-extrabold">
+                                Para {pet.donatedTo}
+                              </span>
+                            )}
+                            <span className="px-3 py-1 rounded-lg bg-[#FEF9C3] border-2 border-[#120624] text-[#120624] text-[11px] font-extrabold tabular-nums">
+                              {pet.deleteAt && pet.deleteAt > nowTick
+                                ? `Servidor apagando em ${Math.max(1, Math.ceil((pet.deleteAt - nowTick) / 1000))}s...`
+                                : 'Servidor removendo publicação...'}
                             </span>
                           </div>
                         )}
@@ -1219,6 +1335,22 @@ export default function PetsSectionView({
                               <span>Eu quero!</span>
                             </>
                           )}
+                        </button>
+                      )}
+
+                      {!isCompleted && isOwner && (
+                        <button
+                          type="button"
+                          disabled={busyCardId === pet.id}
+                          onClick={() => openDonatedModal(pet)}
+                          className="w-full min-h-[42px] px-4 py-2 rounded-2xl border-[2.5px] border-[#120624] bg-[#DCFCE7] hover:bg-[#BBF7D0] text-[#14532D] shadow-[0_3px_0_#120624] text-xs font-extrabold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>
+                            {pet.listingType === 'doacao'
+                              ? 'Já doei este pet!'
+                              : 'Já troquei este pet!'}
+                          </span>
                         </button>
                       )}
 
@@ -1849,6 +1981,28 @@ export default function PetsSectionView({
                     </button>
                   )}
 
+                {/* OWNER MARK AS DONATED / TRADED CTA INSIDE DETAIL MODAL */}
+                {selectedPet.status === 'disponivel' &&
+                  currentUser?.uid &&
+                  selectedPet.authorId === currentUser.uid && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = selectedPet;
+                        setSelectedPet(null);
+                        openDonatedModal(target);
+                      }}
+                      className="w-full min-h-[46px] px-5 py-3 rounded-2xl border-[2.5px] border-[#120624] bg-[#DCFCE7] hover:bg-[#BBF7D0] text-[#14532D] shadow-[0_3px_0_#120624] text-sm font-extrabold inline-flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>
+                        {selectedPet.listingType === 'doacao'
+                          ? 'Já doei este pet! (Apagar publicação)'
+                          : 'Já troquei este pet! (Apagar publicação)'}
+                      </span>
+                    </button>
+                  )}
+
                 {/* Bottom Actions */}
                 <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200">
                   {(!currentUser || selectedPet.authorId !== currentUser.uid) && (
@@ -2257,6 +2411,120 @@ export default function PetsSectionView({
                   </button>
                 </div>
               </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* CONFIRM "JÁ DOEI / JÁ TROQUEI" MODAL (SERVER AUTO-DELETES LISTING) */}
+      {donatedModalPet &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[125] bg-[#120624]/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+            onClick={() => !isMarkingDonated && setDonatedModalPet(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pet-donated-modal-title"
+              className="w-full max-w-md bg-white text-[#120624] border-[3.5px] border-[#120624] rounded-[28px] shadow-[0_8px_0_#16032E] overflow-hidden my-auto"
+            >
+              <div className="bg-[#14532D] text-white px-5 sm:px-6 py-4 border-b-[3px] border-[#120624] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#DCFCE7] border-2 border-[#120624] text-[#14532D] flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <h2
+                    id="pet-donated-modal-title"
+                    className="font-display font-bold text-lg sm:text-xl text-white truncate"
+                  >
+                    {donatedModalPet.listingType === 'doacao'
+                      ? 'Confirmar que já doou!'
+                      : 'Confirmar que já trocou!'}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  disabled={isMarkingDonated}
+                  onClick={() => setDonatedModalPet(null)}
+                  className="w-9 h-9 rounded-full bg-[#F9C826] border-2 border-[#120624] text-[#120624] flex items-center justify-center cursor-pointer shrink-0"
+                  aria-label="Fechar janela"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmMarkDonated} className="p-5 sm:p-6 space-y-4">
+                <div className="rounded-2xl bg-[#F8FAFC] border-2 border-[#120624] p-3 flex items-center gap-3">
+                  <div className="w-16 h-12 rounded-xl border-2 border-[#120624] overflow-hidden shrink-0 bg-slate-100">
+                    <PetPhotoFrame
+                      src={donatedModalPet.petPhotoUrl}
+                      alt={donatedModalPet.petName}
+                    />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <p className="font-display font-bold text-base text-[#120624] truncate">
+                      {donatedModalPet.petName}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-600">
+                      {donatedModalPet.listingType === 'doacao'
+                        ? 'Doação gratuita'
+                        : 'Troca de pet'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-[#FEF9C3] border-2 border-[#120624] p-3.5 text-left text-xs font-bold text-[#120624] leading-relaxed">
+                  Ao confirmar que você já{' '}
+                  {donatedModalPet.listingType === 'doacao' ? 'doou' : 'trocou'}{' '}
+                  este pet para quem pediu, o <strong>servidor vai apagar esta publicação automaticamente</strong> em 15 segundos para que ninguém mais fique pedindo.
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label
+                    htmlFor="pet-donated-to-input"
+                    className="block text-xs font-extrabold text-[#120624]"
+                  >
+                    Para quem você{' '}
+                    {donatedModalPet.listingType === 'doacao' ? 'doou' : 'trocou'}? (opcional)
+                  </label>
+                  <input
+                    id="pet-donated-to-input"
+                    type="text"
+                    maxLength={60}
+                    value={donatedToInput}
+                    onChange={(e) => setDonatedToInput(e.target.value)}
+                    placeholder="Ex: Maria #1234"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border-2 border-[#120624] text-sm font-semibold text-[#120624] focus:outline-none focus:ring-2 focus:ring-[#16A34A]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    disabled={isMarkingDonated}
+                    onClick={() => setDonatedModalPet(null)}
+                    className="px-4 py-2.5 rounded-full border-2 border-[#120624] bg-white hover:bg-slate-100 text-xs font-extrabold text-[#120624] cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isMarkingDonated}
+                    className="px-5 py-2.5 rounded-full border-[2.5px] border-[#120624] bg-[#22C55E] hover:bg-[#16A34A] text-[#120624] shadow-[0_3px_0_#120624] text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>
+                      {isMarkingDonated
+                        ? 'Confirmando...'
+                        : donatedModalPet.listingType === 'doacao'
+                        ? 'Sim, já doei!'
+                        : 'Sim, já troquei!'}
+                    </span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>,
           document.body

@@ -30,6 +30,12 @@ interface NotificationsPageViewProps {
   onDeleteNotification: (id: string, isPersonalPet?: boolean) => void;
   onEnablePush: () => Promise<unknown> | void;
   onTestPopup?: () => void;
+  onMarkPetDonated?: (
+    petId: string,
+    petName: string,
+    listingType: 'doacao' | 'troca',
+    donatedTo: string
+  ) => Promise<boolean>;
   onNavigate: (path: string) => void;
   triggerAudio: (type: 'tap' | 'success' | 'levelUp') => void;
 }
@@ -70,11 +76,15 @@ export default function NotificationsPageView({
   onDeleteNotification,
   onEnablePush,
   onTestPopup,
+  onMarkPetDonated,
   onNavigate,
   triggerAudio,
 }: NotificationsPageViewProps) {
   const [filter, setFilter] = useState<'all' | 'unread' | NotificationCategory>('all');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [confirmDonatedNotifId, setConfirmDonatedNotifId] = useState<string | null>(null);
+  const [busyDonatedPetId, setBusyDonatedPetId] = useState<string | null>(null);
+  const [donatedPetIds, setDonatedPetIds] = useState<string[]>([]);
 
   const handleCopyValue = (key: string, value: string) => {
     triggerAudio('tap');
@@ -366,6 +376,85 @@ export default function NotificationsPageView({
                               <p className="text-xs font-semibold text-slate-700 pt-2 border-t border-slate-200">
                                 <strong className="text-[#120624]">Recado:</strong> {notif.petInterest.message}
                               </p>
+                            )}
+
+                            {/* Direct "Já doei / Já troquei" button that triggers server auto-delete */}
+                            {onMarkPetDonated && notif.petInterest.petId && (
+                              <div className="pt-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                                {donatedPetIds.includes(notif.petInterest.petId) ? (
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-emerald-800 bg-[#DCFCE7] border-2 border-[#120624] px-3 py-1.5 rounded-xl">
+                                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                    <span>
+                                      {notif.petInterest.petListingType === 'doacao'
+                                        ? 'Pet marcado como doado! O servidor vai apagar a publicação automaticamente.'
+                                        : 'Pet marcado como trocado! O servidor vai apagar a publicação automaticamente.'}
+                                    </span>
+                                  </span>
+                                ) : confirmDonatedNotifId === notif.id ? (
+                                  <div className="w-full rounded-xl bg-[#FEF9C3] border-2 border-[#120624] p-2.5 flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-xs font-extrabold text-[#120624]">
+                                      Confirmar? O servidor vai apagar a publicação de "{notif.petInterest.petName}" em 15s.
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        disabled={busyDonatedPetId === notif.petInterest.petId}
+                                        onClick={async () => {
+                                          const pi = notif.petInterest!;
+                                          setBusyDonatedPetId(pi.petId);
+                                          const ok = await onMarkPetDonated(
+                                            pi.petId,
+                                            pi.petName,
+                                            pi.petListingType,
+                                            `${pi.senderName} #${pi.senderTagNumber}`
+                                          );
+                                          setBusyDonatedPetId(null);
+                                          setConfirmDonatedNotifId(null);
+                                          if (ok) {
+                                            setDonatedPetIds((prev) =>
+                                              Array.from(new Set([...prev, pi.petId]))
+                                            );
+                                            onMarkRead(notif.id);
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg border-2 border-[#120624] bg-[#22C55E] hover:bg-[#16A34A] text-[#120624] text-xs font-extrabold cursor-pointer disabled:opacity-50"
+                                      >
+                                        {busyDonatedPetId === notif.petInterest.petId
+                                          ? 'Confirmando...'
+                                          : 'Sim, confirmar!'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDonatedNotifId(null)}
+                                        className="px-2.5 py-1.5 rounded-lg border-2 border-[#120624] bg-white text-[#120624] text-xs font-extrabold cursor-pointer"
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <span className="text-[11px] font-bold text-slate-600">
+                                      Já entregou o pet para essa pessoa?
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        triggerAudio('tap');
+                                        setConfirmDonatedNotifId(notif.id);
+                                      }}
+                                      className="px-3.5 py-1.5 rounded-xl border-2 border-[#120624] bg-[#DCFCE7] hover:bg-[#BBF7D0] text-[#14532D] text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                      <span>
+                                        {notif.petInterest.petListingType === 'doacao'
+                                          ? `Já doei para ${notif.petInterest.senderName}!`
+                                          : `Já troquei com ${notif.petInterest.senderName}!`}
+                                      </span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
